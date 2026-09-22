@@ -55,6 +55,8 @@ function Building3D({
   const progressTextRef = useRef<HTMLSpanElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
   const lastRoofCheck = useRef(0);
+  const lastLightCheck = useRef(0);
+  const [isLightOn, setIsLightOn] = useState(false);
 
   const mats = SHARED_BUILDING_MATS;
 
@@ -96,6 +98,46 @@ function Building3D({
         }
 
         roofRef.current.visible = !hasOccupantInside;
+      }
+    }
+
+    if (t - lastLightCheck.current > 0.3) {
+      lastLightCheck.current = t;
+      const hour = useGameStore.getState().time.hour ?? 12;
+      const isNight = hour >= 20 || hour < 6;
+      let hasSleeper = false;
+
+      if (isNight) {
+        const bx = building.gridPosition ? building.gridPosition[0] : pos[0] - width / 2;
+        const bz = building.gridPosition ? building.gridPosition[1] : pos[2] - height / 2;
+        const bWidth = building.buildingWidth || width || 2;
+        const bHeight = building.buildingHeight || height || 2;
+
+        for (const u of characterEntities) {
+          if (u.currentJob?.type === 'sleep') {
+            if (u.currentJob.targetBuildingId === building.id) {
+              hasSleeper = true;
+              break;
+            }
+            if (u.position) {
+              const [ux, , uz] = u.position;
+              if (
+                ux >= bx + 0.1 &&
+                ux <= bx + bWidth - 0.1 &&
+                uz >= bz + 0.1 &&
+                uz <= bz + bHeight - 0.1
+              ) {
+                hasSleeper = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      const shouldLight = isNight && hasSleeper;
+      if (shouldLight !== isLightOn) {
+        setIsLightOn(shouldLight);
       }
     }
 
@@ -239,10 +281,12 @@ function Building3D({
                 <mesh material={mats.plaster} position={[-0.04, 0.21, 0]} rotation={[0, 0.2, 0]}>
                   <boxGeometry args={[0.14, 0.02, 0.12]} />
                 </mesh>
-                <mesh material={mats.candleGlow} position={[0.06, 0.23, 0]}>
+                <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0.06, 0.23, 0]}>
                   <cylinderGeometry args={[0.016, 0.018, 0.07, 5]} />
                 </mesh>
-                <pointLight color="#fde047" intensity={0.7} distance={2.5} position={[0.06, 0.32, 0]} />
+                {isLightOn && (
+                  <pointLight color="#fde047" intensity={0.7} distance={2.5} position={[0.06, 0.32, 0]} />
+                )}
               </group>
 
               <group position={[0.50, 0, -0.25]}>
@@ -337,9 +381,8 @@ function Building3D({
                 ))
               )}
 
-              <mesh position={[-0.83, 0.58, -0.05]}>
+              <mesh position={[-0.83, 0.58, -0.05]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.04, 0.28, 0.28]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
 
               <group position={[-0.48, 0, -0.25]}>
@@ -382,10 +425,12 @@ function Building3D({
                 <mesh material={mats.plaster} position={[-0.04, 0.24, 0]} rotation={[0, 0.2, 0]}>
                   <boxGeometry args={[0.18, 0.02, 0.14]} />
                 </mesh>
-                <mesh material={mats.candleGlow} position={[0.08, 0.25, 0.05]}>
+                <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0.08, 0.25, 0.05]}>
                   <cylinderGeometry args={[0.016, 0.02, 0.06, 5]} />
                 </mesh>
-                <pointLight color="#fde047" intensity={0.5} distance={1.8} position={[0.08, 0.32, 0.05]} />
+                {isLightOn && (
+                  <pointLight color="#fde047" intensity={0.5} distance={1.8} position={[0.08, 0.32, 0.05]} />
+                )}
               </group>
 
               <mesh material={mats.timberDark} position={[0.78, 0.38, -0.05]} castShadow>
@@ -675,21 +720,17 @@ function Building3D({
                 </mesh>
               </group>
 
-              <mesh position={[-1.42, 0.75, 0]}>
+              <mesh position={[-1.42, 0.75, 0]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.04, 0.36, 0.38]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
-              <mesh position={[1.42, 0.75, 0]}>
+              <mesh position={[1.42, 0.75, 0]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.04, 0.36, 0.38]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
-              <mesh position={[-0.85, 0.75, 0.92]}>
+              <mesh position={[-0.85, 0.75, 0.92]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.36, 0.36, 0.04]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
-              <mesh position={[0.85, 0.75, 0.92]}>
+              <mesh position={[0.85, 0.75, 0.92]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.36, 0.36, 0.04]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
 
               <group position={[-0.95, 0, -0.15]}>
@@ -717,10 +758,12 @@ function Building3D({
                 <mesh material={mats.timberLight} position={[0.48, 0.16, -0.45]} castShadow receiveShadow>
                   <boxGeometry args={[0.26, 0.3, 0.26]} />
                 </mesh>
-                <mesh material={mats.candleGlow} position={[0.48, 0.33, -0.45]}>
+                <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0.48, 0.33, -0.45]}>
                   <cylinderGeometry args={[0.015, 0.02, 0.06, 5]} />
                 </mesh>
-                <pointLight color="#fde047" intensity={0.6} distance={2.0} position={[0.48, 0.4, -0.45]} />
+                {isLightOn && (
+                  <pointLight color="#fde047" intensity={0.6} distance={2.0} position={[0.48, 0.4, -0.45]} />
+                )}
               </group>
 
               <group position={[0.95, 0, -0.15]}>
@@ -757,10 +800,12 @@ function Building3D({
                 <mesh material={mats.stoneMed} position={[0, 0.45, 0]} castShadow receiveShadow>
                   <boxGeometry args={[0.85, 0.90, 0.32]} />
                 </mesh>
-                <mesh material={mats.fireOrange} position={[0, 0.18, 0.1]}>
+                <mesh material={isLightOn ? mats.fireOrange : mats.fireplaceCold} position={[0, 0.18, 0.1]}>
                   <dodecahedronGeometry args={[0.12, 0]} />
                 </mesh>
-                <pointLight color="#f97316" intensity={1.3} distance={3.5} position={[0, 0.28, 0.15]} />
+                {isLightOn && (
+                  <pointLight color="#f97316" intensity={1.3} distance={3.5} position={[0, 0.28, 0.15]} />
+                )}
                 <mesh material={mats.stoneDark} position={[0, 0.92, 0.08]} castShadow>
                   <boxGeometry args={[0.92, 0.06, 0.18]} />
                 </mesh>
@@ -785,10 +830,12 @@ function Building3D({
                 <mesh material={mats.goldWheat} position={[-0.1, 0.26, 0]}>
                   <dodecahedronGeometry args={[0.05, 0]} />
                 </mesh>
-                <mesh material={mats.candleGlow} position={[0.1, 0.27, 0]}>
+                <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0.1, 0.27, 0]}>
                   <cylinderGeometry args={[0.015, 0.02, 0.07, 5]} />
                 </mesh>
-                <pointLight color="#fde047" intensity={0.6} distance={2.2} position={[0.1, 0.34, 0]} />
+                {isLightOn && (
+                  <pointLight color="#fde047" intensity={0.6} distance={2.2} position={[0.1, 0.34, 0]} />
+                )}
                 <mesh material={mats.timberDark} position={[-0.44, 0.12, 0]} castShadow>
                   <boxGeometry args={[0.16, 0.18, 0.4]} />
                 </mesh>
@@ -955,13 +1002,11 @@ function Building3D({
                   <boxGeometry args={[0.14, 0.88, 0.14]} />
                 </mesh>
               ))}
-              <mesh position={[-0.6, 1.25, 1.29]}>
+              <mesh position={[-0.6, 1.25, 1.29]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.35, 0.42, 0.04]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
-              <mesh position={[0.6, 1.25, 1.29]}>
+              <mesh position={[0.6, 1.25, 1.29]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                 <boxGeometry args={[0.35, 0.42, 0.04]} />
-                <meshBasicMaterial color="#fef08a" />
               </mesh>
               <group position={[1.12, 1.2, 1.12]}>
                 <mesh material={mats.stoneMed} position={[0, 0.4, 0]} castShadow receiveShadow>
@@ -1009,9 +1054,8 @@ function Building3D({
                 <mesh material={mats.plaster} position={[0, 0, 0]} castShadow receiveShadow>
                   <boxGeometry args={[0.62, 0.52, 0.45]} />
                 </mesh>
-                <mesh position={[0, 0.04, 0.24]}>
+                <mesh position={[0, 0.04, 0.24]} material={isLightOn ? mats.windowLit : mats.windowUnlit}>
                   <boxGeometry args={[0.32, 0.32, 0.02]} />
-                  <meshBasicMaterial color="#fef08a" />
                 </mesh>
                 <mesh material={mats.royalBlueRoof} position={[0, 0.32, 0]} rotation={[0.25, 0, 0]} castShadow>
                   <boxGeometry args={[0.72, 0.06, 0.55]} />
@@ -1468,7 +1512,7 @@ function Building3D({
           </mesh>
 
           <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-            <div className="bg-slate-950/95 text-amber-300 text-[11px] px-3 py-1.5 rounded-xl border border-amber-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none backdrop-blur-md">
+            <div className="bg-slate-950 text-amber-300 text-[11px] px-3 py-1.5 rounded-xl border border-amber-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
               <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-amber-400">
                 🔨 {Math.round(progress)}%
               </span>

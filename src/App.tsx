@@ -4,7 +4,6 @@ import { GameLoop } from './engine/time/GameLoop';
 import { useGameStore } from './store/useGameStore';
 import { GameCanvas } from './components/canvas/GameCanvas';
 import { TopHUD } from './components/ui/TopHUD';
-import { NotificationsBar } from './components/ui/NotificationsBar';
 import { BottomActionBar } from './components/ui/BottomActionBar';
 import { InspectorPanel } from './components/ui/InspectorPanel';
 import { EventLog } from './components/ui/EventLog';
@@ -108,7 +107,6 @@ export default function App() {
             <>
               <TopHUD />
               {isLordsBarOpen && <LordsBar />}
-              <NotificationsBar />
               <RoadToolPanel />
               <BottomActionBar grid={grid} />
               <InspectorPanel />

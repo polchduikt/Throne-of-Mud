@@ -33,7 +33,7 @@ export function AudioController() {
 
   useEffect(() => {
     audioManager.updateAmbientState(season, weather, isNight, rainIntensity, stormIntensity);
-  }, [season, weather, isNight, Math.round(rainIntensity * 25), Math.round(stormIntensity * 25)]);
+  }, [season, weather, isNight, Math.round(rainIntensity * 10), Math.round(stormIntensity * 10)]);
 
   useEffect(() => {
     if (!activeTreeHits || activeTreeHits.length === 0) return;

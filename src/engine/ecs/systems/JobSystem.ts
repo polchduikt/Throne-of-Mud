@@ -83,6 +83,18 @@ export class JobSystem {
           if (unit.needs) {
             unit.needs.energy = Math.min(100, unit.needs.energy + 0.35);
           }
+          if ((!unit.path || unit.path.length === 0) && unit.currentJob.targetPosition) {
+            const [bedX, bedZ] = unit.currentJob.targetPosition;
+            const currentUPos = unit.position;
+            if (currentUPos) {
+              const distToBed = Math.hypot(currentUPos[0] - bedX, currentUPos[2] - bedZ);
+              if (distToBed > 0.3) {
+                unit.position = [bedX, 0.05, bedZ];
+                unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
+                unit.path = [];
+              }
+            }
+          }
           continue;
         }
 

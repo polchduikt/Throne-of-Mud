@@ -763,7 +763,7 @@ export function FoliageRenderer({ grid }: Props) {
       fallenAutumnCanopies,
       fallenPineTiers,
     };
-  }, [grid, foliageVersion, buildingVersion, resourceDeposits]);
+  }, [grid, foliageVersion, resourceDeposits]);
 
   const geos = useMemo(() => ({
     trunkGeo: new THREE.CylinderGeometry(0.12, 0.22, 0.85, 6),

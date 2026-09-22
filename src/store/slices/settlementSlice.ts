@@ -28,7 +28,7 @@ import { initializeWorldEntities } from '../../engine/world/worldInitializer';
 import type { GameState } from '../useGameStore';
 
 let pendingBuildingVersion = false;
-let pendingFoliageVersion = false;
+let foliageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export interface SettlementSlice {
   resources: ResourceInventory;
@@ -128,13 +128,7 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
   influence: STARTING_INFLUENCE,
   royalFavor: STARTING_ROYAL_FAVOR,
 
-  activeCorrespondence: {
-    id: 'letter-1',
-    sender: 'Гільдебольт фон Беренройт',
-    title: 'Депеша від Сусіда-Лорда',
-    message: 'Вітаю володаря земель Goldhof! Повідомляю, що межі наших володінь перебувають під наглядом моєї варти.',
-    timeLeft: 27,
-  },
+  activeCorrespondence: null,
   dismissCorrespondence: () => set({ activeCorrespondence: null }),
 
   pendingJobs: [],
@@ -457,13 +451,13 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
 
   foliageVersion: 0,
   incrementFoliageVersion: () => {
-    if (!pendingFoliageVersion) {
-      pendingFoliageVersion = true;
-      queueMicrotask(() => {
-        pendingFoliageVersion = false;
-        set((state) => ({ foliageVersion: state.foliageVersion + 1 }));
-      });
+    if (foliageDebounceTimer) {
+      clearTimeout(foliageDebounceTimer);
     }
+    foliageDebounceTimer = setTimeout(() => {
+      foliageDebounceTimer = null;
+      set((state) => ({ foliageVersion: state.foliageVersion + 1 }));
+    }, 800);
   },
 
   regions: JSON.parse(JSON.stringify(DEFAULT_REGIONS)),
@@ -541,13 +535,7 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
       activeTool: 'select',
       activeBuildType: null,
       activeMenuTab: null,
-      activeCorrespondence: {
-        id: 'letter-1',
-        sender: 'Гільдебольт фон Беренройт',
-        title: 'Депеша від Сусіда-Лорда',
-        message: 'Вітаю володаря навколишніх земель! Повідомляю, що межі наших володінь перебувають під пильним наглядом моєї варти.',
-        timeLeft: 27,
-      },
+      activeCorrespondence: null,
       chronicle: [
         {
           id: 'init-1',

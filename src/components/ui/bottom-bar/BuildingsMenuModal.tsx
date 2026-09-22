@@ -69,9 +69,9 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
   };
 
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#121418]/98 backdrop-blur-xl p-4 rounded-2xl border-2 border-[#5a4830] shadow-[0_12px_40px_rgba(0,0,0,0.95)] flex flex-col gap-3 w-[640px] max-w-[95vw] pointer-events-auto z-50 animate-in fade-in slide-in-from-bottom-3 duration-200">
+    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#121418] p-4 rounded-2xl border-2 border-[#5a4830] shadow-[0_12px_40px_rgba(0,0,0,0.95)] flex flex-col gap-3 w-[860px] max-w-[96vw] pointer-events-auto z-50 animate-in fade-in slide-in-from-bottom-3 duration-200">
       <div className="flex items-center justify-between border-b border-[#3d3222] pb-2">
-        <div className="flex items-center gap-1 overflow-x-auto">
+        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {categories.map((cat) => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
@@ -82,13 +82,13 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
                   audioManager.playUIClick();
                   setActiveCategory(cat.id);
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-cinzel font-bold transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-cinzel font-bold transition whitespace-nowrap cursor-pointer ${
                   isActive
                     ? 'bg-gradient-to-b from-[#8c6b38] to-[#422d10] text-amber-100 border border-[#d4af37] shadow-md'
                     : 'text-slate-400 hover:text-amber-200 hover:bg-[#1f222a]'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span>{cat.label}</span>
               </button>
             );
@@ -97,14 +97,14 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
 
         <button
           onClick={onClose}
-          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+          className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0 ml-2"
           title={dict.common.close}
         >
           <CrossCloseIcon className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-[50vh] overflow-y-auto pr-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {categoryBlueprints[activeCategory].map((b) => {
           const isSelected = activeBuildType === b.type;
           const bTrans = dict.buildings.items[b.type] || { name: b.name, description: b.description };

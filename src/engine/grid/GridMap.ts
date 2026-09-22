@@ -286,16 +286,38 @@ export class GridMap {
     return this.canPlaceBuilding(x, z, width, height);
   }
 
-  public occupyForBuilding(x: number, z: number, width: number, height: number, buildingId: string): number {
-    let maxH = 0.05;
+  public removeFoliageFromCoords(minX: number, maxX: number, minZ: number, maxZ: number): void {
+    if (!this.foliageCoords || this.foliageCoords.length === 0) return;
+    const newCoords: number[] = [];
+    const coords = this.foliageCoords;
+    for (let i = 0; i < coords.length; i += 2) {
+      const cx = coords[i];
+      const cz = coords[i + 1];
+      if (cx >= minX && cx <= maxX && cz >= minZ && cz <= maxZ) {
+        continue;
+      }
+      newCoords.push(cx, cz);
+    }
+    this.foliageCoords = newCoords;
+  }
+
+  public occupyForBuilding(
+    x: number,
+    z: number,
+    width: number,
+    height: number,
+    buildingId: string
+  ): number {
+    let maxH = -Infinity;
     for (let dx = 0; dx < width; dx++) {
       for (let dz = 0; dz < height; dz++) {
         const t = this.getTile(x + dx, z + dz);
-        if (t && (t.height || 0.05) > maxH) {
-          maxH = t.height;
+        if (t) {
+          maxH = Math.max(maxH, t.height);
         }
       }
     }
+    if (maxH === -Infinity) maxH = 0.05;
 
     const clearPad = 1;
     for (let tx = x - clearPad; tx < x + width + clearPad; tx++) {
@@ -325,7 +347,7 @@ export class GridMap {
       }
     }
 
-    this.refreshFoliageCoords();
+    this.removeFoliageFromCoords(x - clearPad, x + width + clearPad - 1, z - clearPad, z + height + clearPad - 1);
     return maxH;
   }
 
@@ -342,7 +364,6 @@ export class GridMap {
         }
       }
     }
-    this.refreshFoliageCoords();
   }
 
   public setFoliage(

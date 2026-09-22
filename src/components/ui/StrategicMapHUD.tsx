@@ -4,7 +4,10 @@ import { Pause, Play } from 'lucide-react';
 export function StrategicMapHUD() {
   const regions = useGameStore((s) => s.regions);
   const playerRegionId = useGameStore((s) => s.playerRegionId);
-  const time = useGameStore((s) => s.time);
+  const timeSeason = useGameStore((s) => s.time.season);
+  const timeDay = useGameStore((s) => s.time.day);
+  const timeIsPaused = useGameStore((s) => s.time.isPaused);
+  const timeSpeedMultiplier = useGameStore((s) => s.time.speedMultiplier);
   const togglePause = useGameStore((s) => s.togglePause);
   const setSpeedMultiplier = useGameStore((s) => s.setSpeedMultiplier);
   const setCameraZoomTarget = useGameStore((s) => s.setCameraZoomTarget);
@@ -59,22 +62,22 @@ export function StrategicMapHUD() {
 
         <div className="flex items-center gap-2 bg-[#18140e]/90 backdrop-blur-md px-3.5 py-2 rounded-xl border border-amber-600/60 shadow-2xl text-xs ml-auto">
           <div className="flex items-center gap-1.5 font-mono text-amber-200 mr-2 text-[11px]">
-            <span>{seasonLabels[time.season] || time.season}</span>
+            <span>{seasonLabels[timeSeason] || timeSeason}</span>
             <span className="text-stone-500">•</span>
-            <span>День {time.day}</span>
+            <span>День {timeDay}</span>
           </div>
 
           <div className="flex items-center gap-1">
             <button
               onClick={togglePause}
               className={`p-1.5 rounded-lg border transition ${
-                time.isPaused
+                timeIsPaused
                   ? 'bg-amber-600 text-black border-amber-400 font-bold'
                   : 'bg-stone-900/80 hover:bg-stone-800 text-amber-300 border-stone-700'
               }`}
               title="Пауза [Пробіл]"
             >
-              {time.isPaused ? <Play size={13} fill="currentColor" /> : <Pause size={13} />}
+              {timeIsPaused ? <Play size={13} fill="currentColor" /> : <Pause size={13} />}
             </button>
 
             {[1, 2, 5].map((spd) => (
@@ -82,7 +85,7 @@ export function StrategicMapHUD() {
                 key={spd}
                 onClick={() => setSpeedMultiplier(spd)}
                 className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold transition border ${
-                  time.speedMultiplier === spd && !time.isPaused
+                  timeSpeedMultiplier === spd && !timeIsPaused
                     ? 'bg-amber-600/90 text-black border-amber-400'
                     : 'bg-stone-900/80 hover:bg-stone-800 text-stone-300 border-stone-700'
                 }`}

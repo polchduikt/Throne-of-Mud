@@ -108,6 +108,28 @@ export function DayNightLighting() {
     },
   ], []);
 
+  const staticColors = useMemo(() => ({
+    winterSun: new THREE.Color('#dbeafe'),
+    winterAmb: new THREE.Color('#93c5fd'),
+    winterHemiGnd: new THREE.Color('#bfdbfe'),
+    autumnSun: new THREE.Color('#f59e0b'),
+    autumnAmb: new THREE.Color('#78350f'),
+    springSun: new THREE.Color('#fef08a'),
+    rainSun: new THREE.Color('#94a3b8'),
+    rainAmb: new THREE.Color('#475569'),
+    stormSun: new THREE.Color('#505c6e'),
+    stormAmb: new THREE.Color('#252e3d'),
+    lightningSun: new THREE.Color('#ffffff'),
+    lightningAmb: new THREE.Color('#e0f2fe'),
+    snowSun: new THREE.Color('#cbd5e1'),
+    snowAmb: new THREE.Color('#64748b'),
+    snowHemiGnd: new THREE.Color('#e2e8f0'),
+    scratchSun: new THREE.Color(),
+    scratchAmb: new THREE.Color(),
+    scratchHemiSky: new THREE.Color(),
+    scratchHemiGnd: new THREE.Color(),
+  }), []);
+
   useFrame(() => {
     const { time } = useGameStore.getState();
     const currentHour = (time.hour + time.minute / 60) % 24;
@@ -127,49 +149,49 @@ export function DayNightLighting() {
     const progress = span > 0 ? (currentHour - k0.hour) / span : 0;
     const smoothT = progress * progress * (3 - 2 * progress);
 
-    const sunCol = k0.sunColor.clone().lerp(k1.sunColor, smoothT);
+    const sunCol = staticColors.scratchSun.copy(k0.sunColor).lerp(k1.sunColor, smoothT);
     let sunInt = THREE.MathUtils.lerp(k0.sunIntensity, k1.sunIntensity, smoothT);
 
-    const ambCol = k0.ambientColor.clone().lerp(k1.ambientColor, smoothT);
+    const ambCol = staticColors.scratchAmb.copy(k0.ambientColor).lerp(k1.ambientColor, smoothT);
     let ambInt = THREE.MathUtils.lerp(k0.ambientIntensity, k1.ambientIntensity, smoothT);
 
-    const hemiSky = k0.hemiSkyColor.clone().lerp(k1.hemiSkyColor, smoothT);
-    const hemiGnd = k0.hemiGroundColor.clone().lerp(k1.hemiGroundColor, smoothT);
+    const hemiSky = staticColors.scratchHemiSky.copy(k0.hemiSkyColor).lerp(k1.hemiSkyColor, smoothT);
+    const hemiGnd = staticColors.scratchHemiGnd.copy(k0.hemiGroundColor).lerp(k1.hemiGroundColor, smoothT);
 
     const season = time.season;
     if (season === 'Winter') {
-      sunCol.lerp(new THREE.Color('#dbeafe'), 0.18);
-      ambCol.lerp(new THREE.Color('#93c5fd'), 0.20);
-      hemiGnd.lerp(new THREE.Color('#bfdbfe'), 0.35);
+      sunCol.lerp(staticColors.winterSun, 0.18);
+      ambCol.lerp(staticColors.winterAmb, 0.20);
+      hemiGnd.lerp(staticColors.winterHemiGnd, 0.35);
       sunInt *= 0.92;
       ambInt *= 1.12;
     } else if (season === 'Autumn') {
-      sunCol.lerp(new THREE.Color('#f59e0b'), 0.15);
-      ambCol.lerp(new THREE.Color('#78350f'), 0.12);
+      sunCol.lerp(staticColors.autumnSun, 0.15);
+      ambCol.lerp(staticColors.autumnAmb, 0.12);
     } else if (season === 'Spring') {
-      sunCol.lerp(new THREE.Color('#fef08a'), 0.08);
+      sunCol.lerp(staticColors.springSun, 0.08);
     }
 
     const { rainIntensity = 0, stormIntensity = 0, snowIntensity = 0, lightningFlash = 0 } = time;
 
     if (rainIntensity > 0.005) {
       const rainWeight = rainIntensity * 0.40;
-      sunCol.lerp(new THREE.Color('#94a3b8'), rainWeight);
-      ambCol.lerp(new THREE.Color('#475569'), rainWeight * 0.85);
+      sunCol.lerp(staticColors.rainSun, rainWeight);
+      ambCol.lerp(staticColors.rainAmb, rainWeight * 0.85);
       sunInt *= THREE.MathUtils.lerp(1.0, 0.65, rainIntensity);
       ambInt *= THREE.MathUtils.lerp(1.0, 0.90, rainIntensity);
     }
 
     if (stormIntensity > 0.005) {
       const stormWeight = stormIntensity * 0.50;
-      sunCol.lerp(new THREE.Color('#505c6e'), stormWeight);
-      ambCol.lerp(new THREE.Color('#252e3d'), stormWeight * 0.85);
+      sunCol.lerp(staticColors.stormSun, stormWeight);
+      ambCol.lerp(staticColors.stormAmb, stormWeight * 0.85);
       sunInt *= THREE.MathUtils.lerp(1.0, 0.45, stormIntensity);
       ambInt *= THREE.MathUtils.lerp(1.0, 0.80, stormIntensity);
 
       if (lightningFlash > 0.01) {
-        sunCol.lerp(new THREE.Color('#ffffff'), lightningFlash);
-        ambCol.lerp(new THREE.Color('#e0f2fe'), lightningFlash);
+        sunCol.lerp(staticColors.lightningSun, lightningFlash);
+        ambCol.lerp(staticColors.lightningAmb, lightningFlash);
         sunInt += lightningFlash * 4.2;
         ambInt += lightningFlash * 2.2;
       }
@@ -177,9 +199,9 @@ export function DayNightLighting() {
 
     if (snowIntensity > 0.005) {
       const snowWeight = snowIntensity * 0.35;
-      sunCol.lerp(new THREE.Color('#cbd5e1'), snowWeight);
-      ambCol.lerp(new THREE.Color('#64748b'), snowWeight * 0.70);
-      hemiGnd.lerp(new THREE.Color('#e2e8f0'), snowWeight * 0.80);
+      sunCol.lerp(staticColors.snowSun, snowWeight);
+      ambCol.lerp(staticColors.snowAmb, snowWeight * 0.70);
+      hemiGnd.lerp(staticColors.snowHemiGnd, snowWeight * 0.80);
       sunInt *= THREE.MathUtils.lerp(1.0, 0.75, snowIntensity);
       ambInt *= THREE.MathUtils.lerp(1.0, 1.10, snowIntensity);
     }

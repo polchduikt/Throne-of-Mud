@@ -7,6 +7,7 @@ interface Node {
   h: number;
   f: number;
   parent?: Node;
+  heapIndex?: number;
 }
 
 export interface RegionBounds {
@@ -14,6 +15,79 @@ export interface RegionBounds {
   maxX: number;
   minZ: number;
   maxZ: number;
+}
+
+class MinHeap {
+  private heap: Node[] = [];
+
+  public get size(): number {
+    return this.heap.length;
+  }
+
+  public push(node: Node): void {
+    node.heapIndex = this.heap.length;
+    this.heap.push(node);
+    this.bubbleUp(node.heapIndex);
+  }
+
+  public pop(): Node | undefined {
+    if (this.heap.length === 0) return undefined;
+    const top = this.heap[0];
+    const bottom = this.heap.pop()!;
+    if (this.heap.length > 0) {
+      this.heap[0] = bottom;
+      bottom.heapIndex = 0;
+      this.sinkDown(0);
+    }
+    top.heapIndex = -1;
+    return top;
+  }
+
+  public update(node: Node): void {
+    if (node.heapIndex !== undefined && node.heapIndex >= 0) {
+      this.bubbleUp(node.heapIndex);
+    }
+  }
+
+  private bubbleUp(idx: number): void {
+    const node = this.heap[idx];
+    while (idx > 0) {
+      const parentIdx = (idx - 1) >> 1;
+      const parent = this.heap[parentIdx];
+      if (node.f >= parent.f) break;
+      this.heap[idx] = parent;
+      parent.heapIndex = idx;
+      idx = parentIdx;
+    }
+    this.heap[idx] = node;
+    node.heapIndex = idx;
+  }
+
+  private sinkDown(idx: number): void {
+    const length = this.heap.length;
+    const node = this.heap[idx];
+    while (true) {
+      const leftIdx = (idx << 1) + 1;
+      const rightIdx = leftIdx + 1;
+      let swapIdx = -1;
+      let minF = node.f;
+
+      if (leftIdx < length && this.heap[leftIdx].f < minF) {
+        swapIdx = leftIdx;
+        minF = this.heap[leftIdx].f;
+      }
+      if (rightIdx < length && this.heap[rightIdx].f < minF) {
+        swapIdx = rightIdx;
+      }
+      if (swapIdx === -1) break;
+
+      this.heap[idx] = this.heap[swapIdx];
+      this.heap[idx].heapIndex = idx;
+      idx = swapIdx;
+    }
+    this.heap[idx] = node;
+    node.heapIndex = idx;
+  }
 }
 
 export class AStar {
@@ -62,7 +136,8 @@ export class AStar {
 
     perimeter.sort((a, b) => a.dist - b.dist);
 
-    for (const p of perimeter.slice(0, 8)) {
+    const candidates = perimeter.slice(0, 3);
+    for (const p of candidates) {
       const path = AStar.findPath(grid, [sx, sz], [p.x, p.z], false, regionBounds);
       if (path && path.length > 0) {
         return path;
@@ -108,10 +183,11 @@ export class AStar {
       return [[sx, sz]];
     }
 
-    const openSet: Node[] = [];
-    const closedSet = new Set<string>();
-    const nodeMap = new Map<string, Node>();
+    const openHeap = new MinHeap();
+    const closedSet = new Set<number>();
+    const nodeMap = new Map<number, Node>();
 
+    const startKey = (sz << 16) | sx;
     const startNode: Node = {
       x: sx,
       z: sz,
@@ -120,27 +196,21 @@ export class AStar {
       f: AStar.heuristic(sx, sz, tx, tz),
     };
 
-    openSet.push(startNode);
-    nodeMap.set(`${sx},${sz}`, startNode);
+    openHeap.push(startNode);
+    nodeMap.set(startKey, startNode);
 
     const maxIterations = 1200;
     let iterations = 0;
 
-    while (openSet.length > 0 && iterations++ < maxIterations) {
-      let lowestIndex = 0;
-      for (let i = 1; i < openSet.length; i++) {
-        if (openSet[i].f < openSet[lowestIndex].f) {
-          lowestIndex = i;
-        }
-      }
-
-      const current = openSet.splice(lowestIndex, 1)[0];
-      const currentKey = `${current.x},${current.z}`;
+    while (openHeap.size > 0 && iterations++ < maxIterations) {
+      const current = openHeap.pop();
+      if (!current) break;
 
       if (current.x === tx && current.z === tz) {
         return AStar.reconstructPath(current);
       }
 
+      const currentKey = (current.z << 16) | current.x;
       closedSet.add(currentKey);
 
       const directions = [
@@ -164,7 +234,7 @@ export class AStar {
           }
         }
 
-        const neighborKey = `${nx},${nz}`;
+        const neighborKey = (nz << 16) | nx;
 
         if (closedSet.has(neighborKey)) continue;
 
@@ -192,11 +262,12 @@ export class AStar {
             parent: current,
           };
           nodeMap.set(neighborKey, neighbor);
-          openSet.push(neighbor);
+          openHeap.push(neighbor);
         } else if (tentativeG < neighbor.g) {
           neighbor.g = tentativeG;
           neighbor.f = tentativeG + neighbor.h;
           neighbor.parent = current;
+          openHeap.update(neighbor);
         }
       }
     }

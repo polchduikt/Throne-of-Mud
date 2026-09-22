@@ -203,11 +203,15 @@ class AudioManager {
     this.uiGain.gain.setValueAtTime(this.settings.uiVolume, now);
     this.uiGain.connect(this.masterGain);
 
-    this.createNoiseBuffer();
-    this.createReverbBus();
-    this.createRainNodes();
+    window.setTimeout(() => {
+      this.createNoiseBuffer();
+      window.setTimeout(() => {
+        this.createReverbBus();
+        this.createRainNodes();
+      }, 50);
+    }, 50);
 
-    this.preloadAudioAssets();
+    window.setTimeout(() => this.preloadAudioAssets(), 300);
 
     this.startAmbienceSchedulers();
   }
@@ -242,37 +246,49 @@ class AudioManager {
   }
 
   private preloadAudioAssets() {
-    const assets = [
-      '/audio/sfx/woodchop.ogg',
-      '/audio/sfx/building_place.ogg',
-      '/audio/sfx/tree_fall.ogg',
-      '/audio/sfx/mining.ogg',
-      '/audio/sfx/step_0.ogg',
-      '/audio/sfx/step_1.ogg',
-      '/audio/sfx/step_2.ogg',
-      '/audio/sfx/step_3.ogg',
-      '/audio/sfx/step_4.ogg',
-      '/audio/sfx/step_5.ogg',
-      '/audio/sfx/step_6.ogg',
-      '/audio/sfx/step_7.ogg',
-      '/audio/voices/hello.ogg',
-      '/audio/voices/good_day.ogg',
-      '/audio/voices/good_morning.ogg',
-      '/audio/voices/morning.ogg',
-      '/audio/voices/welcome.ogg',
-      '/audio/voices/yes.ogg',
-      '/audio/voices/right.ogg',
-      '/audio/voices/work.ogg',
-      '/audio/voices/good.ogg',
-      '/audio/ambience/birds1.ogg',
-      '/audio/ambience/birds2.ogg',
-      '/audio/ambience/birds3.ogg',
-      '/audio/ambience/morning.ogg',
-      '/audio/ambience/night.ogg',
-      '/audio/ambience/campfire.ogg',
+    const batches: string[][] = [
+      [
+        '/audio/sfx/step_0.ogg',
+        '/audio/sfx/step_1.ogg',
+        '/audio/sfx/step_2.ogg',
+        '/audio/sfx/step_3.ogg',
+        '/audio/sfx/building_place.ogg',
+        '/audio/sfx/woodchop.ogg',
+      ],
+      [
+        '/audio/sfx/step_4.ogg',
+        '/audio/sfx/step_5.ogg',
+        '/audio/sfx/step_6.ogg',
+        '/audio/sfx/step_7.ogg',
+        '/audio/sfx/tree_fall.ogg',
+        '/audio/sfx/mining.ogg',
+      ],
+      [
+        '/audio/voices/hello.ogg',
+        '/audio/voices/good_day.ogg',
+        '/audio/voices/good_morning.ogg',
+        '/audio/voices/morning.ogg',
+        '/audio/voices/welcome.ogg',
+        '/audio/voices/yes.ogg',
+      ],
+      [
+        '/audio/voices/right.ogg',
+        '/audio/voices/work.ogg',
+        '/audio/voices/good.ogg',
+        '/audio/ambience/birds1.ogg',
+        '/audio/ambience/birds2.ogg',
+        '/audio/ambience/birds3.ogg',
+        '/audio/ambience/morning.ogg',
+        '/audio/ambience/night.ogg',
+        '/audio/ambience/campfire.ogg',
+      ],
     ];
 
-    assets.forEach((url) => this.loadBuffer(url));
+    batches.forEach((batch, i) => {
+      window.setTimeout(() => {
+        batch.forEach((url) => this.loadBuffer(url));
+      }, i * 1000);
+    });
   }
 
   private playBufferNode(
@@ -503,7 +519,7 @@ class AudioManager {
       const nextDelay = 10000 + Math.random() * 18000;
       this.faunaTimer = window.setTimeout(birdLoop, nextDelay);
     };
-    this.faunaTimer = window.setTimeout(birdLoop, 3500);
+    this.faunaTimer = window.setTimeout(birdLoop, 15000);
 
     this.loadBuffer('/audio/ambience/campfire.ogg').then((buf) => {
       if (!buf || !this.ctx || !this.villageProximityGain) return;
@@ -647,18 +663,11 @@ class AudioManager {
 
   public playRoadErase() {
     this.initContext();
-    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted || !this.noiseBuffer) return;
     const now = this.ctx.currentTime;
 
-    const bufSize = this.ctx.sampleRate * 0.18;
-    const noiseBuffer = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
-    const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 1.6);
-    }
-
     const src = this.ctx.createBufferSource();
-    src.buffer = noiseBuffer;
+    src.buffer = this.noiseBuffer;
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
@@ -750,15 +759,6 @@ class AudioManager {
     const f2 = this.ctx.createBiquadFilter();
     f2.type = 'bandpass'; f2.frequency.value = 1400 + Math.random() * 300; f2.Q.value = 4.5;
 
-    const breathSize = Math.floor(this.ctx.sampleRate * totalDur);
-    const breathBuf = this.ctx.createBuffer(1, breathSize, this.ctx.sampleRate);
-    const breathData = breathBuf.getChannelData(0);
-    for (let i = 0; i < breathSize; i++) {
-      breathData[i] = (Math.random() * 2 - 1) * 0.06 * Math.sin(Math.PI * i / breathSize);
-    }
-    const breathSrc = this.ctx.createBufferSource();
-    breathSrc.buffer = breathBuf;
-
     const envGain = this.ctx.createGain();
     envGain.gain.setValueAtTime(0, audioNow);
     envGain.gain.linearRampToValueAtTime(vol, audioNow + 0.025);
@@ -769,13 +769,22 @@ class AudioManager {
     const f2Gain = this.ctx.createGain(); f2Gain.gain.value = 0.45;
     osc1.connect(f1); f1.connect(f1Gain); f1Gain.connect(envGain);
     osc1.connect(f2); f2.connect(f2Gain); f2Gain.connect(envGain);
-    breathSrc.connect(envGain);
+
+    if (this.noiseBuffer) {
+      const breathSrc = this.ctx.createBufferSource();
+      breathSrc.buffer = this.noiseBuffer;
+      const breathGain = this.ctx.createGain();
+      breathGain.gain.setValueAtTime(0.06 * vol, audioNow);
+      breathGain.gain.linearRampToValueAtTime(0, audioNow + totalDur);
+      breathSrc.connect(breathGain);
+      breathGain.connect(envGain);
+      breathSrc.start(audioNow);
+      breathSrc.stop(audioNow + totalDur);
+    }
 
     if (this.villageProximityGain) envGain.connect(this.villageProximityGain);
     osc1.start(audioNow);
     osc1.stop(audioNow + totalDur);
-    breathSrc.start(audioNow);
-    breathSrc.stop(audioNow + totalDur);
   }
 
   public playUIClick() {

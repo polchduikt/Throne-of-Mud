@@ -61,7 +61,8 @@ export function SpatialAudioListener() {
 
     if (now - lastChatterRef.current > 7500 && currentZoom >= 36.0) {
       const charArr = Array.from(characterEntities);
-      for (let i = 0; i < charArr.length; i++) {
+      let found = false;
+      for (let i = 0; i < charArr.length && !found; i++) {
         const c1 = charArr[i];
         if (!c1.position) continue;
         const dx1 = c1.position[0] - camX;
@@ -75,6 +76,7 @@ export function SpatialAudioListener() {
           if (distBetween < 3.2) {
             audioManager.playPeasantVocal(c1.position[0], c1.position[2], 'greet');
             lastChatterRef.current = now + Math.random() * 4500;
+            found = true;
             break;
           }
         }

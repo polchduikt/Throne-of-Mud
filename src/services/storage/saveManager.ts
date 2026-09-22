@@ -70,10 +70,7 @@ export async function saveGameToIndexedDB(grid: GridMap): Promise<boolean> {
     const db = await openDatabase();
     const state = useGameStore.getState();
 
-    const entitiesList: GameEntity[] = Array.from(world.entities).map((e) => {
-      return JSON.parse(JSON.stringify(e));
-    });
-
+    const entitiesList: GameEntity[] = Array.from(world.entities).map((e) => ({ ...e }));
     const charactersCount = entitiesList.filter((e) => e.isCharacter).length;
 
     const meta: SaveMetadata = {
@@ -89,7 +86,7 @@ export async function saveGameToIndexedDB(grid: GridMap): Promise<boolean> {
     const gridData = {
       width: grid.width,
       height: grid.height,
-      tiles: JSON.parse(JSON.stringify(grid.tiles)),
+      tiles: grid.tiles,
     };
 
     const cameraTarget = (window as any).__lastCameraTarget || state.cameraFocusTarget || state.playerSpawnPoint;
@@ -105,10 +102,10 @@ export async function saveGameToIndexedDB(grid: GridMap): Promise<boolean> {
         influence: state.influence,
         royalFavor: state.royalFavor,
         chronicle: [...state.chronicle],
-        regions: JSON.parse(JSON.stringify(state.regions)),
+        regions: state.regions,
         playerRegionId: state.playerRegionId,
         botCount: state.botCount,
-        resourceDeposits: JSON.parse(JSON.stringify(state.resourceDeposits || [])),
+        resourceDeposits: state.resourceDeposits || [],
         cameraPosition: cameraTarget ? [cameraTarget[0], cameraTarget[1]] : undefined,
         cameraZoom: typeof cameraZoom === 'number' ? cameraZoom : 38,
         cameraAngle: typeof cameraAngle === 'number' ? cameraAngle : Math.PI / 4,

@@ -21,7 +21,7 @@ export class BotAISystem {
   public static update(grid: GridMap, currentTick: number): void {
     if (currentTick % 15 !== 0) return;
 
-    const { regions, incrementBuildingVersion, incrementFoliageVersion, addChronicleEvent } = useGameStore.getState();
+    const { regions, incrementBuildingVersion, addChronicleEvent } = useGameStore.getState();
     const botRegions = regions.filter((r) => r.owner === 'bot');
 
     for (const region of botRegions) {
@@ -212,7 +212,6 @@ export class BotAISystem {
                 });
 
                 incrementBuildingVersion();
-                incrementFoliageVersion();
                 break;
             }
           }

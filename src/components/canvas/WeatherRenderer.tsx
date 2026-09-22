@@ -219,26 +219,18 @@ export function WeatherRenderer() {
   const rainIntensity = useGameStore((s) => s.time.rainIntensity ?? 0);
   const snowIntensity = useGameStore((s) => s.time.snowIntensity ?? 0);
 
-  const isRaining = rainIntensity > 0.005;
-  const isSnowing = snowIntensity > 0.005;
-
-  if (!isRaining && !isSnowing) return null;
-
   return (
     <group position={[0, 0, 0]}>
-      {isRaining && (
-        <lineSegments
-          geometry={rainGeometry}
-          material={rainMaterial}
-        />
-      )}
-
-      {isSnowing && (
-        <points
-          geometry={snowGeometry}
-          material={snowMaterial}
-        />
-      )}
+      <lineSegments
+        geometry={rainGeometry}
+        material={rainMaterial}
+        visible={rainIntensity > 0.005}
+      />
+      <points
+        geometry={snowGeometry}
+        material={snowMaterial}
+        visible={snowIntensity > 0.005}
+      />
     </group>
   );
 }

@@ -3,7 +3,7 @@ import { GridMap } from '../engine/grid/GridMap';
 import { useGameStore } from '../store/useGameStore';
 import { saveGameToIndexedDB } from '../services/storage/saveManager';
 
-const AUTO_SAVE_INTERVAL_MS = 25000;
+const AUTO_SAVE_INTERVAL_MS = 120000;
 
 export function useAutoSave(grid: GridMap) {
   const gameMode = useGameStore((s) => s.gameMode);

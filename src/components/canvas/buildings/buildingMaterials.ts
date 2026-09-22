@@ -34,5 +34,9 @@ export const SHARED_BUILDING_MATS = {
   pillowWhite: new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.8, flatShading: true }),
   floorPlanks: new THREE.MeshStandardMaterial({ color: '#633d1f', roughness: 0.85, flatShading: true }),
   candleGlow: new THREE.MeshBasicMaterial({ color: '#fde047' }),
+  candleUnlit: new THREE.MeshStandardMaterial({ color: '#c9bfab', roughness: 0.9, flatShading: true }),
+  windowLit: new THREE.MeshBasicMaterial({ color: '#fef08a' }),
+  windowUnlit: new THREE.MeshStandardMaterial({ color: '#181e26', roughness: 0.85, flatShading: true }),
+  fireplaceCold: new THREE.MeshStandardMaterial({ color: '#241f1a', roughness: 0.95, flatShading: true }),
   bootsLeather: new THREE.MeshStandardMaterial({ color: '#271b12', roughness: 0.9, flatShading: true }),
 };
