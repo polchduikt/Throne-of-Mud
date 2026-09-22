@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body, #root {
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    user-select: none;
+    background-color: #080c10;
+    color: #e2e8f0;
+    font-family: 'Cinzel', Georgia, serif;
+  }
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+
+.font-medieval {
+  font-family: 'MedievalSharp', cursive, serif;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 15, 25, 0.75);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(180, 140, 75, 0.4);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(220, 180, 100, 0.7);
+}
+
+.manor-circle-btn {
+  background: radial-gradient(circle at 35% 35%, #2a2c33 0%, #15171c 70%, #0c0e12 100%);
+  border: 1.5px solid #5a4a32;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(255, 230, 160, 0.25), inset 0 -2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.manor-circle-btn:hover {
+  background: radial-gradient(circle at 35% 35%, #3d3b38 0%, #22201d 70%, #12100d 100%);
+  border-color: #d4af37;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.8), 0 0 10px rgba(212, 175, 55, 0.3), inset 0 1px 3px rgba(255, 240, 190, 0.4);
+}
+
+.manor-circle-btn.active {
+  background: radial-gradient(circle at 35% 35%, #6e4e20 0%, #422d10 70%, #201404 100%);
+  border-color: #facc15;
+  box-shadow: 0 4px 14px rgba(234, 179, 8, 0.3), inset 0 1px 4px rgba(254, 240, 138, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.manor-top-ribbon {
+  background: linear-gradient(180deg, rgba(20, 22, 26, 0.97) 0%, rgba(12, 13, 16, 0.98) 100%);
+  border-bottom: 2px solid #52422d;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(212, 175, 55, 0.2);
+}
+
+.manor-spear-outer {
+  clip-path: polygon(26px 0%, calc(100% - 26px) 0%, 100% 50%, calc(100% - 26px) 100%, 26px 100%, 0% 50%);
+  background: linear-gradient(90deg, 
+    #5a4830 0%, 
+    #8c6b38 6%, 
+    #d4af37 20%, 
+    #8c6b38 50%, 
+    #d4af37 80%, 
+    #8c6b38 94%, 
+    #5a4830 100%
+  );
+  filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.95)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+  padding: 1.5px;
+}
+
+.manor-spear-inner {
+  clip-path: polygon(25px 0%, calc(100% - 25px) 0%, 100% 50%, calc(100% - 25px) 100%, 25px 100%, 0% 50%);
+  background: linear-gradient(180deg, 
+    rgba(24, 27, 34, 0.98) 0%, 
+    rgba(16, 18, 22, 0.98) 50%, 
+    rgba(10, 11, 14, 0.98) 100%
+  );
+}
+
+.manor-center-plaque {
+  background: linear-gradient(180deg, #261e14 0%, #140f09 100%);
+  border: 1.5px solid #8c6b38;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), inset 0 1px 2px rgba(245, 208, 128, 0.3);
+}
+
+.manor-panel {
+  background: linear-gradient(180deg, #16181e 0%, #101217 60%, #0a0b0e 100%);
+  border: 2px solid #5a4830;
+  box-shadow: 
+    0 20px 50px rgba(0, 0, 0, 0.95),
+    inset 0 1px 1px rgba(212, 175, 55, 0.25),
+    inset 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.manor-panel-header {
+  border-bottom: 1px solid #3d3222;
+  background: linear-gradient(90deg, rgba(66, 45, 16, 0.35) 0%, rgba(18, 20, 26, 0.8) 50%, rgba(66, 45, 16, 0.35) 100%);
+}
+
+.manor-action-btn {
+  background: linear-gradient(180deg, #2a2216 0%, #1c150c 100%);
+  border: 1px solid #5a4830;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(245, 208, 128, 0.2);
+  transition: all 0.15s ease-in-out;
+}
+
+.manor-action-btn:hover {
+  background: linear-gradient(180deg, #3d2f1b 0%, #261d11 100%);
+  border-color: #d4af37;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.3), inset 0 1px 2px rgba(255, 235, 170, 0.4);
+}
+
+.manor-action-btn.active {
+  background: linear-gradient(180deg, #5a3c14 0%, #362208 100%);
+  border-color: #facc15;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.5), inset 0 1px 2px rgba(254, 240, 138, 0.6);
+}
+
