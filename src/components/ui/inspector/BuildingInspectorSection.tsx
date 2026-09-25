@@ -1,16 +1,23 @@
 import type { GameEntity } from '../../../engine/ecs/world';
-import { world } from '../../../engine/ecs/world';
+import { world, characterEntities } from '../../../engine/ecs/world';
 import { BUILDING_BLUEPRINTS } from '../../../engine/buildings/blueprints';
 import {
   CrownIcon,
   PeasantsIcon,
   GoldIcon,
   WoodIcon,
+  StoneIcon,
+  WheatIcon,
+  FlourIcon,
+  BreadIcon,
+  AleIcon,
+  ScalesIcon,
 } from '../MedievalIcons';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, Trash2 } from 'lucide-react';
 import { useGameStore } from '../../../store/useGameStore';
 import { useTranslation } from '../../../i18n';
 import { MIN_BUILDING_WAGE, MAX_BUILDING_WAGE } from '../../../constants/economy';
+import { audioManager } from '../../../engine/audio/AudioManager';
 
 interface BuildingInspectorSectionProps {
   entity: GameEntity;
@@ -31,10 +38,18 @@ export function BuildingInspectorSection({
 }: BuildingInspectorSectionProps) {
   const { dict, language } = useTranslation();
   const {
+    resources,
+    addResource,
+    consumeResource,
     assignWorkerToBuilding,
     removeWorkerFromBuilding,
     assignLordToBuilding,
     setBuildingWage,
+    pendingJobs,
+    addPendingJob,
+    removePendingJob,
+    addChronicleEvent,
+    incrementBuildingVersion,
   } = useGameStore();
 
   const bType = entity.buildingType;
@@ -45,6 +60,56 @@ export function BuildingInspectorSection({
   const currentWage = entity.wage ?? defaultWage;
   const maxSlots = entity.workerSlots ?? blueprint?.workSlots ?? 1;
   const assignedWorkers = entity.assignedWorkers || [];
+  const isHousing = blueprint?.category === 'housing';
+  const isProduction = blueprint?.category === 'production' || blueprint?.category === 'agriculture' || blueprint?.category === 'military' || bType === 'market';
+
+  const isDemolishPending = pendingJobs.some((j) => j.targetBuildingId === entity.id && j.type === 'demolish_structure') || Boolean(entity.isDemolishing);
+  const refundWood = (blueprint?.cost?.wood || 0) + (entity.localInventory?.wood || 0);
+  const refundStone = blueprint?.cost?.stone || 0;
+  const refundGold = blueprint?.cost?.gold || 0;
+
+  const handleToggleDemolish = () => {
+    if (isDemolishPending) {
+      for (const pj of pendingJobs) {
+        if (pj.targetBuildingId === entity.id && pj.type === 'demolish_structure') {
+          removePendingJob(pj.id);
+        }
+      }
+      for (const c of characterEntities) {
+        if (c.currentJob?.targetBuildingId === entity.id && c.currentJob?.type === 'demolish_structure') {
+          c.currentJob = { id: `idle-${c.id}`, type: 'idle', progress: 0, totalWork: 0 };
+        }
+      }
+      entity.isDemolishing = false;
+      entity.demolitionProgress = 0;
+      incrementBuildingVersion();
+    } else {
+      for (const pj of pendingJobs) {
+        if (pj.targetBuildingId === entity.id && pj.type === 'build_structure') {
+          removePendingJob(pj.id);
+        }
+      }
+      addPendingJob({
+        id: `job-demolish-${entity.id}`,
+        type: 'demolish_structure',
+        targetPosition: entity.gridPosition || [0, 0],
+        targetBuildingId: entity.id,
+        progress: 0,
+        totalWork: 30 + (blueprint ? blueprint.width * blueprint.height * 10 : 30),
+      });
+      entity.isDemolishing = true;
+      entity.demolitionProgress = 0;
+      incrementBuildingVersion();
+
+      addChronicleEvent({
+        title: language === 'uk' ? 'Наказ: Знесення споруди' : 'Order: Demolish Structure',
+        description: language === 'uk'
+          ? `Призначено демонтаж ${entity.name || 'споруди'}. Вільні селяни вирушають розібрати будівлю.`
+          : `Assigned demolition of ${entity.name || 'structure'}. Idle workers are dispatched to dismantle it.`,
+        type: 'info',
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -52,7 +117,11 @@ export function BuildingInspectorSection({
         <div className="flex items-center justify-between">
           <span className="text-slate-400">{dict.inspector.status}:</span>
           <span className="font-bold text-emerald-400">
-            {entity.isCompleted ? dict.buildings.statusCompleted : dict.buildings.statusUnderConstruction}
+            {entity.isDemolishing
+              ? dict.inspector.demolishingStatus
+              : entity.isCompleted
+              ? dict.buildings.statusCompleted
+              : dict.buildings.statusUnderConstruction}
           </span>
         </div>
         <div className="flex items-center justify-between">
@@ -156,7 +225,212 @@ export function BuildingInspectorSection({
         );
       })()}
 
-      {entity.isCompleted && !isForeign && (
+      {entity.isCompleted && !isForeign && isHousing && (() => {
+        const beds = blueprint?.bedsCount ?? (bType === 'peasant_house' ? 2 : bType === 'tent' ? 1 : 0);
+        const sleepers = Array.from(characterEntities).filter(
+          (c) => c.currentJob?.targetBuildingId === entity.id && c.currentJob?.type === 'sleep'
+        );
+
+        return (
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🛏️</span>
+                {language === 'uk' ? 'Житловий простір' : 'Living Quarters'}
+              </span>
+              <span className="font-mono text-xs font-bold text-amber-300">
+                {sleepers.length} / {beds} {language === 'uk' ? 'ліжок' : 'beds'}
+              </span>
+            </div>
+
+            <div className="text-[11px] text-slate-400 bg-slate-900/80 p-2 rounded-lg border border-slate-800 flex flex-col gap-1">
+              <div className="flex justify-between items-center">
+                <span>{language === 'uk' ? 'Місткість житла:' : 'Shelter capacity:'}</span>
+                <span className="font-semibold text-slate-200">{beds} {language === 'uk' ? 'поселенці' : 'settlers'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>{language === 'uk' ? 'Затишок і тепло:' : 'Comfort & warmth:'}</span>
+                <span className="font-semibold text-emerald-400">{bType === 'peasant_house' ? '+100% (Піч та ліжка)' : '+50% (Намет)'}</span>
+              </div>
+            </div>
+
+            {sleepers.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {language === 'uk' ? 'Зараз відпочивають:' : 'Currently resting:'}
+                </span>
+                {sleepers.map((sleeper) => (
+                  <div key={sleeper.id} className="flex items-center gap-2 bg-slate-900 px-2 py-1 rounded border border-slate-800 text-xs">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: sleeper.avatarColor || '#10b981' }}
+                    >
+                      <PeasantsIcon className="w-3 h-3 text-emerald-100" />
+                    </div>
+                    <span className="text-slate-200 font-medium truncate">{sleeper.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {entity.isCompleted && !isForeign && bType === 'market' && (() => {
+        const tradeItems: Array<{
+          res: 'wood' | 'stone' | 'wheat' | 'flour' | 'bread' | 'ale';
+          nameUk: string;
+          nameEn: string;
+          buyPrice: number;
+          sellPrice: number;
+          icon: React.ReactNode;
+        }> = [
+          { res: 'wood', nameUk: 'Деревина', nameEn: 'Wood', buyPrice: 3, sellPrice: 1, icon: <WoodIcon className="w-4 h-4 text-amber-500" /> },
+          { res: 'stone', nameUk: 'Камінь', nameEn: 'Stone', buyPrice: 4, sellPrice: 2, icon: <StoneIcon className="w-4 h-4 text-slate-300" /> },
+          { res: 'wheat', nameUk: 'Зерно', nameEn: 'Wheat', buyPrice: 2, sellPrice: 1, icon: <WheatIcon className="w-4 h-4 text-yellow-400" /> },
+          { res: 'flour', nameUk: 'Борошно', nameEn: 'Flour', buyPrice: 3, sellPrice: 2, icon: <FlourIcon className="w-4 h-4 text-slate-100" /> },
+          { res: 'bread', nameUk: 'Хліб', nameEn: 'Bread', buyPrice: 4, sellPrice: 2, icon: <BreadIcon className="w-4 h-4 text-amber-400" /> },
+          { res: 'ale', nameUk: 'Ель', nameEn: 'Ale', buyPrice: 5, sellPrice: 3, icon: <AleIcon className="w-4 h-4 text-amber-300" /> },
+        ];
+
+        const handleBuy = (item: typeof tradeItems[0], qty: number) => {
+          const totalCost = item.buyPrice * qty;
+          if ((resources.gold || 0) < totalCost) {
+            audioManager.playUIError?.();
+            return;
+          }
+          consumeResource('gold', totalCost);
+          addResource(item.res, qty);
+          audioManager.playUIClick();
+          addChronicleEvent({
+            title: language === 'uk' ? 'Ринок: Купівля товарів' : 'Market: Goods Purchased',
+            description: language === 'uk'
+              ? `Куплено ${qty} од. ${item.nameUk} за ${totalCost} золота.`
+              : `Purchased ${qty} ${item.nameEn} for ${totalCost} gold.`,
+            type: 'info',
+          });
+        };
+
+        const handleSell = (item: typeof tradeItems[0], qty: number) => {
+          const available = resources[item.res] || 0;
+          if (available < qty) {
+            audioManager.playUIError?.();
+            return;
+          }
+          const totalEarn = item.sellPrice * qty;
+          consumeResource(item.res, qty);
+          addResource('gold', totalEarn);
+          audioManager.playUIClick();
+          addChronicleEvent({
+            title: language === 'uk' ? 'Ринок: Продаж товарів' : 'Market: Goods Sold',
+            description: language === 'uk'
+              ? `Продано ${qty} од. ${item.nameUk} за ${totalEarn} золота.`
+              : `Sold ${qty} ${item.nameEn} for ${totalEarn} gold.`,
+            type: 'info',
+          });
+        };
+
+        return (
+          <div className="bg-slate-950/70 p-3 rounded-xl border border-emerald-700/60 flex flex-col gap-2.5 shadow-lg">
+            <div className="flex items-center justify-between border-b border-emerald-900/60 pb-2">
+              <span className="text-[12px] font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                <ScalesIcon className="w-4 h-4 text-emerald-400" />
+                {language === 'uk' ? 'Торгові лави ринку' : 'Market Trading Stalls'}
+              </span>
+              <span className="text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1">
+                <GoldIcon className="w-3.5 h-3.5 text-yellow-400" />
+                {resources.gold || 0}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {tradeItems.map((item) => {
+                const stock = resources[item.res] || 0;
+                const canBuy1 = (resources.gold || 0) >= item.buyPrice;
+                const canBuy5 = (resources.gold || 0) >= item.buyPrice * 5;
+                const canSell1 = stock >= 1;
+                const canSell5 = stock >= 5;
+
+                return (
+                  <div
+                    key={item.res}
+                    className="bg-slate-900/90 p-2 rounded-lg border border-slate-800 flex flex-col gap-1.5 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-slate-800/90 flex items-center justify-center border border-slate-700">
+                          {item.icon}
+                        </div>
+                        <span className="font-semibold text-slate-200">
+                          {language === 'uk' ? item.nameUk : item.nameEn}
+                        </span>
+                      </div>
+                      <span className="font-mono text-slate-300">
+                        {language === 'uk' ? 'Склад:' : 'Stock:'}{' '}
+                        <span className="font-bold text-amber-300">{stock}</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleBuy(item, 1)}
+                          disabled={!canBuy1}
+                          className={`flex-1 py-1 rounded text-[11px] font-bold flex items-center justify-center gap-1 transition border cursor-pointer ${
+                            canBuy1
+                              ? 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border-emerald-700/60 active:scale-95'
+                              : 'bg-slate-800/40 text-slate-500 border-slate-800 cursor-not-allowed'
+                          }`}
+                        >
+                          +{1} ({item.buyPrice}g)
+                        </button>
+                        <button
+                          onClick={() => handleBuy(item, 5)}
+                          disabled={!canBuy5}
+                          className={`px-2 py-1 rounded text-[10px] font-bold transition border cursor-pointer ${
+                            canBuy5
+                              ? 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border-emerald-700/60 active:scale-95'
+                              : 'bg-slate-800/40 text-slate-500 border-slate-800 cursor-not-allowed'
+                          }`}
+                        >
+                          +5
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleSell(item, 1)}
+                          disabled={!canSell1}
+                          className={`flex-1 py-1 rounded text-[11px] font-bold flex items-center justify-center gap-1 transition border cursor-pointer ${
+                            canSell1
+                              ? 'bg-amber-950/80 hover:bg-amber-900 text-amber-300 border-amber-700/60 active:scale-95'
+                              : 'bg-slate-800/40 text-slate-500 border-slate-800 cursor-not-allowed'
+                          }`}
+                        >
+                          -{1} (+{item.sellPrice}g)
+                        </button>
+                        <button
+                          onClick={() => handleSell(item, 5)}
+                          disabled={!canSell5}
+                          className={`px-2 py-1 rounded text-[10px] font-bold transition border cursor-pointer ${
+                            canSell5
+                              ? 'bg-amber-950/80 hover:bg-amber-900 text-amber-300 border-amber-700/60 active:scale-95'
+                              : 'bg-slate-800/40 text-slate-500 border-slate-800 cursor-not-allowed'
+                          }`}
+                        >
+                          -5
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {entity.isCompleted && !isForeign && isProduction && (
         <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -217,7 +491,7 @@ export function BuildingInspectorSection({
         </div>
       )}
 
-      {entity.isCompleted && !isForeign && (
+      {entity.isCompleted && !isForeign && isProduction && (
         <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
           <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
             <CrownIcon className="w-3.5 h-3.5 text-amber-400" />
@@ -248,7 +522,7 @@ export function BuildingInspectorSection({
         </div>
       )}
 
-      {entity.isCompleted && !isForeign && (
+      {entity.isCompleted && !isForeign && isProduction && (
         <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -286,6 +560,67 @@ export function BuildingInspectorSection({
               {language === 'uk' ? 'Мотивація робітників' : 'Worker incentive'}
             </span>
           </div>
+        </div>
+      )}
+
+      {!isForeign && (
+        <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
+          {isDemolishPending ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-rose-400 flex items-center gap-1.5">
+                  <span className="animate-pulse">💣</span>
+                  {dict.inspector.demolishingStatus}
+                </span>
+                {Boolean(entity.demolitionProgress) && (
+                  <span className="font-mono text-xs font-bold text-rose-300">
+                    {Math.round(entity.demolitionProgress || 0)}%
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={handleToggleDemolish}
+                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-750 transition cursor-pointer active:scale-98"
+              >
+                {dict.inspector.cancelDemolish}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={handleToggleDemolish}
+                className="w-full py-2 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 text-xs font-bold rounded-lg border border-rose-800/60 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md active:scale-98"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {dict.inspector.demolishBuilding}
+              </button>
+              {(refundWood > 0 || refundStone > 0 || refundGold > 0) && (
+                <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                  <span>{dict.inspector.refundNotice}</span>
+                  <div className="flex items-center gap-2 font-mono font-bold text-amber-300">
+                    {refundWood > 0 && (
+                      <span className="flex items-center gap-1">
+                        <WoodIcon className="w-3 h-3 text-amber-500" />
+                        +{refundWood}
+                      </span>
+                    )}
+                    {refundStone > 0 && (
+                      <span className="flex items-center gap-1">
+                        <StoneIcon className="w-3 h-3 text-slate-400" />
+                        +{refundStone}
+                      </span>
+                    )}
+                    {refundGold > 0 && (
+                      <span className="flex items-center gap-1">
+                        <GoldIcon className="w-3 h-3 text-yellow-400" />
+                        +{refundGold}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

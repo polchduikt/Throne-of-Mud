@@ -231,6 +231,10 @@ export const uk: TranslationDictionary = {
     stateSleeping: 'Спить',
     stateFighting: 'У бою',
     stateMoving: 'В дорозі',
+    demolishBuilding: 'Знести будівлю',
+    cancelDemolish: 'Скасувати знесення',
+    demolishingStatus: 'Знесення...',
+    refundNotice: 'Буде повернено:',
   },
   military: {
     title: 'Військовий стан володіння',

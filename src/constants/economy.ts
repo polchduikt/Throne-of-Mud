@@ -1,19 +1,19 @@
 import type { ResourceInventory } from '../types/game';
 
 export const INITIAL_RESOURCES: ResourceInventory = {
-  gold: 50,
-  wood: 15,
-  stone: 0,
-  wheat: 0,
-  flour: 0,
-  bread: 20,
-  ale: 10,
-  weapons: 0,
-  fish: 0,
-  berries: 0,
-  iron: 0,
-  clay: 0,
-  salt: 0,
+  gold: 1000,
+  wood: 1000,
+  stone: 1000,
+  wheat: 1000,
+  flour: 1000,
+  bread: 1000,
+  ale: 1000,
+  weapons: 1000,
+  fish: 1000,
+  berries: 1000,
+  iron: 1000,
+  clay: 1000,
+  salt: 1000,
 };
 
 export const STARTING_INFLUENCE = 2600;
@@ -26,5 +26,5 @@ export const DEFAULT_SPEECH_BUBBLE_TICKS = 35;
 export const EMPLOYED_THOUGHT_TICKS = 3000;
 export const DISMISSED_THOUGHT_TICKS = 1000;
 
-export const BASE_STORAGE_CAPACITY = 100;
+export const BASE_STORAGE_CAPACITY = 5000;
 

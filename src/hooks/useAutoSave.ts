@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { GridMap } from '../engine/grid/GridMap';
 import { useGameStore } from '../store/useGameStore';
 import { saveGameToIndexedDB } from '../services/storage/saveManager';
 
-const AUTO_SAVE_INTERVAL_MS = 120000;
+const AUTO_SAVE_INTERVAL_MS = 60000;
 
 export function useAutoSave(grid: GridMap) {
   const gameMode = useGameStore((s) => s.gameMode);
+  const lastSaveTime = useRef(Date.now());
 
   useEffect(() => {
     const handleSaveOnExit = () => {
@@ -38,6 +39,7 @@ export function useAutoSave(grid: GridMap) {
     const interval = setInterval(() => {
       if (!useGameStore.getState().time.isPaused) {
         saveGameToIndexedDB(grid);
+        lastSaveTime.current = Date.now();
       }
     }, AUTO_SAVE_INTERVAL_MS);
 

@@ -3,6 +3,7 @@ import { useGameStore } from '../store/useGameStore';
 import { characterEntities, buildingEntities } from '../engine/ecs/world';
 import { BUILDING_BLUEPRINTS } from '../engine/buildings/blueprints';
 import { BASE_STORAGE_CAPACITY } from '../constants/economy';
+import { isNoble, isPeasant } from '../engine/ecs/entityHelpers';
 
 export function useSettlementMetrics() {
   const playerRegionId = useGameStore((s) => s.playerRegionId);
@@ -17,13 +18,7 @@ export function useSettlementMetrics() {
   }, [playerRegionId, characterEntities.size]);
 
   const lords = useMemo(() => {
-    return allCharacters.filter(
-      (c) =>
-        c.characterClass === 'king' ||
-        c.characterClass === 'lady' ||
-        c.characterClass === 'warrior' ||
-        c.characterClass === 'lord'
-    );
+    return allCharacters.filter(isNoble);
   }, [allCharacters]);
 
   const king = useMemo(() => {
@@ -31,7 +26,7 @@ export function useSettlementMetrics() {
   }, [lords]);
 
   const peasants = useMemo(() => {
-    return allCharacters.filter((c) => c.characterClass === 'peasant');
+    return allCharacters.filter(isPeasant);
   }, [allCharacters]);
 
   const employedPeasants = useMemo(() => {

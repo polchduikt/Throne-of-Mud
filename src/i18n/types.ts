@@ -175,6 +175,10 @@ export interface TranslationDictionary {
     stateSleeping: string;
     stateFighting: string;
     stateMoving: string;
+    demolishBuilding: string;
+    cancelDemolish: string;
+    demolishingStatus: string;
+    refundNotice: string;
   };
   military: {
     title: string;

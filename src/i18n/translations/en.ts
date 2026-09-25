@@ -231,6 +231,10 @@ export const en: TranslationDictionary = {
     stateSleeping: 'Sleeping',
     stateFighting: 'In Combat',
     stateMoving: 'Traveling',
+    demolishBuilding: 'Demolish Building',
+    cancelDemolish: 'Cancel Demolition',
+    demolishingStatus: 'Demolishing...',
+    refundNotice: 'Refund:',
   },
   military: {
     title: 'Realm Military Command',

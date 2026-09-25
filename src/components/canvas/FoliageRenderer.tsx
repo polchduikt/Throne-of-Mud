@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
 import { useGameStore } from '../../store/useGameStore';
 import { buildingEntities } from '../../engine/ecs/world';
+import { getTreeProceduralData } from '../../engine/world/foliageGeneration';
+import { pseudoRandom, getTileIndex, distanceSq2D } from '../../utils/mathUtils';
 
 interface Props {
   grid: GridMap;
@@ -169,23 +171,7 @@ function createBareBushGeometry(): THREE.BufferGeometry {
 const defaultBareWinterTreeGeo = createBareWinterTreeGeometry();
 const defaultBareBushGeo = createBareBushGeometry();
 
-export function getTreeProceduralData(x: number, z: number) {
-  const pseudoRandom = (seed1: number, seed2: number) => {
-    const s = Math.sin(seed1 * 12.9898 + seed2 * 78.233) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const randTree = pseudoRandom(x + 19, z + 83);
 
-  const treeType: 'pine' | 'oak' | 'autumn' =
-    randTree > 0.44 ? 'oak' : randTree > 0.08 ? 'pine' : 'autumn';
-
-  const baseScale = treeType === 'pine' ? 1.08 : treeType === 'oak' ? 1.02 : 0.96;
-  const sc = baseScale + (pseudoRandom(x + 5, z + 11) - 0.5) * 0.28;
-  const rotY = pseudoRandom(x + 17, z + 53) * Math.PI * 2;
-  const jitterX = (pseudoRandom(x, z) - 0.5) * 0.38;
-  const jitterZ = (pseudoRandom(z, x + 37) - 0.5) * 0.38;
-  return { treeType, sc, rotY, jitterX, jitterZ };
-}
 
 function FallingTreeItem({
   tree,
@@ -332,7 +318,7 @@ export function FoliageRenderer({ grid }: Props) {
       const list = byType[type];
       const index = list.length;
       list.push(matrix);
-      const key = x * 256 + z;
+      const key = getTileIndex(x, z, grid.width);
       let tileList = tileFlora.get(key);
       if (!tileList) {
         tileList = [];
@@ -342,10 +328,6 @@ export function FoliageRenderer({ grid }: Props) {
     };
 
     const dummy = new THREE.Object3D();
-    const pseudoRandom = (seed1: number, seed2: number) => {
-      const s = Math.sin(seed1 * 12.9898 + seed2 * 78.233) * 43758.5453;
-      return s - Math.floor(s);
-    };
 
     const depositClearings: Array<{ gx: number; gz: number; rSq: number }> = [];
     if (resourceDeposits) {
@@ -363,9 +345,7 @@ export function FoliageRenderer({ grid }: Props) {
         let inDeposit = false;
         for (let i = 0; i < depositClearings.length; i++) {
           const d = depositClearings[i];
-          const dx = x - d.gx;
-          const dz = z - d.gz;
-          if (dx * dx + dz * dz <= d.rSq) {
+          if (distanceSq2D(x, z, d.gx, d.gz) <= d.rSq) {
             inDeposit = true;
             break;
           }
@@ -378,7 +358,7 @@ export function FoliageRenderer({ grid }: Props) {
           const [gx, gz] = b.gridPosition;
           const bw = b.buildingWidth || 1;
           const bh = b.buildingHeight || 1;
-          if (x >= gx - 0.5 && x <= gx + bw + 0.5 && z >= gz - 0.5 && z <= gz + bh + 0.5) {
+          if (x >= gx - 0.25 && x < gx + bw + 0.25 && z >= gz - 0.25 && z <= gz + bh + 0.25) {
             inBuilding = true;
             break;
           }
@@ -543,10 +523,6 @@ export function FoliageRenderer({ grid }: Props) {
     const fallenPineTiers: Array<{ t1: THREE.Matrix4; t2: THREE.Matrix4; t3: THREE.Matrix4; t4: THREE.Matrix4 }> = [];
 
     const dummy = new THREE.Object3D();
-    const pseudoRandom = (seed1: number, seed2: number) => {
-      const s = Math.sin(seed1 * 12.9898 + seed2 * 78.233) * 43758.5453;
-      return s - Math.floor(s);
-    };
 
     const depositClearings: Array<{ gx: number; gz: number; rSq: number }> = [];
     if (resourceDeposits) {
@@ -562,9 +538,7 @@ export function FoliageRenderer({ grid }: Props) {
 
       for (let i = 0; i < depositClearings.length; i++) {
         const d = depositClearings[i];
-        const dx = x - d.gx;
-        const dz = z - d.gz;
-        if (dx * dx + dz * dz <= d.rSq) return;
+        if (distanceSq2D(x, z, d.gx, d.gz) <= d.rSq) return;
       }
 
       for (const b of buildingEntities) {
@@ -763,7 +737,7 @@ export function FoliageRenderer({ grid }: Props) {
       fallenAutumnCanopies,
       fallenPineTiers,
     };
-  }, [grid, foliageVersion, resourceDeposits]);
+  }, [grid, foliageVersion, buildingVersion, resourceDeposits]);
 
   const geos = useMemo(() => ({
     trunkGeo: new THREE.CylinderGeometry(0.12, 0.22, 0.85, 6),
@@ -1181,7 +1155,7 @@ export function FoliageRenderer({ grid }: Props) {
       for (let tx = Math.floor(gx - 1); tx <= Math.ceil(gx + bw); tx++) {
         for (let tz = Math.floor(gz - 1); tz <= Math.ceil(gz + bh); tz++) {
           if (tx >= 0 && tx < grid.width && tz >= 0 && tz < grid.height) {
-            nextExcluded.add(tx * 256 + tz);
+            nextExcluded.add(getTileIndex(tx, tz, grid.width));
           }
         }
       }
@@ -1194,11 +1168,20 @@ export function FoliageRenderer({ grid }: Props) {
         for (let tx = gx - r; tx <= gx + r; tx++) {
           for (let tz = gz - r; tz <= gz + r; tz++) {
             if (tx >= 0 && tx < grid.width && tz >= 0 && tz < grid.height) {
-              if ((tx - gx) * (tx - gx) + (tz - gz) * (tz - gz) <= (r + 0.5) * (r + 0.5)) {
-                nextExcluded.add(tx * 256 + tz);
+              if (distanceSq2D(tx, tz, gx, gz) <= (r + 0.5) * (r + 0.5)) {
+                nextExcluded.add(getTileIndex(tx, tz, grid.width));
               }
             }
           }
+        }
+      }
+    }
+
+    for (let x = 0; x < grid.width; x++) {
+      for (let z = 0; z < grid.height; z++) {
+        const tile = grid.tiles[x]?.[z];
+        if (tile && tile.terrain === 'road') {
+          nextExcluded.add(getTileIndex(x, z, grid.width));
         }
       }
     }
@@ -1243,7 +1226,7 @@ export function FoliageRenderer({ grid }: Props) {
     }
 
     hiddenTilesRef.current = nextExcluded;
-  }, [buildingVersion, resourceDeposits, staticFloraData, grid.width, grid.height, zeroMatrix]);
+  }, [buildingVersion, foliageVersion, resourceDeposits, staticFloraData, grid.width, grid.height, zeroMatrix]);
 
   useEffect(() => {
     setMats(oakTrunkRef, treesAndFloraData.oakTrunks);

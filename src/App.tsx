@@ -18,6 +18,8 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useTownCenterFocus } from './hooks/useTownCenterFocus';
 import { MAP_SIZE, DEFAULT_MAP_SEED } from './constants/world';
+import { INITIAL_RESOURCES } from './constants/economy';
+import { loadGameFromIndexedDB } from './services/storage/saveManager';
 
 export default function App() {
   const gameMode = useGameStore((s) => s.gameMode);
@@ -39,13 +41,33 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
 
-    try {
-      localStorage.removeItem('throne_of_mud_active_session');
-    } catch {}
+    async function initGameSession() {
+      try {
+        const hasActiveSave = localStorage.getItem('throne_of_mud_has_save') === 'true';
+        const activeSession = localStorage.getItem('throne_of_mud_active_session');
 
-    if (isMounted) {
-      initWorld(grid);
+        if (hasActiveSave) {
+          const loaded = await loadGameFromIndexedDB(grid);
+          if (loaded && isMounted) {
+            if (activeSession === 'playing') {
+              useGameStore.getState().setGameMode('playing');
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Auto-restore failed:', err);
+      }
+
+      if (isMounted) {
+        initWorld(grid);
+        useGameStore.setState({
+          resources: { ...INITIAL_RESOURCES },
+        });
+      }
     }
+
+    initGameSession();
 
     return () => {
       isMounted = false;

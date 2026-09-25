@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { GameTime, SeasonType, WeatherType } from '../../types/game';
+import type { SeasonType, WeatherType } from '../../types/game';
 import { world } from '../../engine/ecs/world';
 import {
   TICKS_PER_MINUTE,
@@ -11,22 +11,9 @@ import {
   DAYS_PER_SEASON,
   timeToTicks,
 } from '../../constants/time';
-import type { GameState } from '../useGameStore';
+import type { GameState, TimeSlice } from '../types';
 
-export interface TimeSlice {
-  time: GameTime;
-  setSpeedMultiplier: (speed: number) => void;
-  togglePause: () => void;
-  advanceTick: () => void;
-  setSeason: (season: SeasonType) => void;
-  setWeather: (weather: WeatherType, locked?: boolean) => void;
-  setWeatherLocked: (locked: boolean) => void;
-  triggerLightning: () => void;
-  setSnowAccumulation: (val: number) => void;
-  setTimeOfDay: (hour: number) => void;
-  isWeatherDebugOpen: boolean;
-  setIsWeatherDebugOpen: (open: boolean) => void;
-}
+export type { TimeSlice };
 
 export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set) => ({
   time: {

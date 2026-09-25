@@ -5,6 +5,7 @@ import {
   EMPLOYED_THOUGHT_TICKS,
   DISMISSED_THOUGHT_TICKS,
 } from '../../constants/economy';
+import { getBuildingWorkstation } from '../buildings/buildingNavigation';
 
 export function setEntitySpeech(
   entity: GameEntity,
@@ -57,11 +58,18 @@ export function assignWorkerToBuilding(
     };
   } else {
     if (building.gridPosition) {
+      const workerIndex = Math.max(0, (building.assignedWorkers || []).indexOf(worker.id));
+      const station = getBuildingWorkstation(building, workerIndex);
+      const facingAngle = Math.atan2(
+        station.facingTarget[0] - station.workWorldPos[0],
+        station.facingTarget[1] - station.workWorldPos[1]
+      );
       worker.currentJob = {
         id: `work-${worker.id}-${Date.now()}`,
         type: 'work_at_building',
         targetBuildingId: building.id,
-        targetPosition: building.gridPosition,
+        targetPosition: [station.workWorldPos[0], station.workWorldPos[1]],
+        targetAngle: facingAngle,
         progress: 0,
         totalWork: 100,
       };
@@ -97,3 +105,21 @@ export function dismissWorkerFromBuilding(
     durationTicks: DISMISSED_THOUGHT_TICKS,
   });
 }
+
+export function isNoble(entity: GameEntity): boolean {
+  return (
+    entity.characterClass === 'king' ||
+    entity.characterClass === 'lady' ||
+    entity.characterClass === 'warrior' ||
+    entity.characterClass === 'lord'
+  );
+}
+
+export function isPeasant(entity: GameEntity): boolean {
+  return entity.characterClass === 'peasant';
+}
+
+export function isFreeWorker(entity: GameEntity): boolean {
+  return isPeasant(entity) && !entity.workBuildingId && !entity.isLevy;
+}
+

@@ -1,29 +1,10 @@
 import type { StateCreator } from 'zustand';
 import { audioManager } from '../../engine/audio/AudioManager';
 import type { SupportedLanguage } from '../../i18n/types';
-import { getStoredLanguage, saveStoredLanguage } from '../../i18n';
-import type { GameState } from '../useGameStore';
+import { getStoredLanguage, saveStoredLanguage } from '../../i18n/storage';
+import type { GameState, AudioSlice } from '../types';
 
-export interface AudioSlice {
-  audioSettings: {
-    masterVolume: number;
-    musicVolume: number;
-    ambientVolume: number;
-    sfxVolume: number;
-    uiVolume: number;
-    isMuted: boolean;
-  };
-  setMasterVolume: (val: number) => void;
-  setMusicVolume: (val: number) => void;
-  setAmbientVolume: (val: number) => void;
-  setSfxVolume: (val: number) => void;
-  setUiVolume: (val: number) => void;
-  toggleMute: () => void;
-  setMuted: (isMuted: boolean) => void;
-
-  language: SupportedLanguage;
-  setLanguage: (lang: SupportedLanguage) => void;
-}
+export type { AudioSlice };
 
 export const createAudioSlice: StateCreator<GameState, [], [], AudioSlice> = (set) => ({
   audioSettings: audioManager.getSettings(),

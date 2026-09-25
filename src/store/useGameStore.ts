@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import { type TimeSlice, createTimeSlice } from './slices/timeSlice';
-import { type AudioSlice, createAudioSlice } from './slices/audioSlice';
-import { type UISlice, createUISlice } from './slices/uiSlice';
-import { type SettlementSlice, createSettlementSlice } from './slices/settlementSlice';
+import { createTimeSlice } from './slices/timeSlice';
+import { createAudioSlice } from './slices/audioSlice';
+import { createUISlice } from './slices/uiSlice';
+import { createSettlementSlice } from './slices/settlementSlice';
+import type { GameState } from './types';
 
-export type GameState = TimeSlice & AudioSlice & UISlice & SettlementSlice;
+export type { GameState } from './types';
+export * from './types';
 
 export { DEFAULT_REGIONS, PRESET_BOT_LORDS } from '../constants/world';
 

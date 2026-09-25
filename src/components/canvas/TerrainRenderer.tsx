@@ -8,9 +8,11 @@ import { useGameStore } from '../../store/useGameStore';
 import { BUILDING_BLUEPRINTS } from '../../engine/buildings/blueprints';
 import { world, buildingEntities } from '../../engine/ecs/world';
 import { AssetLoader } from '../../engine/assets/AssetLoader';
-import { AStar } from '../../engine/pathfinding/AStar';
 import { audioManager } from '../../engine/audio/AudioManager';
-import { RoadIcon } from '../ui/MedievalIcons';
+import { getSnappedPlacementCoords } from '../../engine/grid/buildingSnap';
+import { RoadPlacementPreview, type RoadSnapTarget } from './RoadPlacementPreview';
+import { getSmartRoadPath, isRoadPathValid } from '../../engine/grid/roadGeneration';
+import { getBuildingDoorInfo } from '../../engine/buildings/buildingNavigation';
 
 interface Props {
   grid: GridMap;
@@ -38,7 +40,9 @@ export function TerrainRenderer({ grid }: Props) {
 
   const [roadStartPoint, setRoadStartPoint] = useState<[number, number] | null>(null);
   const [roadPreviewPath, setRoadPreviewPath] = useState<[number, number][]>([]);
+  const [currentSnapTarget, setCurrentSnapTarget] = useState<RoadSnapTarget | null>(null);
   const lastErasedTileRef = useRef<string | null>(null);
+  const prevErasedPosRef = useRef<[number, number] | null>(null);
 
   const gridTexture = useMemo(() => {
     const w = grid.width;
@@ -208,9 +212,18 @@ export function TerrainRenderer({ grid }: Props) {
         diffuseColor.rgb = mix(diffuseColor.rgb, stoneCol.rgb, smoothstep(0.25, 0.75, stoneWeight));
 
         
-        if (roadWeight > 0.02) {
-          vec3 dirtRoad = mix(vec3(0.32, 0.20, 0.11), mudCol.rgb * 0.78, 0.60);
-          diffuseColor.rgb = mix(diffuseColor.rgb, dirtRoad, smoothstep(0.18, 0.60, roadWeight));
+        if (roadWeight > 0.03) {
+          float roadBlend = smoothstep(0.04, 0.36, roadWeight);
+
+          vec3 earthLoam = vec3(0.40, 0.27, 0.15);
+          vec3 compactedSoil = mudCol.rgb * 0.85;
+          vec3 dirtRoadBase = mix(earthLoam, compactedSoil, 0.62);
+          dirtRoadBase = mix(dirtRoadBase, stoneCol.rgb * 0.78, 0.16);
+
+          float groundNoise = sin(worldUV.x * 4.2) * cos(worldUV.y * 4.2) * 0.5 + 0.5;
+          vec3 dirtRoad = mix(dirtRoadBase, dirtRoadBase * 0.84, clamp(groundNoise * 0.26 + 0.08, 0.0, 0.25));
+
+          diffuseColor.rgb = mix(diffuseColor.rgb, dirtRoad, roadBlend);
         }
 
         
@@ -370,19 +383,7 @@ export function TerrainRenderer({ grid }: Props) {
       } else if (isHighway) {
         elevation = 0.05;
       } else {
-        const baseHill = Math.sin(wx * 0.12) * Math.cos(wz * 0.12) * 0.12 + Math.sin(wx * 0.28 + wz * 0.2) * 0.06;
-        let regionalBonus = 0;
-        if (wx < 128 && wz < 128) {
-          regionalBonus = baseHill * 0.35;
-        } else if (wx >= 128 && wz < 128) {
-          regionalBonus = Math.max(0.0, baseHill * 0.75);
-        } else if (wx < 128 && wz >= 128) {
-          regionalBonus = Math.max(0.0, baseHill * 0.60);
-        } else {
-          const mountainCrag = Math.sin(wx * 0.14) * 0.22 + Math.cos(wz * 0.14) * 0.18 + 0.15;
-          regionalBonus = Math.max(0.0, baseHill + mountainCrag);
-        }
-        elevation = 0.05 + regionalBonus;
+        elevation = 0.05;
       }
 
       pos.setZ(i, elevation);
@@ -451,7 +452,29 @@ export function TerrainRenderer({ grid }: Props) {
     gridTexture.needsUpdate = true;
   };
 
-  const allSnapNodes = useMemo(() => {
+  useEffect(() => {
+    if (!gridTexture.image?.data) return;
+    const data = gridTexture.image.data;
+    const w = grid.width;
+    const h = grid.height;
+    let anyChanged = false;
+    for (let z = 0; z < h; z++) {
+      for (let x = 0; x < w; x++) {
+        const tile = grid.tiles[x]?.[z];
+        const isRoad = tile?.terrain === 'road' ? 255 : 0;
+        const idx = (z * w + x) * 4 + 3;
+        if (data[idx] !== isRoad) {
+          data[idx] = isRoad;
+          anyChanged = true;
+        }
+      }
+    }
+    if (anyChanged) {
+      gridTexture.needsUpdate = true;
+    }
+  }, [buildingVersion, grid, gridTexture]);
+
+  const allBuildingSnapNodes = useMemo(() => {
     if (activeTool !== 'road') return [];
     const nodes: BuildingSnapNode[] = [];
     const seen = new Set<string>();
@@ -459,15 +482,22 @@ export function TerrainRenderer({ grid }: Props) {
     for (const b of buildingEntities) {
       if (!b.gridPosition) continue;
       const [gx, gz] = b.gridPosition;
-      const w = b.buildingWidth || 1;
-      const h = b.buildingHeight || 1;
       const type = b.buildingType;
-
       const candidates: [number, number][] = [];
+
+      try {
+        const doorInfo = getBuildingDoorInfo(b);
+        if (doorInfo && doorInfo.doorApproachPos) {
+          candidates.push(doorInfo.doorApproachPos);
+        }
+      } catch (err) {
+      }
 
       if (type === 'campfire') {
         candidates.push([gx, gz - 1], [gx, gz + 1], [gx - 1, gz], [gx + 1, gz]);
       } else {
+        const w = b.buildingWidth || 1;
+        const h = b.buildingHeight || 1;
         const midX = gx + Math.floor(w / 2);
         candidates.push([midX, gz + h]);
         if (w >= 3 || h >= 3) {
@@ -481,7 +511,7 @@ export function TerrainRenderer({ grid }: Props) {
           if (!seen.has(key) && (grid.isWalkable(cx, cz) || grid.getTile(cx, cz)?.terrain === 'road')) {
             seen.add(key);
             nodes.push({
-              id: `snap-${b.id}-${cx}-${cz}`,
+              id: `snap-b-${b.id}-${cx}-${cz}`,
               x: cx,
               z: cz,
               buildingId: b.id,
@@ -494,19 +524,20 @@ export function TerrainRenderer({ grid }: Props) {
     return nodes;
   }, [activeTool, buildingEntities, buildingVersion, grid]);
 
-  const SNAP_VIS_RADIUS = 7;
-  const snapNodes = useMemo(() => {
-    if (!hoveredTile) return allSnapNodes.slice(0, 0);
+  const SNAP_VIS_RADIUS = 8;
+  const visibleBuildingSnapNodes = useMemo(() => {
+    if (!hoveredTile) return allBuildingSnapNodes.slice(0, 0);
     const [hx, hz] = hoveredTile;
-    return allSnapNodes.filter(
+    return allBuildingSnapNodes.filter(
       (n) => Math.abs(n.x - hx) <= SNAP_VIS_RADIUS && Math.abs(n.z - hz) <= SNAP_VIS_RADIUS
     );
-  }, [allSnapNodes, hoveredTile]);
+  }, [allBuildingSnapNodes, hoveredTile]);
 
   useEffect(() => {
     if (activeTool !== 'road') {
       setRoadStartPoint(null);
       setRoadPreviewPath([]);
+      setCurrentSnapTarget(null);
     }
   }, [activeTool]);
 
@@ -515,27 +546,184 @@ export function TerrainRenderer({ grid }: Props) {
       if (e.key === 'Escape' && activeTool === 'road') {
         setRoadStartPoint(null);
         setRoadPreviewPath([]);
+        setCurrentSnapTarget(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTool]);
 
-  const getEffectiveTile = (rawX: number, rawZ: number): [number, number] => {
-    if (activeTool !== 'road') return [rawX, rawZ];
-    for (const node of snapNodes) {
-      const dist = Math.hypot(node.x - rawX, node.z - rawZ);
-      if (dist <= 1.2) {
-        return [node.x, node.z];
+  const isRoadPlacementAllowed = (x: number, z: number): boolean => {
+    const { playerRegionId, regions } = useGameStore.getState();
+    const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
+    if (!pRegion?.bounds) return true;
+    const b = pRegion.bounds;
+
+    if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) return true;
+
+    const tile = grid.getTile(x, z);
+    if (tile?.terrain === 'road') return true;
+
+    const isHighway = (
+      Math.abs(x - GridMap.getHighwayX(z)) <= 2.5 ||
+      Math.abs(z - GridMap.getHighwayZ(x)) <= 2.5 ||
+      Math.hypot(x - 127.5, z - 127.5) <= 4.2
+    );
+    if (isHighway) return true;
+
+    const distToBorder = Math.max(0, b.minX - x, x - b.maxX, b.minZ - z, z - b.maxZ);
+    if (distToBorder <= 4) return true;
+
+    return false;
+  };
+
+  const getEffectiveTile = (
+    rawX: number,
+    rawZ: number,
+    isShiftKey: boolean = false
+  ): { coords: [number, number]; snapTarget: RoadSnapTarget | null } => {
+    if (activeTool !== 'road' || roadEraseMode || isShiftKey) {
+      return { coords: [rawX, rawZ], snapTarget: null };
+    }
+
+    interface Candidate {
+      x: number;
+      z: number;
+      dist: number;
+      type: 'road' | 'highway' | 'building';
+      label: string;
+    }
+    const candidates: Candidate[] = [];
+
+    for (const node of visibleBuildingSnapNodes) {
+      const d = Math.hypot(node.x - rawX, node.z - rawZ);
+      if (d <= 2.1) {
+        candidates.push({
+          x: node.x,
+          z: node.z,
+          dist: d,
+          type: 'building',
+          label: node.buildingName,
+        });
       }
     }
-    return [rawX, rawZ];
+
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        const tx = rawX + dx;
+        const tz = rawZ + dz;
+        if (tx < 0 || tx >= grid.width || tz < 0 || tz >= grid.height) continue;
+        const t = grid.getTile(tx, tz);
+        if (t?.terrain === 'road') {
+          if (roadStartPoint && tx === roadStartPoint[0] && tz === roadStartPoint[1]) {
+            if (Math.hypot(rawX - tx, rawZ - tz) > 0.8) continue;
+          }
+          const d = Math.hypot(tx - rawX, tz - rawZ);
+          if (d <= 1.85) {
+            const isHighway = (
+              Math.abs(tx - GridMap.getHighwayX(tz)) <= 1.2 ||
+              Math.abs(tz - GridMap.getHighwayZ(tx)) <= 1.2 ||
+              Math.hypot(tx - 127.5, tz - 127.5) <= 3.2
+            );
+            candidates.push({
+              x: tx,
+              z: tz,
+              dist: d,
+              type: isHighway ? 'highway' : 'road',
+              label: isHighway ? 'Королівський тракт' : 'Дорога',
+            });
+          }
+        }
+      }
+    }
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => a.dist - b.dist);
+      const best = candidates[0];
+      return {
+        coords: [best.x, best.z],
+        snapTarget: {
+          x: best.x,
+          z: best.z,
+          type: best.type,
+          label: best.label,
+        },
+      };
+    }
+
+    return { coords: [rawX, rawZ], snapTarget: null };
+  };
+
+  const eraseRoadAtTile = (x: number, z: number): boolean => {
+    let erased = false;
+    if (grid.removeRoad(x, z)) {
+      updateTileInTexture(x, z);
+      erased = true;
+    }
+    if (!erased) {
+      const neighbors = [
+        [x + 1, z], [x - 1, z], [x, z + 1], [x, z - 1]
+      ];
+      for (const [nx, nz] of neighbors) {
+        if (nx >= 0 && nx < grid.width && nz >= 0 && nz < grid.height) {
+          if (grid.getTile(nx, nz)?.terrain === 'road') {
+            if (grid.removeRoad(nx, nz)) {
+              updateTileInTexture(nx, nz);
+              erased = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (erased) {
+      audioManager.playRoadErase();
+      useGameStore.getState().incrementBuildingVersion();
+      useGameStore.getState().incrementFoliageVersion(true);
+    }
+    return erased;
+  };
+
+  const eraseRoadAlongStroke = (x0: number, z0: number, x1: number, z1: number) => {
+    const dx = Math.abs(x1 - x0);
+    const dz = Math.abs(z1 - z0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sz = z0 < z1 ? 1 : -1;
+    let err = dx - dz;
+    let cx = x0;
+    let cz = z0;
+    let anyErased = false;
+
+    while (true) {
+      if (grid.removeRoad(cx, cz)) {
+        updateTileInTexture(cx, cz);
+        anyErased = true;
+      }
+      if (cx === x1 && cz === z1) break;
+      const e2 = 2 * err;
+      if (e2 > -dz) {
+        err -= dz;
+        cx += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        cz += sz;
+      }
+    }
+
+    if (anyErased) {
+      audioManager.playRoadErase();
+      useGameStore.getState().incrementBuildingVersion();
+      useGameStore.getState().incrementFoliageVersion(true);
+    }
   };
 
   useEffect(() => {
     const handleGlobalPointerUp = () => {
       isPointerDownRef.current = false;
       lastErasedTileRef.current = null;
+      prevErasedPosRef.current = null;
     };
     window.addEventListener('pointerup', handleGlobalPointerUp);
     return () => window.removeEventListener('pointerup', handleGlobalPointerUp);
@@ -548,7 +736,10 @@ export function TerrainRenderer({ grid }: Props) {
     const rawZ = Math.floor(e.point.z);
 
     if (rawX >= 0 && rawX < grid.width && rawZ >= 0 && rawZ < grid.height) {
-      const [gx, gz] = getEffectiveTile(rawX, rawZ);
+      const { coords, snapTarget } = getEffectiveTile(rawX, rawZ, e.shiftKey);
+      const [gx, gz] = coords;
+      setCurrentSnapTarget(snapTarget);
+
       const curHover = useGameStore.getState().hoveredTile;
       if (!curHover || curHover[0] !== gx || curHover[1] !== gz) {
         useGameStore.getState().setHoveredTile([gx, gz]);
@@ -560,15 +751,15 @@ export function TerrainRenderer({ grid }: Props) {
         isPointerDownRef.current &&
         pointerButtonRef.current === 0
       ) {
-        const tileKey = `${gx},${gz}`;
-        if (lastErasedTileRef.current !== tileKey) {
-          lastErasedTileRef.current = tileKey;
-          if (grid.removeRoad(gx, gz)) {
-            audioManager.playRoadErase();
-            updateTileInTexture(gx, gz);
-            useGameStore.getState().incrementBuildingVersion();
-            useGameStore.getState().incrementFoliageVersion();
+        if (prevErasedPosRef.current) {
+          const [px, pz] = prevErasedPosRef.current;
+          if (px !== rawX || pz !== rawZ) {
+            eraseRoadAlongStroke(px, pz, rawX, rawZ);
+            prevErasedPosRef.current = [rawX, rawZ];
           }
+        } else {
+          prevErasedPosRef.current = [rawX, rawZ];
+          eraseRoadAtTile(rawX, rawZ);
         }
       }
 
@@ -576,14 +767,15 @@ export function TerrainRenderer({ grid }: Props) {
         if (gx === roadStartPoint[0] && gz === roadStartPoint[1]) {
           setRoadPreviewPath([[gx, gz]]);
         } else {
-          const { playerRegionId, regions } = useGameStore.getState();
-          const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
-          const path = AStar.findPath(grid, roadStartPoint, [gx, gz], false, pRegion?.bounds);
-          if (path && path.length > 0) {
-            setRoadPreviewPath(path);
-          } else {
-            setRoadPreviewPath([]);
-          }
+          const linePath = getSmartRoadPath(
+            grid,
+            roadStartPoint[0],
+            roadStartPoint[1],
+            gx,
+            gz,
+            isRoadPlacementAllowed
+          );
+          setRoadPreviewPath(linePath);
         }
       }
     } else {
@@ -593,6 +785,7 @@ export function TerrainRenderer({ grid }: Props) {
       if (activeTool === 'road' && roadStartPoint) {
         setRoadPreviewPath([]);
       }
+      setCurrentSnapTarget(null);
     }
   };
 
@@ -603,21 +796,32 @@ export function TerrainRenderer({ grid }: Props) {
     isPointerDownRef.current = true;
     pointerButtonRef.current = e.button;
 
-    const [gx, gz] = getEffectiveTile(Math.floor(e.point.x), Math.floor(e.point.z));
+    const rawX = Math.floor(e.point.x);
+    const rawZ = Math.floor(e.point.z);
+    const { coords, snapTarget } = getEffectiveTile(rawX, rawZ, e.shiftKey);
+    const [gx, gz] = coords;
     const tile = grid.getTile(gx, gz);
     if (!tile) return;
 
-    const { addChronicleEvent, consumeResource, addPendingJob, resources } = useGameStore.getState();
+    const { addChronicleEvent, consumeResource, addPendingJob, resources, playerRegionId = 0, regions } = useGameStore.getState();
 
-    if (activeTool === 'road' || activeTool === 'build' || activeTool === 'chop') {
-      const { playerRegionId, regions } = useGameStore.getState();
+    if (activeTool === 'road') {
+      if (!isRoadPlacementAllowed(gx, gz)) {
+        addChronicleEvent({
+          title: 'Чужі володіння!',
+          description: 'Ви не маєте права прокладати дороги в глибині чужих володінь без дозволу сусіднього лорда.',
+          type: 'warning',
+        });
+        return;
+      }
+    } else if (activeTool === 'build' || activeTool === 'chop') {
       const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
       if (pRegion?.bounds) {
         const b = pRegion.bounds;
         if (gx < b.minX || gx > b.maxX || gz < b.minZ || gz > b.maxZ) {
           addChronicleEvent({
             title: 'Чужі володіння!',
-            description: 'Ви не маєте права будувати, прокладати дороги чи рубати ліс на чужій території без дозволу сусіднього лорда.',
+            description: 'Ви не маєте права будувати чи рубати ліс на чужій території без дозволу сусіднього лорда.',
             type: 'warning',
           });
           return;
@@ -626,17 +830,10 @@ export function TerrainRenderer({ grid }: Props) {
     }
 
     if (activeTool === 'road') {
-
       if (roadEraseMode) {
         if (e.button === 0) {
-          const tileKey = `${gx},${gz}`;
-          lastErasedTileRef.current = tileKey;
-          if (grid.removeRoad(gx, gz)) {
-            audioManager.playRoadErase();
-            updateTileInTexture(gx, gz);
-            useGameStore.getState().incrementBuildingVersion();
-            useGameStore.getState().incrementFoliageVersion();
-          }
+          prevErasedPosRef.current = [rawX, rawZ];
+          eraseRoadAtTile(rawX, rawZ);
         } else if (e.button === 2) {
           audioManager.playUIClick();
           setRoadEraseMode(false);
@@ -655,30 +852,37 @@ export function TerrainRenderer({ grid }: Props) {
             type: 'info',
           });
         } else {
-          if (grid.removeRoad(gx, gz)) {
-            audioManager.playRoadErase();
-            updateTileInTexture(gx, gz);
-            useGameStore.getState().incrementBuildingVersion();
-            useGameStore.getState().incrementFoliageVersion();
-          }
+          eraseRoadAtTile(rawX, rawZ);
         }
         return;
       }
 
       if (e.button === 0) {
         if (roadStartPoint === null) {
-          if (grid.isWalkable(gx, gz) || grid.getTile(gx, gz)?.terrain === 'road') {
+          const startTile = grid.getTile(gx, gz);
+          if (startTile && startTile.terrain !== 'water' && !startTile.buildingId) {
             audioManager.playRoadDraw();
             setRoadStartPoint([gx, gz]);
             setRoadPreviewPath([[gx, gz]]);
+            const snapMsg = snapTarget ? ` (прив'язка: ${snapTarget.label})` : '';
             addChronicleEvent({
               title: 'Початок дороги обрано',
-              description: 'Клацніть на кінцеву точку, щоб прокласти шлях. ПКМ або E — стирати.',
+              description: `Тягніть лінію та клацніть ЛКМ, щоб прокласти шлях.${snapMsg} ПКМ або Esc — скасувати.`,
               type: 'info',
             });
           }
         } else {
           if (roadPreviewPath.length > 0) {
+            if (!isRoadPathValid(grid, roadPreviewPath)) {
+              audioManager.playUIError();
+              addChronicleEvent({
+                title: 'Неможливо прокласти дорогу!',
+                description: 'Шлях перетинає воду або вже зведену споруду.',
+                type: 'warning',
+              });
+              return;
+            }
+
             let pavedCount = 0;
             for (const [px, pz] of roadPreviewPath) {
               if (grid.paveRoad(px, pz)) {
@@ -687,19 +891,23 @@ export function TerrainRenderer({ grid }: Props) {
               }
             }
 
-            if (pavedCount > 0) {
+            if (pavedCount > 0 || roadPreviewPath.length > 0) {
               audioManager.playRoadDraw();
               useGameStore.getState().incrementBuildingVersion();
-              useGameStore.getState().incrementFoliageVersion();
+              useGameStore.getState().incrementFoliageVersion(true);
+              const connectMsg = snapTarget
+                ? ` Приєднано до: ${snapTarget.label}.`
+                : '';
               addChronicleEvent({
                 title: 'Прокладено дорогу',
-                description: `Збудовано ґрунтовий шлях (${roadPreviewPath.length} пл.). Селяни отримали бонус +50% до швидкості руху!`,
+                description: `Збудовано ґрунтовий шлях (${roadPreviewPath.length} м).${connectMsg} Селяни отримали бонус +50% до швидкості руху!`,
                 type: 'info',
               });
             }
 
-            setRoadStartPoint([gx, gz]);
-            setRoadPreviewPath([[gx, gz]]);
+            setRoadStartPoint(null);
+            setRoadPreviewPath([]);
+            setCurrentSnapTarget(null);
           }
         }
         return;
@@ -713,7 +921,27 @@ export function TerrainRenderer({ grid }: Props) {
       const blueprint = BUILDING_BLUEPRINTS[activeBuildType];
       if (!blueprint) return;
 
-      if (!grid.canBuildAt(gx, gz, blueprint.width, blueprint.height)) {
+      const [targetGx, targetGz] = getSnappedPlacementCoords(gx, gz, blueprint.width, blueprint.height, activeBuildType, grid);
+
+      const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
+      if (pRegion?.bounds) {
+        const b = pRegion.bounds;
+        const minX = targetGx;
+        const maxX = targetGx + blueprint.width - 1;
+        const minZ = targetGz;
+        const maxZ = targetGz + blueprint.height - 1;
+        if (minX < b.minX || maxX > b.maxX || minZ < b.minZ || maxZ > b.maxZ) {
+          audioManager.playUIError();
+          addChronicleEvent({
+            title: 'Чужі володіння!',
+            description: 'Ви не маєте права зводити будівлі за межами свого регіону без дозволу сусідніх володарів.',
+            type: 'warning',
+          });
+          return;
+        }
+      }
+
+      if (!grid.canBuildAt(targetGx, targetGz, blueprint.width, blueprint.height)) {
         audioManager.playUIError();
         addChronicleEvent({
           title: 'Неможливо збудувати!',
@@ -745,10 +973,10 @@ export function TerrainRenderer({ grid }: Props) {
         consumeResource(res as any, cost || 0);
       }
 
-      audioManager.playBuildingPlace(gx, gz);
+      audioManager.playBuildingPlace(targetGx, targetGz);
 
       const buildingId = `building-${activeBuildType}-${Date.now()}`;
-      const buildingH = grid.occupyForBuilding(gx, gz, blueprint.width, blueprint.height, buildingId);
+      const buildingH = grid.occupyForBuilding(targetGx, targetGz, blueprint.width, blueprint.height, buildingId);
 
       world.add({
         id: buildingId,
@@ -761,9 +989,11 @@ export function TerrainRenderer({ grid }: Props) {
         buildingHeight: blueprint.height,
         isCompleted: false,
         constructionProgress: 0,
-        gridPosition: [gx, gz],
-        position: [gx + blueprint.width / 2, buildingH, gz + blueprint.height / 2],
+        gridPosition: [targetGx, targetGz],
+        position: [targetGx + blueprint.width / 2, buildingH, targetGz + blueprint.height / 2],
         localInventory: { wood: 0 },
+        factionId: 'player',
+        regionId: playerRegionId ?? 0,
       });
 
       useGameStore.getState().incrementBuildingVersion();
@@ -772,7 +1002,7 @@ export function TerrainRenderer({ grid }: Props) {
       addPendingJob({
         id: `job-build-${buildingId}`,
         type: 'build_structure',
-        targetPosition: [gx, gz],
+        targetPosition: [targetGx, targetGz],
         targetBuildingId: buildingId,
         progress: 0,
         totalWork: 30 + blueprint.width * blueprint.height * 10,
@@ -881,44 +1111,62 @@ export function TerrainRenderer({ grid }: Props) {
               activeTool === 'road' && roadEraseMode
                 ? '#ef4444'
                 : activeTool === 'road'
-                ? '#f59e0b'
+                ? (currentSnapTarget ? '#38bdf8' : '#f59e0b')
                 : '#fbbf24'
             }
             transparent
-            opacity={activeTool === 'build' ? 0.35 : activeTool === 'road' ? 0.45 : 0.18}
+            opacity={activeTool === 'road' && roadEraseMode ? 0.65 : activeTool === 'road' ? 0.40 : 0.22}
             side={THREE.DoubleSide}
           />
         </mesh>
       )}
 
-      {activeTool === 'road' && !roadEraseMode && snapNodes.map((node) => {
+      {activeTool === 'road' && roadEraseMode && hoveredTile && (
+        <Html
+          position={[hoveredTile[0] + 0.5, 0.55, hoveredTile[1] + 0.5]}
+          center
+          zIndexRange={[15, 0]}
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        >
+          <div className="bg-stone-950/95 text-red-300 text-[10px] px-2.5 py-1 rounded-md border border-red-500/70 whitespace-nowrap shadow-xl backdrop-blur-md flex items-center gap-1.5 animate-pulse">
+            <span>🧹</span>
+            <span className="font-semibold text-white">Режим знесення:</span>
+            <span>ЛКМ — стерти шлях</span>
+            <span className="text-stone-400">[ПКМ: вийти]</span>
+          </div>
+        </Html>
+      )}
+
+      {activeTool === 'road' && !roadEraseMode && visibleBuildingSnapNodes.map((node) => {
         const isStart = roadStartPoint && roadStartPoint[0] === node.x && roadStartPoint[1] === node.z;
         const isHovered = hoveredTile && hoveredTile[0] === node.x && hoveredTile[1] === node.z;
-        const color = isStart ? '#22c55e' : isHovered ? '#fef08a' : '#f59e0b';
-        const scale = isStart ? 1.25 : isHovered ? 1.15 : 1.0;
+        const isTarget = currentSnapTarget && currentSnapTarget.x === node.x && currentSnapTarget.z === node.z;
+        const color = isStart ? '#22c55e' : isTarget ? '#38bdf8' : isHovered ? '#67e8f9' : '#0284c7';
+        const scale = isStart ? 1.25 : isTarget ? 1.22 : isHovered ? 1.15 : 1.0;
 
         return (
           <group key={node.id} position={[node.x + 0.5, 0.04, node.z + 0.5]} scale={[scale, scale, scale]}>
             <mesh rotation={[-Math.PI / 2, 0, 0]}>
               <ringGeometry args={[0.32, 0.44, 24]} />
-              <meshBasicMaterial color={color} transparent opacity={isStart ? 0.95 : 0.8} side={THREE.DoubleSide} />
+              <meshBasicMaterial color={color} transparent opacity={isStart || isTarget ? 0.95 : 0.75} side={THREE.DoubleSide} />
             </mesh>
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
               <circleGeometry args={[0.22, 20]} />
-              <meshBasicMaterial color={color} transparent opacity={isStart ? 0.7 : 0.45} side={THREE.DoubleSide} />
+              <meshBasicMaterial color={color} transparent opacity={isStart || isTarget ? 0.7 : 0.35} side={THREE.DoubleSide} />
             </mesh>
             <mesh position={[0, 0.12, 0]} castShadow>
               <cylinderGeometry args={[0.06, 0.08, 0.24, 6]} />
-              <meshStandardMaterial color={isStart ? '#15803d' : '#78350f'} roughness={0.8} />
+              <meshStandardMaterial color={isStart ? '#15803d' : '#0369a1'} roughness={0.8} />
             </mesh>
             <mesh position={[0, 0.24, 0]}>
               <sphereGeometry args={[0.07, 8, 8]} />
               <meshBasicMaterial color={color} />
             </mesh>
-            {isHovered && (
-              <Html position={[0, 0.48, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                <div className="bg-slate-950/90 text-amber-300 text-[10px] px-2 py-0.5 rounded border border-amber-500/60 whitespace-nowrap shadow-md backdrop-blur-sm">
-                  {node.buildingName} (Вхід)
+            {(isHovered || isTarget) && (
+              <Html position={[0, 0.48, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                <div className="bg-slate-950/95 text-cyan-200 text-[10px] px-2.5 py-0.5 rounded border border-cyan-500/70 whitespace-nowrap shadow-xl backdrop-blur-md flex items-center gap-1">
+                  <span>🚪</span>
+                  <span>{node.buildingName} (Вхід)</span>
                 </div>
               </Html>
             )}
@@ -926,48 +1174,33 @@ export function TerrainRenderer({ grid }: Props) {
         );
       })}
 
-      {activeTool === 'road' && roadStartPoint && (
-        <group position={[roadStartPoint[0] + 0.5, 0.05, roadStartPoint[1] + 0.5]}>
+      {activeTool === 'road' && !roadEraseMode && currentSnapTarget && currentSnapTarget.type !== 'building' && (
+        <group position={[currentSnapTarget.x + 0.5, (grid.getTile(currentSnapTarget.x, currentSnapTarget.z)?.height || 0.05) + 0.028, currentSnapTarget.z + 0.5]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.38, 0.48, 24]} />
-            <meshBasicMaterial color="#22c55e" transparent opacity={0.9} side={THREE.DoubleSide} />
+            <ringGeometry args={[0.34, 0.46, 24]} />
+            <meshBasicMaterial color="#f59e0b" transparent opacity={0.95} side={THREE.DoubleSide} />
           </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
+            <circleGeometry args={[0.22, 20]} />
+            <meshBasicMaterial color="#fbbf24" transparent opacity={0.5} side={THREE.DoubleSide} />
+          </mesh>
+          <Html position={[0, 0.48, 0]} center zIndexRange={[12, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+            <div className="bg-stone-950/95 text-amber-300 text-[10px] px-2.5 py-0.5 rounded border border-amber-500/70 whitespace-nowrap shadow-xl backdrop-blur-md flex items-center gap-1 animate-bounce">
+              <span>🔗</span>
+              <span>{currentSnapTarget.label}</span>
+            </div>
+          </Html>
         </group>
       )}
 
-      {activeTool === 'road' && roadPreviewPath.length > 0 && (
-        <group>
-          {roadPreviewPath.map(([px, pz], idx) => (
-            <group key={`road-prev-${px}-${pz}-${idx}`} position={[px + 0.5, 0.03, pz + 0.5]}>
-              <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[0.92, 0.92]} />
-                <meshBasicMaterial color="#f59e0b" transparent opacity={0.55} side={THREE.DoubleSide} />
-              </mesh>
-              <mesh position={[0, 0.02, 0]}>
-                <boxGeometry args={[0.2, 0.02, 0.2]} />
-                <meshBasicMaterial color="#fbbf24" transparent opacity={0.8} />
-              </mesh>
-            </group>
-          ))}
-          {roadPreviewPath.length > 1 && (
-            <Html
-              position={[
-                roadPreviewPath[roadPreviewPath.length - 1][0] + 0.5,
-                0.6,
-                roadPreviewPath[roadPreviewPath.length - 1][1] + 0.5,
-              ]}
-              center
-              zIndexRange={[10, 0]}
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
-              <div className="bg-amber-950/95 text-amber-200 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-amber-500/80 shadow-xl flex items-center gap-1.5 whitespace-nowrap backdrop-blur-md">
-                <RoadIcon size={13} className="text-amber-300" />
-                <span>Дорога: {roadPreviewPath.length} пл.</span>
-                <span className="text-[9px] text-amber-400/80 font-normal">(Клік - збудувати)</span>
-              </div>
-            </Html>
-          )}
-        </group>
+      {activeTool === 'road' && (
+        <RoadPlacementPreview
+          grid={grid}
+          startPoint={roadStartPoint}
+          path={roadPreviewPath}
+          hoveredTile={hoveredTile}
+          snapTarget={currentSnapTarget}
+        />
       )}
     </group>
   );

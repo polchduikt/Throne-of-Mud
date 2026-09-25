@@ -10,6 +10,18 @@ import type {
   ResourceDepositType
 } from '../../types/game';
 
+export type { 
+  CharacterClass, 
+  CharacterNeeds, 
+  CharacterSkills, 
+  Job, 
+  ResourceInventory, 
+  BuildingType,
+  Thought,
+  ResourceDepositType
+};
+
+
 export interface GameEntity {
   id: string;
   name?: string;
@@ -53,6 +65,8 @@ export interface GameEntity {
   buildingHeight?: number;
   isCompleted?: boolean;
   constructionProgress?: number;
+  isDemolishing?: boolean;
+  demolitionProgress?: number;
   productionProgress?: number;
   assignedWorkers?: string[];
   workerSlots?: number;

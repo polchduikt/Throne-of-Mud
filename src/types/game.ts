@@ -90,6 +90,7 @@ export type JobType =
   | 'harvest_wheat'
   | 'plant_crops'
   | 'build_structure'
+  | 'demolish_structure'
   | 'haul_resource'
   | 'make_flour'
   | 'bake_bread'
@@ -99,6 +100,7 @@ export type JobType =
   | 'patrol'
   | 'preach'
   | 'sleep'
+  | 'sit_by_fire'
   | 'eat'
   | 'drink_ale'
   | 'socialize'
@@ -110,11 +112,14 @@ export interface Job {
   type: JobType;
   targetPosition?: [number, number];
   targetAngle?: number;
+  targetY?: number;
   targetEntityId?: string;
   targetBuildingId?: string;
   progress: number;
   totalWork: number;
   assignedUnitId?: string;
+  seatIndex?: number;
+  bedIndex?: number;
   payload?: {
     resourceType?: ResourceType;
     amount?: number;
@@ -148,6 +153,7 @@ export interface BuildingBlueprint {
   cost: Partial<ResourceInventory>;
   category: 'housing' | 'agriculture' | 'production' | 'infrastructure' | 'military';
   workSlots: number;
+  bedsCount?: number;
   health: number;
   color: string;
   defaultWage?: number;

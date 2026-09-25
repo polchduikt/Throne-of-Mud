@@ -76,6 +76,8 @@ export const LordsBar: React.FC = React.memo(() => {
             } else if (lord.currentJob?.type === 'sleep') {
               statusText = dict.lordsBar.restingStatus;
               isSleeping = true;
+            } else if (lord.currentJob?.type === 'sit_by_fire') {
+              statusText = 'Біля вогнища';
             } else if (lord.currentJob?.type === 'wander') {
               statusText = dict.lordsBar.inspectingStatus;
             }

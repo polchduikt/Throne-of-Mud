@@ -3,6 +3,7 @@ import { GridMap } from '../grid/GridMap';
 import { world } from '../ecs/world';
 import { DEFAULT_REGIONS, PRESET_BOT_LORDS } from '../../constants/world';
 import { initResourceDeposits } from '../resources/ResourceDeposits';
+import { getSmartRoadPath } from '../grid/roadGeneration';
 
 export interface WorldInitResult {
   playerRegionId: number;
@@ -66,16 +67,19 @@ export function initializeWorldEntities(
         if (tile && tile.terrain !== 'water') {
           tile.height = campH;
           tile.foliageType = undefined;
+          tile.foliageAngle = undefined;
+          tile.foliageTreeType = undefined;
         }
       }
     }
+    grid.removeFoliageFromCoords(spawnX - 4, spawnX + 4, spawnZ - 4, spawnZ + 4);
     return campH;
   };
 
   const pCampH = clearCampArea(cx, cz);
 
   const campfireId = 'building-campfire-player';
-  grid.occupyForBuilding(cx, cz, 1, 1, campfireId);
+  grid.occupyForBuilding(cx, cz, 2, 2, campfireId);
   world.add({
     id: campfireId,
     name: 'Багаття поселення',
@@ -83,18 +87,18 @@ export function initializeWorldEntities(
     buildingType: 'campfire',
     buildingHealth: 100,
     maxBuildingHealth: 100,
-    buildingWidth: 1,
-    buildingHeight: 1,
+    buildingWidth: 2,
+    buildingHeight: 2,
     isCompleted: true,
     constructionProgress: 100,
     gridPosition: [cx, cz],
-    position: [cx + 0.5, pCampH, cz + 0.5],
+    position: [cx + 1.0, pCampH, cz + 1.0],
     factionId: 'player',
     regionId: playerRegionId,
   });
 
   const tentId = 'building-tent-player';
-  grid.occupyForBuilding(cx - 2, cz - 1, 2, 2, tentId);
+  grid.occupyForBuilding(cx - 4, cz - 1, 3, 2, tentId);
   world.add({
     id: tentId,
     name: 'Палатка поселенців',
@@ -102,12 +106,12 @@ export function initializeWorldEntities(
     buildingType: 'tent',
     buildingHealth: 150,
     maxBuildingHealth: 150,
-    buildingWidth: 2,
+    buildingWidth: 3,
     buildingHeight: 2,
     isCompleted: true,
     constructionProgress: 100,
-    gridPosition: [cx - 2, cz - 1],
-    position: [cx - 1, pCampH, cz],
+    gridPosition: [cx - 4, cz - 1],
+    position: [cx - 2.5, pCampH, cz],
     factionId: 'player',
     regionId: playerRegionId,
   });
@@ -210,7 +214,7 @@ export function initializeWorldEntities(
       const bCampH = clearCampArea(bx, bz);
 
       const bCampfireId = `building-campfire-${bot.id}`;
-      grid.occupyForBuilding(bx, bz, 1, 1, bCampfireId);
+      grid.occupyForBuilding(bx, bz, 2, 2, bCampfireId);
       world.add({
         id: bCampfireId,
         name: `Вогнище (${bot.name})`,
@@ -218,18 +222,18 @@ export function initializeWorldEntities(
         buildingType: 'campfire',
         buildingHealth: 100,
         maxBuildingHealth: 100,
-        buildingWidth: 1,
-        buildingHeight: 1,
+        buildingWidth: 2,
+        buildingHeight: 2,
         isCompleted: true,
         constructionProgress: 100,
         gridPosition: [bx, bz],
-        position: [bx + 0.5, bCampH, bz + 0.5],
+        position: [bx + 1.0, bCampH, bz + 1.0],
         factionId: bot.id,
         regionId: regId,
       });
 
       const bTentId = `building-tent-${bot.id}`;
-      grid.occupyForBuilding(bx - 2, bz - 1, 2, 2, bTentId);
+      grid.occupyForBuilding(bx - 4, bz - 1, 3, 2, bTentId);
       world.add({
         id: bTentId,
         name: `Табір (${bot.name})`,
@@ -237,15 +241,41 @@ export function initializeWorldEntities(
         buildingType: 'tent',
         buildingHealth: 150,
         maxBuildingHealth: 150,
-        buildingWidth: 2,
+        buildingWidth: 3,
         buildingHeight: 2,
         isCompleted: true,
         constructionProgress: 100,
-        gridPosition: [bx - 2, bz - 1],
-        position: [bx - 1, bCampH, bz],
+        gridPosition: [bx - 4, bz - 1],
+        position: [bx - 2.5, bCampH, bz],
         factionId: bot.id,
         regionId: regId,
       });
+
+      const hwX = GridMap.getHighwayX(bz);
+      const hwZ = GridMap.getHighwayZ(bx);
+      const distNS = Math.abs(bx - hwX);
+      const distEW = Math.abs(bz - hwZ);
+      const distPlaza = Math.hypot(bx - 127.5, bz - 127.5);
+
+      let targetX = Math.round(hwX);
+      let targetZ = bz;
+      if (distEW < distNS && distEW < distPlaza) {
+        targetX = bx;
+        targetZ = Math.round(hwZ);
+      } else if (distPlaza < distNS && distPlaza < distEW) {
+        targetX = 128;
+        targetZ = 128;
+      }
+
+      const botHighwayRoad = getSmartRoadPath(grid, targetX, targetZ, bx + 1, bz + 1);
+      for (const [px, pz] of botHighwayRoad) {
+        grid.paveRoad(px, pz);
+      }
+
+      const botCampInternalRoad = getSmartRoadPath(grid, bx, bz, bx - 2, bz);
+      for (const [px, pz] of botCampInternalRoad) {
+        grid.paveRoad(px, pz);
+      }
 
       world.add({
         id: `unit-${bot.id}-lord`,

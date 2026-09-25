@@ -2,6 +2,7 @@ import { GridMap } from '../../grid/GridMap';
 import { world } from '../world';
 import { useGameStore } from '../../../store/useGameStore';
 import { AStar } from '../../pathfinding/AStar';
+import { getSmartRoadPath } from '../../grid/roadGeneration';
 import type { BuildingType } from '../../../types/game';
 
 interface BotRealmMemory {
@@ -9,6 +10,7 @@ interface BotRealmMemory {
   stone: number;
   buildStage: number;
   lastActionTick: number;
+  hasPavedHighwayRoad?: boolean;
 }
 
 export class BotAISystem {
@@ -21,7 +23,7 @@ export class BotAISystem {
   public static update(grid: GridMap, currentTick: number): void {
     if (currentTick % 15 !== 0) return;
 
-    const { regions, incrementBuildingVersion, addChronicleEvent } = useGameStore.getState();
+    const { regions, incrementBuildingVersion, incrementFoliageVersion, addChronicleEvent } = useGameStore.getState();
     const botRegions = regions.filter((r) => r.owner === 'bot');
 
     for (const region of botRegions) {
@@ -35,6 +37,42 @@ export class BotAISystem {
           lastActionTick: currentTick - (100 - (region.id + 1) * 35),
         };
         this.botMemories.set(botFactionId, memory);
+      }
+
+      if (!memory.hasPavedHighwayRoad) {
+        memory.hasPavedHighwayRoad = true;
+        const camp = region.campPosition || region.center;
+        const hwX = GridMap.getHighwayX(camp[1]);
+        const hwZ = GridMap.getHighwayZ(camp[0]);
+        const distNS = Math.abs(camp[0] - hwX);
+        const distEW = Math.abs(camp[1] - hwZ);
+        const distPlaza = Math.hypot(camp[0] - 127.5, camp[1] - 127.5);
+
+        let targetX = Math.round(hwX);
+        let targetZ = camp[1];
+        if (distEW < distNS && distEW < distPlaza) {
+          targetX = camp[0];
+          targetZ = Math.round(hwZ);
+        } else if (distPlaza < distNS && distPlaza < distEW) {
+          targetX = 128;
+          targetZ = 128;
+        }
+
+        const hPath = getSmartRoadPath(grid, targetX, targetZ, camp[0] + 1, camp[1] + 1);
+        let anyPaved = false;
+        for (const [px, pz] of hPath) {
+          if (grid.paveRoad(px, pz)) anyPaved = true;
+        }
+
+        const campInternal = getSmartRoadPath(grid, camp[0], camp[1], camp[0] - 2, camp[1]);
+        for (const [px, pz] of campInternal) {
+          if (grid.paveRoad(px, pz)) anyPaved = true;
+        }
+
+        if (anyPaved) {
+          incrementBuildingVersion();
+          incrementFoliageVersion(true);
+        }
       }
 
       const botUnits = Array.from(world.entities).filter(
@@ -184,6 +222,52 @@ export class BotAISystem {
               memory.stone -= nextBuilding.stoneCost;
               memory.buildStage++;
 
+              const approachCandidates: [number, number][] = [
+                [bx + Math.floor(nextBuilding.w / 2), bz + nextBuilding.h],
+                [bx + Math.floor(nextBuilding.w / 2), bz - 1],
+                [bx - 1, bz + Math.floor(nextBuilding.h / 2)],
+                [bx + nextBuilding.w, bz + Math.floor(nextBuilding.h / 2)],
+              ];
+              let approachPos: [number, number] | null = null;
+              for (const [ax, az] of approachCandidates) {
+                const t = grid.getTile(ax, az);
+                if (t && t.terrain !== 'water' && !t.buildingId) {
+                  approachPos = [ax, az];
+                  break;
+                }
+              }
+
+              if (approachPos) {
+                let nearestRoad: [number, number] | null = null;
+                let minDist = Infinity;
+                for (let rx = region.bounds.minX; rx <= region.bounds.maxX; rx++) {
+                  for (let rz = region.bounds.minZ; rz <= region.bounds.maxZ; rz++) {
+                    const t = grid.getTile(rx, rz);
+                    if (t && t.terrain === 'road') {
+                      const d = Math.hypot(rx - approachPos[0], rz - approachPos[1]);
+                      if (d < minDist) {
+                        minDist = d;
+                        nearestRoad = [rx, rz];
+                      }
+                    }
+                  }
+                }
+
+                if (nearestRoad) {
+                  const bRoadPath = getSmartRoadPath(
+                    grid,
+                    approachPos[0],
+                    approachPos[1],
+                    nearestRoad[0],
+                    nearestRoad[1],
+                    region.bounds
+                  );
+                  for (const [px, pz] of bRoadPath) {
+                    grid.paveRoad(px, pz);
+                  }
+                }
+              }
+
                 const builderPeasant = peasants.find((p) => !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander') || peasants[0];
                 if (builderPeasant && builderPeasant.gridPosition) {
                   const buildPath = AStar.findPathToArea(grid, builderPeasant.gridPosition, bx, bz, nextBuilding.w, nextBuilding.h, region.bounds);
@@ -212,6 +296,7 @@ export class BotAISystem {
                 });
 
                 incrementBuildingVersion();
+                incrementFoliageVersion();
                 break;
             }
           }

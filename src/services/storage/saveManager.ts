@@ -3,6 +3,7 @@ import { world, type GameEntity } from '../../engine/ecs/world';
 import { useGameStore } from '../../store/useGameStore';
 import type { ResourceInventory, GameTime, ChronicleEvent, TileData, RegionData, ResourceDeposit } from '../../types/game';
 import { initResourceDeposits } from '../../engine/resources/ResourceDeposits';
+import { INITIAL_RESOURCES } from '../../constants/economy';
 
 export interface SaveMetadata {
   saveTime: number;
@@ -120,6 +121,10 @@ export async function saveGameToIndexedDB(grid: GridMap): Promise<boolean> {
       const putRequest = store.put(saveData, ACTIVE_SAVE_KEY);
 
       putRequest.onsuccess = () => {
+        try {
+          localStorage.setItem('throne_of_mud_has_save', 'true');
+          localStorage.setItem('throne_of_mud_meta', JSON.stringify(meta));
+        } catch {}
         resolve(true);
       };
 
@@ -191,6 +196,12 @@ export async function loadGameFromIndexedDB(grid: GridMap): Promise<boolean> {
     if (Array.isArray(saveData.entities)) {
       for (const entity of saveData.entities) {
         world.add(entity);
+        if (entity.isBuilding && entity.gridPosition) {
+          const [gx, gz] = entity.gridPosition;
+          const bw = entity.buildingWidth || 1;
+          const bh = entity.buildingHeight || 1;
+          grid.occupyForBuilding(gx, gz, bw, bh, entity.id);
+        }
       }
     }
 
@@ -252,10 +263,11 @@ export async function loadGameFromIndexedDB(grid: GridMap): Promise<boolean> {
 
     try {
       localStorage.setItem('throne_of_mud_active_session', 'playing');
+      localStorage.setItem('throne_of_mud_has_save', 'true');
     } catch {}
 
     useGameStore.setState({
-      resources: { ...saveData.gameState.resources },
+      resources: { ...INITIAL_RESOURCES, ...saveData.gameState.resources },
       time: {
         ...saveData.gameState.time,
         season: saveData.gameState.time.season || 'Spring',
@@ -288,6 +300,7 @@ export async function loadGameFromIndexedDB(grid: GridMap): Promise<boolean> {
       isInitialized: true,
       isStrategicMapOpen: false,
       buildingVersion: useGameStore.getState().buildingVersion + 1,
+      foliageVersion: useGameStore.getState().foliageVersion + 1,
       resourceDeposits: deposits || [],
     });
 

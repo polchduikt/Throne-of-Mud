@@ -1,46 +1,7 @@
 import type { StateCreator } from 'zustand';
-import type { BuildingType, ToolType } from '../../types/game';
-import type { GameState } from '../useGameStore';
+import type { GameState, UISlice } from '../types';
 
-export interface UISlice {
-  selectedEntityId: string | null;
-  setSelectedEntityId: (id: string | null) => void;
-  activeBuildType: BuildingType | null;
-  setActiveBuildType: (type: BuildingType | null) => void;
-  activeTool: ToolType;
-  setActiveTool: (tool: ToolType) => void;
-  roadEraseMode: boolean;
-  setRoadEraseMode: (v: boolean) => void;
-  hoveredTile: [number, number] | null;
-  setHoveredTile: (tile: [number, number] | null) => void;
-
-  previewAnimation: { entityId: string; anim: 'idle' | 'walk' | 'attack' | 'chop'; expiresAt: number } | null;
-  triggerAnimation: (entityId: string, anim: 'idle' | 'walk' | 'attack' | 'chop', durationMs?: number) => void;
-
-  cameraFocusTarget: [number, number] | null;
-  setCameraFocusTarget: (pos: [number, number] | null) => void;
-  cameraZoomTarget: number | null;
-  setCameraZoomTarget: (zoom: number | null) => void;
-  cameraAngleTarget: number | null;
-  setCameraAngleTarget: (angle: number | null) => void;
-  isStrategicView: boolean;
-  setIsStrategicView: (val: boolean) => void;
-
-  activeMenuTab: 'buildings' | 'military' | 'trade' | 'codex' | 'settings' | null;
-  setActiveMenuTab: (tab: 'buildings' | 'military' | 'trade' | 'codex' | 'settings' | null) => void;
-
-  isStrategicMapOpen: boolean;
-  setIsStrategicMapOpen: (open: boolean) => void;
-  focusOnRegion: (regionId: number) => void;
-
-  isLordsBarOpen: boolean;
-  toggleLordsBar: () => void;
-
-  gameMode: 'menu' | 'playing';
-  setGameMode: (mode: 'menu' | 'playing') => void;
-  saveNotification: string | null;
-  setSaveNotification: (msg: string | null) => void;
-}
+export type { UISlice };
 
 export const createUISlice: StateCreator<GameState, [], [], UISlice> = (set, get) => ({
   selectedEntityId: null,

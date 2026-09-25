@@ -1,5 +1,6 @@
 import { createNoise2D } from 'simplex-noise';
 import type { TileData, TerrainType, SpawnPointData } from '../../types/game';
+import { getPresetSpawnPoints } from '../../constants/world';
 
 function mulberry32(a: number) {
   return function() {
@@ -32,36 +33,7 @@ export class GridMap {
   }
 
   public static getPresetSpawnPoints(regionId: number): SpawnPointData[] {
-    switch (regionId) {
-      case 0:
-        return [
-          { id: 'sp-0-1', name: 'Серце долини', position: [52, 52], description: 'Простора рівнинна галявина в центрі володіння з легким доступом до лісів та каменю' },
-          { id: 'sp-0-2', name: 'Північний бір', position: [88, 36], description: 'Затишне плато біля північного дубового гаю та пагорбів' },
-          { id: 'sp-0-3', name: 'Річковий вигін', position: [40, 96], description: 'Родючі луки біля південного струмка з високою врожайністю' },
-        ];
-      case 1:
-        return [
-          { id: 'sp-1-1', name: 'Дубова просіка', position: [176, 52], description: 'Затишна галявина посеред вікових дубів та сосен із багатими запасами деревини' },
-          { id: 'sp-1-2', name: 'Мисливський пагорб', position: [216, 44], description: 'Височина з панорамним оглядом східних лісових угідь' },
-          { id: 'sp-1-3', name: 'Соснове урочище', position: [172, 98], description: 'Багатий лісовий бір біля джерела, ідеальний для заготівлі кругляку' },
-        ];
-      case 2:
-        return [
-          { id: 'sp-2-1', name: 'Озерна затока', position: [52, 144], description: 'Мальовничий північний берег озера з багатим рибальством та очеретом' },
-          { id: 'sp-2-2', name: 'Вербовий мис', position: [96, 180], description: 'Родючі мулисті чорноземи для великих пшеничних нив та млинів' },
-          { id: 'sp-2-3', name: 'Південна низина', position: [52, 218], description: 'Захищена від вітрів тепла долина біля південного узбережжя' },
-        ];
-      case 3:
-        return [
-          { id: 'sp-3-1', name: 'Кам\'яне плато', position: [176, 176], description: 'Міцне кам\'янисте узвишшя з покладами вапняку та граніту' },
-          { id: 'sp-3-2', name: 'Гірський перевал', position: [220, 160], description: 'Стратегічна оборонна висота між скельними кряжами' },
-          { id: 'sp-3-3', name: 'Скельна тераса', position: [184, 218], description: 'Природний скельний бастіон із багатими кам\'яними жилами' },
-        ];
-      default:
-        return [
-          { id: 'sp-def', name: 'Центральний табір', position: [52, 52], description: 'Рівнинна галявина' },
-        ];
-    }
+    return getPresetSpawnPoints(regionId);
   }
 
   public generate(seed: number): void {
@@ -164,25 +136,17 @@ export class GridMap {
         } else {
           terrain = 'grass';
 
-          const baseHill = Math.sin(x * 0.12) * Math.cos(z * 0.12) * 0.12 + Math.sin(x * 0.28 + z * 0.2) * 0.06;
-          let regionalHeightBonus = 0;
-
           if (isNW) {
             fertility = 0.78;
-            regionalHeightBonus = baseHill * 0.35;
           } else if (isNE) {
             fertility = 0.62;
-            regionalHeightBonus = Math.max(0.0, baseHill * 0.75);
           } else if (isSW) {
             fertility = 0.74;
-            regionalHeightBonus = Math.max(0.0, baseHill * 0.6);
           } else if (isSE) {
             fertility = 0.48;
-            const mountainCrag = Math.sin(x * 0.14) * 0.22 + Math.cos(z * 0.14) * 0.18 + 0.15;
-            regionalHeightBonus = Math.max(0.0, baseHill + mountainCrag);
           }
 
-          tileHeight = 0.05 + regionalHeightBonus;
+          tileHeight = 0.05;
 
           const forestThreshold = isNW ? 0.01 : (isNE ? -0.18 : (isSW ? -0.08 : -0.04));
 
@@ -271,6 +235,9 @@ export class GridMap {
   }
 
   public canPlaceBuilding(x: number, z: number, width: number, height: number): boolean {
+    if (x < 0 || z < 0 || x + width > this.width || z + height > this.height) {
+      return false;
+    }
     for (let dx = 0; dx < width; dx++) {
       for (let dz = 0; dz < height; dz++) {
         const tile = this.getTile(x + dx, z + dz);
@@ -405,13 +372,16 @@ export class GridMap {
   public paveRoad(x: number, z: number): boolean {
     const tile = this.getTile(x, z);
     if (!tile || tile.terrain === 'water' || tile.buildingId) return false;
-    if (tile.foliageType === 'tree') return false;
     if (tile.terrain === 'road') return false;
 
+    if (tile.foliageType) {
+      tile.foliageType = undefined;
+      tile.foliageAngle = undefined;
+      tile.foliageTreeType = undefined;
+      this.removeFoliageFromCoords(x, x, z, z);
+    }
+
     tile.terrain = 'road';
-    tile.foliageType = undefined;
-    tile.foliageAngle = undefined;
-    tile.foliageTreeType = undefined;
     tile.isPassable = true;
     tile.movementCost = 0.55;
     return true;

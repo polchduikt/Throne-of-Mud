@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
 import { useGameStore } from '../../store/useGameStore';
 import { BUILDING_BLUEPRINTS } from '../../engine/buildings/blueprints';
+import { getSnappedPlacementCoords } from '../../engine/grid/buildingSnap';
 
 interface Props {
   grid: GridMap;
@@ -13,14 +14,31 @@ export function PlacementPreview({ grid }: Props) {
   const activeBuildType = useGameStore((s) => s.activeBuildType);
   const hoveredTile = useGameStore((s) => s.hoveredTile);
 
-  const isValid = useMemo(() => {
-    if (!hoveredTile || activeTool !== 'build' || !activeBuildType) return false;
-    const blueprint = BUILDING_BLUEPRINTS[activeBuildType];
-    if (!blueprint) return false;
-    return grid.canBuildAt(hoveredTile[0], hoveredTile[1], blueprint.width, blueprint.height);
-  }, [hoveredTile, activeTool, activeBuildType, grid]);
-
   const blueprint = activeBuildType ? BUILDING_BLUEPRINTS[activeBuildType] : null;
+
+  const targetCoords = useMemo(() => {
+    if (!hoveredTile || activeTool !== 'build' || !blueprint || !activeBuildType) return null;
+    return getSnappedPlacementCoords(hoveredTile[0], hoveredTile[1], blueprint.width, blueprint.height, activeBuildType, grid);
+  }, [hoveredTile, activeTool, blueprint, activeBuildType, grid]);
+
+  const playerRegionId = useGameStore((s) => s.playerRegionId);
+  const regions = useGameStore((s) => s.regions);
+
+  const isValid = useMemo(() => {
+    if (!targetCoords || !blueprint) return false;
+    const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
+    if (pRegion?.bounds) {
+      const b = pRegion.bounds;
+      const minX = targetCoords[0];
+      const maxX = targetCoords[0] + blueprint.width - 1;
+      const minZ = targetCoords[1];
+      const maxZ = targetCoords[1] + blueprint.height - 1;
+      if (minX < b.minX || maxX > b.maxX || minZ < b.minZ || maxZ > b.maxZ) {
+        return false;
+      }
+    }
+    return grid.canBuildAt(targetCoords[0], targetCoords[1], blueprint.width, blueprint.height);
+  }, [targetCoords, blueprint, grid, regions, playerRegionId]);
 
   const geometries = useMemo(() => {
     if (!blueprint) return null;
@@ -39,12 +57,12 @@ export function PlacementPreview({ grid }: Props) {
     invalidCone: new THREE.MeshStandardMaterial({ color: '#ef4444', transparent: true, opacity: 0.35, roughness: 0.4 }),
   }), []);
 
-  if (activeTool !== 'build' || !activeBuildType || !hoveredTile || !blueprint || !geometries) {
+  if (activeTool !== 'build' || !activeBuildType || !targetCoords || !blueprint || !geometries) {
     return null;
   }
 
-  const posX = hoveredTile[0] + blueprint.width / 2;
-  const posZ = hoveredTile[1] + blueprint.height / 2;
+  const posX = targetCoords[0] + blueprint.width / 2;
+  const posZ = targetCoords[1] + blueprint.height / 2;
 
   const planeMat = isValid ? materials.validPlane : materials.invalidPlane;
   const boxMat = isValid ? materials.validBox : materials.invalidBox;

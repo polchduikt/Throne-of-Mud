@@ -1,13 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type {
-  ResourceInventory,
-  ResourceType,
-  ChronicleEvent,
-  Job,
-  RegionData,
-  ResourceDeposit,
-  WorldSetupConfig,
-} from '../../types/game';
+import type { ChronicleEvent, WorldSetupConfig } from '../../types/game';
 import { GridMap } from '../../engine/grid/GridMap';
 import { world, characterEntities } from '../../engine/ecs/world';
 import { BUILDING_BLUEPRINTS } from '../../engine/buildings/blueprints';
@@ -25,66 +17,15 @@ import {
   dismissWorkerFromBuilding as dismissWorkerHelper,
 } from '../../engine/ecs/entityHelpers';
 import { initializeWorldEntities } from '../../engine/world/worldInitializer';
-import type { GameState } from '../useGameStore';
+import type { GameState, SettlementSlice } from '../types';
 
-let pendingBuildingVersion = false;
-let foliageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+export type { SettlementSlice };
 
-export interface SettlementSlice {
-  resources: ResourceInventory;
-  addResource: (type: ResourceType, amount: number) => void;
-  consumeResource: (type: ResourceType, amount: number) => boolean;
+export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSlice> = (set, get) => {
+  let pendingBuildingVersion = false;
+  let foliageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  settlementName: string;
-  setSettlementName: (name: string) => void;
-  influence: number;
-  royalFavor: number;
-
-  activeCorrespondence: { id: string; sender: string; title: string; message: string; timeLeft: number } | null;
-  dismissCorrespondence: () => void;
-
-  pendingJobs: Job[];
-  addPendingJob: (job: Job) => void;
-  removePendingJob: (jobId: string) => void;
-
-  activeTreeHits: Array<{ id: string; x: number; z: number; hitTime: number; intensity: number }>;
-  registerTreeHit: (x: number, z: number, intensity?: number) => void;
-  fallingTrees: Array<{ id: string; x: number; z: number; startTime: number; fallAngle: number; treeType: 'oak' | 'pine' | 'autumn' }>;
-  registerTreeFall: (x: number, z: number, treeType?: 'oak' | 'pine' | 'autumn', fallAngle?: number) => void;
-
-  assignWorkerToBuilding: (buildingId: string) => boolean;
-  removeWorkerFromBuilding: (buildingId: string, workerId: string) => void;
-  assignLordToBuilding: (buildingId: string, lordId: string | null) => void;
-  setBuildingWage: (buildingId: string, wage: number) => void;
-  callLevyMilitia: (lordId: string) => void;
-  lordPreach: (lordId: string) => void;
-
-  chronicle: ChronicleEvent[];
-  addChronicleEvent: (event: Omit<ChronicleEvent, 'id' | 'timestamp' | 'gameDay' | 'gameHour'>) => void;
-
-  buildingVersion: number;
-  incrementBuildingVersion: () => void;
-  foliageVersion: number;
-  incrementFoliageVersion: () => void;
-
-  regions: RegionData[];
-  playerRegionId: number;
-  playerSpawnPoint: [number, number];
-  botCount: number;
-  updateRegionStats: (regionId: number, partial: Partial<RegionData>) => void;
-
-  immigrationProgress: number;
-  setImmigrationProgress: (val: number) => void;
-
-  resourceDeposits: ResourceDeposit[];
-  updateResourceDeposit: (depositId: string, partial: Partial<ResourceDeposit>) => void;
-
-  isInitialized: boolean;
-  initWorld: (grid: GridMap, config?: WorldSetupConfig) => void;
-  resetWorld: (grid: GridMap, config?: WorldSetupConfig) => void;
-}
-
-export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSlice> = (set, get) => ({
+  return {
   resources: { ...INITIAL_RESOURCES },
 
   addResource: (type, amount) => {
@@ -128,8 +69,6 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
   influence: STARTING_INFLUENCE,
   royalFavor: STARTING_ROYAL_FAVOR,
 
-  activeCorrespondence: null,
-  dismissCorrespondence: () => set({ activeCorrespondence: null }),
 
   pendingJobs: [],
   addPendingJob: (job) => {
@@ -450,14 +389,22 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
   },
 
   foliageVersion: 0,
-  incrementFoliageVersion: () => {
+  incrementFoliageVersion: (immediate?: boolean) => {
+    if (immediate) {
+      if (foliageDebounceTimer) {
+        clearTimeout(foliageDebounceTimer);
+        foliageDebounceTimer = null;
+      }
+      set((state) => ({ foliageVersion: state.foliageVersion + 1 }));
+      return;
+    }
     if (foliageDebounceTimer) {
       clearTimeout(foliageDebounceTimer);
     }
     foliageDebounceTimer = setTimeout(() => {
       foliageDebounceTimer = null;
       set((state) => ({ foliageVersion: state.foliageVersion + 1 }));
-    }, 800);
+    }, 150);
   },
 
   regions: JSON.parse(JSON.stringify(DEFAULT_REGIONS)),
@@ -535,7 +482,6 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
       activeTool: 'select',
       activeBuildType: null,
       activeMenuTab: null,
-      activeCorrespondence: null,
       chronicle: [
         {
           id: 'init-1',
@@ -555,4 +501,5 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
 
     get().initWorld(grid, config);
   },
-});
+  };
+};

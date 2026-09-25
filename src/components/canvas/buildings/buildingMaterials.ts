@@ -1,42 +1,278 @@
 import * as THREE from 'three';
+import { BUILDING_TEXTURES } from './buildingTextures';
 
 export const SHARED_BUILDING_MATS = {
-  timberDark: new THREE.MeshStandardMaterial({ color: '#3d2614', roughness: 0.9, flatShading: true }),
-  timberMed: new THREE.MeshStandardMaterial({ color: '#54361e', roughness: 0.88, flatShading: true }),
-  timberLight: new THREE.MeshStandardMaterial({ color: '#784c28', roughness: 0.85, flatShading: true }),
-  plaster: new THREE.MeshStandardMaterial({ color: '#e2d7c5', roughness: 0.92, flatShading: true }),
-  stoneDark: new THREE.MeshStandardMaterial({ color: '#3f495a', roughness: 0.9, flatShading: true }),
-  stoneMed: new THREE.MeshStandardMaterial({ color: '#526071', roughness: 0.88, flatShading: true }),
-  stoneLight: new THREE.MeshStandardMaterial({ color: '#68798d', roughness: 0.85, flatShading: true }),
-  thatchRoof: new THREE.MeshStandardMaterial({ color: '#92400e', roughness: 0.9, flatShading: true }),
-  shingleRoof: new THREE.MeshStandardMaterial({ color: '#7c2d12', roughness: 0.85, flatShading: true }),
-  royalBlueRoof: new THREE.MeshStandardMaterial({ color: '#1e3a8a', roughness: 0.85, flatShading: true }),
-  awningGreen: new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.7, flatShading: true }),
-  awningWhite: new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.7, flatShading: true }),
-  goldWheat: new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.8, flatShading: true }),
-  richSoil: new THREE.MeshStandardMaterial({ color: '#2b1b11', roughness: 0.95, flatShading: true }),
-  fireOrange: new THREE.MeshBasicMaterial({ color: '#f97316' }),
-  fireYellow: new THREE.MeshBasicMaterial({ color: '#fde047' }),
-  smokeWhite: new THREE.MeshStandardMaterial({ color: '#cbd5e1', transparent: true, opacity: 0.45, roughness: 1.0, flatShading: true }),
-  scaffolding: new THREE.MeshStandardMaterial({ color: '#854d0e', roughness: 0.9, flatShading: true }),
-  blueprintGhost: new THREE.MeshStandardMaterial({ color: '#38bdf8', transparent: true, opacity: 0.35, roughness: 0.5 }),
-  redBanner: new THREE.MeshStandardMaterial({ color: '#b91c1c', roughness: 0.8, flatShading: true }),
-  goldTrim: new THREE.MeshStandardMaterial({ color: '#fbbf24', roughness: 0.4, metalness: 0.3, flatShading: true }),
-  tentFabric: new THREE.MeshStandardMaterial({ color: '#c28b58', roughness: 0.9, flatShading: true }),
-  tentBedroll: new THREE.MeshStandardMaterial({ color: '#7c3aed', roughness: 0.85, flatShading: true }),
-  sawBlade: new THREE.MeshStandardMaterial({ color: '#94a3b8', roughness: 0.3, metalness: 0.7, flatShading: true }),
-  axeBlade: new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.35, metalness: 0.6, flatShading: true }),
-  woodShavings: new THREE.MeshStandardMaterial({ color: '#ca8a04', roughness: 0.95, flatShading: true }),
-  bedLinenRed: new THREE.MeshStandardMaterial({ color: '#b91c1c', roughness: 0.85, flatShading: true }),
-  bedLinenBlue: new THREE.MeshStandardMaterial({ color: '#1d4ed8', roughness: 0.85, flatShading: true }),
-  bedLinenGreen: new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.85, flatShading: true }),
-  bedStraw: new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.9, flatShading: true }),
-  pillowWhite: new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.8, flatShading: true }),
-  floorPlanks: new THREE.MeshStandardMaterial({ color: '#633d1f', roughness: 0.85, flatShading: true }),
+  timberDark: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#cca06a',
+    roughness: 0.78,
+  }),
+  timberMed: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#deaf7e',
+    roughness: 0.75,
+  }),
+  timberLight: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#f5d5aa',
+    roughness: 0.72,
+  }),
+  timberPlanks: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanksFine,
+    color: '#ebb782',
+    roughness: 0.78,
+  }),
+  timberLogs: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberLogs,
+    color: '#e5af77',
+    roughness: 0.8,
+  }),
+  plaster: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#deb37f',
+    roughness: 0.82,
+  }),
+  wattleDaub: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#dfb17e',
+    roughness: 0.82,
+  }),
+  stoneDark: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneFoundation,
+    color: '#d4dde8',
+    roughness: 0.82,
+  }),
+  stoneMed: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#e2e8f0',
+    roughness: 0.8,
+  }),
+  stoneLight: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#f1f5f9',
+    roughness: 0.78,
+  }),
+  thatchRoof: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.thatch,
+    color: '#ffdf7c',
+    roughness: 0.86,
+  }),
+  thatchDark: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.thatch,
+    color: '#ebaf44',
+    roughness: 0.88,
+  }),
+  thatchRidge: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.thatchSteep,
+    color: '#d49833',
+    roughness: 0.9,
+  }),
+  rugPattern: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.rug,
+    roughness: 0.85,
+  }),
+  shingleRoof: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#c25534',
+    roughness: 0.82,
+  }),
+  copperBrew: new THREE.MeshStandardMaterial({
+    color: '#c26229',
+    roughness: 0.35,
+    metalness: 0.75,
+  }),
+  copperDark: new THREE.MeshStandardMaterial({
+    color: '#7c3a1e',
+    roughness: 0.45,
+    metalness: 0.7,
+  }),
+  royalBlueRoof: new THREE.MeshStandardMaterial({
+    color: '#25449c',
+    roughness: 0.82,
+  }),
+  awningGreen: new THREE.MeshStandardMaterial({
+    color: '#16a34a',
+    roughness: 0.7,
+  }),
+  awningWhite: new THREE.MeshStandardMaterial({
+    color: '#fdfefe',
+    roughness: 0.7,
+  }),
+  awningRed: new THREE.MeshStandardMaterial({
+    color: '#b91c1c',
+    roughness: 0.7,
+  }),
+  goldWheat: new THREE.MeshStandardMaterial({
+    color: '#f59e0b',
+    roughness: 0.8,
+  }),
+  richSoil: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.soil,
+    color: '#8b6647',
+    roughness: 0.92,
+  }),
+  soilFurrow: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.soil,
+    color: '#6e4c30',
+    roughness: 0.92,
+  }),
+  fireOrange: new THREE.MeshBasicMaterial({ color: '#f59e0b' }),
+  fireYellow: new THREE.MeshBasicMaterial({ color: '#fef08a' }),
+  fireCore: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
+  emberGlow: new THREE.MeshBasicMaterial({ color: '#d97706' }),
+  charredWood: new THREE.MeshStandardMaterial({ color: '#1c1917', roughness: 0.95 }),
+  ashBed: new THREE.MeshStandardMaterial({ color: '#262626', roughness: 0.98 }),
+  smokeWhite: new THREE.MeshStandardMaterial({
+    color: '#e2e8f0',
+    transparent: true,
+    opacity: 0.45,
+    roughness: 0.95,
+    depthWrite: false,
+  }),
+  gothicSlateRoof: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#384659',
+    roughness: 0.84,
+  }),
+  gothicSlateRidge: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#222f3e',
+    roughness: 0.88,
+  }),
+  gothicTrim: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#f8fafc',
+    roughness: 0.72,
+  }),
+  velvetRed: new THREE.MeshStandardMaterial({
+    color: '#991b1b',
+    roughness: 0.75,
+  }),
+  scaffolding: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#d6a36c',
+    roughness: 0.82,
+  }),
+  blueprintGhost: new THREE.MeshStandardMaterial({
+    color: '#38bdf8',
+    transparent: true,
+    opacity: 0.35,
+    roughness: 0.5,
+  }),
+  redBanner: new THREE.MeshStandardMaterial({
+    color: '#dc2626',
+    roughness: 0.8,
+  }),
+  goldTrim: new THREE.MeshStandardMaterial({
+    color: '#fbbf24',
+    roughness: 0.35,
+    metalness: 0.4,
+  }),
+  tentFabric: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.tentFabric,
+    color: '#f5dec2',
+    roughness: 0.85,
+    side: THREE.DoubleSide,
+  }),
+  tentBedroll: new THREE.MeshStandardMaterial({
+    color: '#8b5cf6',
+    roughness: 0.85,
+  }),
+  sawBlade: new THREE.MeshStandardMaterial({
+    color: '#94a3b8',
+    roughness: 0.3,
+    metalness: 0.7,
+  }),
+  axeBlade: new THREE.MeshStandardMaterial({
+    color: '#64748b',
+    roughness: 0.35,
+    metalness: 0.6,
+  }),
+  ironHardware: new THREE.MeshStandardMaterial({
+    color: '#334155',
+    roughness: 0.4,
+    metalness: 0.7,
+  }),
+  woodShavings: new THREE.MeshStandardMaterial({
+    color: '#facc15',
+    roughness: 0.95,
+  }),
+  bedLinenRed: new THREE.MeshStandardMaterial({
+    color: '#dc2626',
+    roughness: 0.82,
+  }),
+  bedLinenBlue: new THREE.MeshStandardMaterial({
+    color: '#2563eb',
+    roughness: 0.82,
+  }),
+  bedLinenGreen: new THREE.MeshStandardMaterial({
+    color: '#16a34a',
+    roughness: 0.82,
+  }),
+  bedStraw: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.thatch,
+    color: '#fed866',
+    roughness: 0.86,
+  }),
+  pillowWhite: new THREE.MeshStandardMaterial({
+    color: '#ffffff',
+    roughness: 0.8,
+  }),
+  floorPlanks: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#e0a870',
+    roughness: 0.78,
+  }),
   candleGlow: new THREE.MeshBasicMaterial({ color: '#fde047' }),
-  candleUnlit: new THREE.MeshStandardMaterial({ color: '#c9bfab', roughness: 0.9, flatShading: true }),
+  candleUnlit: new THREE.MeshStandardMaterial({
+    color: '#e2d8c3',
+    roughness: 0.9,
+  }),
   windowLit: new THREE.MeshBasicMaterial({ color: '#fef08a' }),
-  windowUnlit: new THREE.MeshStandardMaterial({ color: '#181e26', roughness: 0.85, flatShading: true }),
-  fireplaceCold: new THREE.MeshStandardMaterial({ color: '#241f1a', roughness: 0.95, flatShading: true }),
-  bootsLeather: new THREE.MeshStandardMaterial({ color: '#271b12', roughness: 0.9, flatShading: true }),
+  windowUnlit: new THREE.MeshStandardMaterial({
+    color: '#1a2332',
+    roughness: 0.85,
+  }),
+  fireplaceCold: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#574c42',
+    roughness: 0.92,
+  }),
+  bootsLeather: new THREE.MeshStandardMaterial({
+    color: '#5c3a23',
+    roughness: 0.85,
+  }),
+  barrelWood: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanksFine,
+    color: '#d69e66',
+    roughness: 0.78,
+  }),
+  breadCrust: new THREE.MeshStandardMaterial({
+    color: '#c98242',
+    roughness: 0.85,
+  }),
+  flourSack: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.tentFabric,
+    color: '#faf5e6',
+    roughness: 0.92,
+  }),
+  shieldWood: new THREE.MeshStandardMaterial({
+    color: '#dc2626',
+    roughness: 0.8,
+  }),
+  flowerRed: new THREE.MeshStandardMaterial({
+    color: '#f43f5e',
+    roughness: 0.7,
+  }),
+  flowerYellow: new THREE.MeshBasicMaterial({
+    color: '#fde047',
+  }),
+  leafGreen: new THREE.MeshStandardMaterial({
+    color: '#22c55e',
+    roughness: 0.8,
+  }),
+  ceramicPot: new THREE.MeshStandardMaterial({
+    color: '#c25e10',
+    roughness: 0.75,
+  }),
 };

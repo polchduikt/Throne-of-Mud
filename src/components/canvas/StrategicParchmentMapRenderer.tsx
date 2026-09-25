@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
@@ -12,12 +12,23 @@ interface Props {
 export function StrategicParchmentMapRenderer({ grid }: Props) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const prevTexRef = useRef<THREE.CanvasTexture | null>(null);
 
   const regions = useGameStore((s) => s.regions);
   const playerRegionId = useGameStore((s) => s.playerRegionId);
   const resourceDeposits = useGameStore((s) => s.resourceDeposits);
+  const buildingVersion = useGameStore((s) => s.buildingVersion);
+  const foliageVersion = useGameStore((s) => s.foliageVersion);
 
   const [activeHoverRegion, setActiveHoverRegion] = useState<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (prevTexRef.current) {
+        prevTexRef.current.dispose();
+      }
+    };
+  }, []);
 
   const mapTexture = useMemo(() => {
     const canvas = document.createElement('canvas');
@@ -236,6 +247,7 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
     ctx.lineJoin = 'round';
 
     const highwayWidth = scale * 1.6;
+    const localRoadWidth = scale * 1.30;
 
     const nsHighwayPoints: [number, number][] = [];
     for (let z = 0; z <= grid.height; z += 0.5) {
@@ -255,7 +267,244 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
       }
     };
 
+    const plazaX = 127.5 * scale;
+    const plazaZ = 127.5 * scale;
+    const plazaR = 2.4 * scale;
+
+    const isHighwayCore = (tx: number, tz: number) => {
+      const dX = Math.abs(tx - GridMap.getHighwayX(tz));
+      const dZ = Math.abs(tz - GridMap.getHighwayZ(tx));
+      const dP = Math.hypot(tx - 127.5, tz - 127.5);
+      return dX <= 0.90 || dZ <= 0.90 || dP <= 2.8;
+    };
+
+    const playerTiles = new Set<string>();
+    const playerTileList: [number, number][] = [];
+    const highwayConnMap = new Map<string, [number, number]>();
+
+    for (let x = 0; x < grid.width; x++) {
+      for (let z = 0; z < grid.height; z++) {
+        const tile = grid.tiles[x]?.[z];
+        if (tile && tile.terrain === 'road' && !isHighwayCore(x, z)) {
+          const k = `${x},${z}`;
+          playerTiles.add(k);
+          playerTileList.push([x, z]);
+
+          const hwX = GridMap.getHighwayX(z + 0.5);
+          const hwZ = GridMap.getHighwayZ(x + 0.5);
+          if (Math.abs((x + 0.5) - hwX) <= 3.2) {
+            highwayConnMap.set(k, [hwX * scale, (z + 0.5) * scale]);
+          } else if (Math.abs((z + 0.5) - hwZ) <= 3.2) {
+            highwayConnMap.set(k, [(x + 0.5) * scale, hwZ * scale]);
+          } else if (Math.hypot((x + 0.5) - 127.5, (z + 0.5) - 127.5) <= 4.2) {
+            highwayConnMap.set(k, [plazaX, plazaZ]);
+          }
+        }
+      }
+    }
+
+    const adj = new Map<string, string[]>();
+    for (const [x, z] of playerTileList) {
+      const k = `${x},${z}`;
+      const nbrs: string[] = [];
+
+      const orthos = [
+        [x + 1, z],
+        [x - 1, z],
+        [x, z + 1],
+        [x, z - 1],
+      ];
+      for (const [ox, oz] of orthos) {
+        const ok = `${ox},${oz}`;
+        if (playerTiles.has(ok)) {
+          nbrs.push(ok);
+        }
+      }
+
+      const diags = [
+        [x + 1, z + 1, x + 1, z, x, z + 1],
+        [x + 1, z - 1, x + 1, z, x, z - 1],
+        [x - 1, z + 1, x - 1, z, x, z + 1],
+        [x - 1, z - 1, x - 1, z, x, z - 1],
+      ];
+      for (const [dx, dz, s1x, s1z, s2x, s2z] of diags) {
+        const dk = `${dx},${dz}`;
+        if (playerTiles.has(dk)) {
+          const s1k = `${s1x},${s1z}`;
+          const s2k = `${s2x},${s2z}`;
+          if (!playerTiles.has(s1k) && !playerTiles.has(s2k)) {
+            nbrs.push(dk);
+          }
+        }
+      }
+
+      adj.set(k, nbrs);
+    }
+
+    const visitedEdges = new Set<string>();
+    const edgeKey = (a: string, b: string) => (a < b ? `${a}--${b}` : `${b}--${a}`);
+    const rawPaths: [number, number][][] = [];
+    const isolatedPoints: [number, number][] = [];
+
+    for (const [x, z] of playerTileList) {
+      const k = `${x},${z}`;
+      const nbrs = adj.get(k) || [];
+      if (nbrs.length === 0) {
+        isolatedPoints.push([(x + 0.5) * scale, (z + 0.5) * scale]);
+        continue;
+      }
+
+      const isJunction = nbrs.length !== 2 || highwayConnMap.has(k);
+      if (!isJunction) continue;
+
+      for (const nextKey of nbrs) {
+        const eKey = edgeKey(k, nextKey);
+        if (visitedEdges.has(eKey)) continue;
+        visitedEdges.add(eKey);
+
+        const path: [number, number][] = [];
+        if (highwayConnMap.has(k)) {
+          path.push(highwayConnMap.get(k)!);
+        }
+        path.push([(x + 0.5) * scale, (z + 0.5) * scale]);
+
+        let currKey = nextKey;
+        let prevKey = k;
+
+        while (true) {
+          const [cx, cz] = currKey.split(',').map(Number);
+          path.push([(cx + 0.5) * scale, (cz + 0.5) * scale]);
+
+          const currNbrs = adj.get(currKey) || [];
+          const isCurrJunction = currNbrs.length !== 2 || highwayConnMap.has(currKey);
+
+          if (isCurrJunction) {
+            if (highwayConnMap.has(currKey)) {
+              path.push(highwayConnMap.get(currKey)!);
+            }
+            break;
+          }
+
+          const nextStep = currNbrs.find((n) => n !== prevKey);
+          if (!nextStep) break;
+
+          const nextEKey = edgeKey(currKey, nextStep);
+          visitedEdges.add(nextEKey);
+          prevKey = currKey;
+          currKey = nextStep;
+        }
+
+        if (path.length >= 2) {
+          rawPaths.push(path);
+        }
+      }
+    }
+
+    for (const [x, z] of playerTileList) {
+      const k = `${x},${z}`;
+      const nbrs = adj.get(k) || [];
+      for (const nextKey of nbrs) {
+        const eKey = edgeKey(k, nextKey);
+        if (visitedEdges.has(eKey)) continue;
+        visitedEdges.add(eKey);
+
+        const path: [number, number][] = [[(x + 0.5) * scale, (z + 0.5) * scale]];
+        let currKey = nextKey;
+        let prevKey = k;
+
+        while (currKey !== k) {
+          const [cx, cz] = currKey.split(',').map(Number);
+          path.push([(cx + 0.5) * scale, (cz + 0.5) * scale]);
+
+          const currNbrs = adj.get(currKey) || [];
+          const nextStep = currNbrs.find((n) => n !== prevKey);
+          if (!nextStep) break;
+
+          const nextEKey = edgeKey(currKey, nextStep);
+          visitedEdges.add(nextEKey);
+          prevKey = currKey;
+          currKey = nextStep;
+        }
+        if (path.length >= 2) {
+          rawPaths.push(path);
+        }
+      }
+    }
+
+    for (const path of rawPaths) {
+      if (path.length === 0) continue;
+
+      const p0 = path[0];
+      const sTx = p0[0] / scale;
+      const sTz = p0[1] / scale;
+      const sHwX = GridMap.getHighwayX(sTz);
+      const sHwZ = GridMap.getHighwayZ(sTx);
+      const sDistX = Math.abs(sTx - sHwX);
+      const sDistZ = Math.abs(sTz - sHwZ);
+      const sDistP = Math.hypot(sTx - 127.5, sTz - 127.5);
+
+      if (sDistX <= 3.2 && sDistX > 0.05) {
+        path.unshift([sHwX * scale, p0[1]]);
+      } else if (sDistZ <= 3.2 && sDistZ > 0.05) {
+        path.unshift([p0[0], sHwZ * scale]);
+      } else if (sDistP <= 4.2 && sDistP > 0.05) {
+        path.unshift([plazaX, plazaZ]);
+      }
+
+      const pEnd = path[path.length - 1];
+      const eTx = pEnd[0] / scale;
+      const eTz = pEnd[1] / scale;
+      const eHwX = GridMap.getHighwayX(eTz);
+      const eHwZ = GridMap.getHighwayZ(eTx);
+      const eDistX = Math.abs(eTx - eHwX);
+      const eDistZ = Math.abs(eTz - eHwZ);
+      const eDistP = Math.hypot(eTx - 127.5, eTz - 127.5);
+
+      if (eDistX <= 3.2 && eDistX > 0.05) {
+        path.push([eHwX * scale, pEnd[1]]);
+      } else if (eDistZ <= 3.2 && eDistZ > 0.05) {
+        path.push([pEnd[0], eHwZ * scale]);
+      } else if (eDistP <= 4.2 && eDistP > 0.05) {
+        path.push([plazaX, plazaZ]);
+      }
+    }
+
+    const smoothPolyline = (pts: [number, number][]): [number, number][] => {
+      if (pts.length <= 2) return pts;
+      let curr = pts;
+      for (let pass = 0; pass < 2; pass++) {
+        const next: [number, number][] = [curr[0]];
+        for (let i = 1; i < curr.length - 1; i++) {
+          const p0 = curr[i - 1];
+          const p1 = curr[i];
+          const p2 = curr[i + 1];
+          next.push([
+            0.25 * p0[0] + 0.5 * p1[0] + 0.25 * p2[0],
+            0.25 * p0[1] + 0.5 * p1[1] + 0.25 * p2[1],
+          ]);
+        }
+        next.push(curr[curr.length - 1]);
+        curr = next;
+      }
+      return curr;
+    };
+
+    const smoothedPlayerPaths = rawPaths.map(smoothPolyline);
+
+    const drawPlayerPathStrokes = () => {
+      for (const pts of smoothedPlayerPaths) {
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+          if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]);
+          else ctx.lineTo(pts[i][0], pts[i][1]);
+        }
+        ctx.stroke();
+      }
+    };
+
     ctx.strokeStyle = '#2b170a';
+    ctx.fillStyle = '#2b170a';
+
     ctx.lineWidth = highwayWidth + 2.0;
     drawHighwayPath(nsHighwayPoints);
     ctx.stroke();
@@ -263,11 +512,21 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(127.5 * scale, 127.5 * scale, 2.4 * scale + 1.0, 0, Math.PI * 2);
-    ctx.fillStyle = '#2b170a';
+    ctx.arc(plazaX, plazaZ, plazaR + 1.0, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.lineWidth = localRoadWidth + 2.0;
+    drawPlayerPathStrokes();
+
+    for (const pt of isolatedPoints) {
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], (localRoadWidth + 2.0) / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.strokeStyle = '#5a361b';
+    ctx.fillStyle = '#5a361b';
+
     ctx.lineWidth = highwayWidth;
     drawHighwayPath(nsHighwayPoints);
     ctx.stroke();
@@ -275,18 +534,32 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(127.5 * scale, 127.5 * scale, 2.4 * scale, 0, Math.PI * 2);
-    ctx.fillStyle = '#5a361b';
+    ctx.arc(plazaX, plazaZ, plazaR, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.lineWidth = localRoadWidth;
+    drawPlayerPathStrokes();
+
+    for (const pt of isolatedPoints) {
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], localRoadWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.strokeStyle = '#784d28';
+    ctx.fillStyle = '#784d28';
+
     ctx.lineWidth = highwayWidth * 0.50;
     drawHighwayPath(nsHighwayPoints);
     ctx.stroke();
     drawHighwayPath(ewHighwayPoints);
     ctx.stroke();
 
-    const drawWagonRuts = (points: [number, number][], rutOffset: number) => {
+    ctx.lineWidth = localRoadWidth * 0.44;
+    drawPlayerPathStrokes();
+
+    const drawContinuousWagonRuts = (points: [number, number][], rutOffset: number) => {
+      if (points.length < 2) return;
       ctx.beginPath();
       for (let i = 0; i < points.length; i++) {
         const p = points[i];
@@ -324,12 +597,16 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
 
     ctx.strokeStyle = 'rgba(43, 23, 10, 0.45)';
     ctx.lineWidth = 1.0;
-    drawWagonRuts(nsHighwayPoints, highwayWidth * 0.28);
-    drawWagonRuts(ewHighwayPoints, highwayWidth * 0.28);
+    drawContinuousWagonRuts(nsHighwayPoints, highwayWidth * 0.28);
+    drawContinuousWagonRuts(ewHighwayPoints, highwayWidth * 0.28);
 
-    const plazaX = 127.5 * scale;
-    const plazaZ = 127.5 * scale;
-    const plazaR = 2.4 * scale;
+    ctx.strokeStyle = 'rgba(43, 23, 10, 0.38)';
+    ctx.lineWidth = 0.85;
+    for (const pts of smoothedPlayerPaths) {
+      if (pts.length >= 2) {
+        drawContinuousWagonRuts(pts, localRoadWidth * 0.25);
+      }
+    }
 
     ctx.beginPath();
     ctx.arc(plazaX, plazaZ, plazaR * 0.88, 0, Math.PI * 2);
@@ -375,69 +652,17 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
       ctx.fill();
     }
 
-    ctx.strokeStyle = '#2b170a';
-    ctx.lineWidth = scale * 1.6 + 2.0;
-    for (let x = 0; x < grid.width; x++) {
-      for (let z = 0; z < grid.height; z++) {
-        const tile = grid.tiles[x]?.[z];
-        if (!tile || tile.terrain !== 'road') continue;
-
-        const distRoadX = Math.abs(x - GridMap.getHighwayX(z));
-        const distRoadZ = Math.abs(z - GridMap.getHighwayZ(x));
-        const distPlaza = Math.hypot(x - 127.5, z - 127.5);
-        if (distRoadX <= 1.5 || distRoadZ <= 1.5 || distPlaza <= 4.0) continue;
-
-        const cx = (x + 0.5) * scale;
-        const cz = (z + 0.5) * scale;
-
-        if (grid.tiles[x + 1]?.[z]?.terrain === 'road') {
-          ctx.beginPath();
-          ctx.moveTo(cx, cz);
-          ctx.lineTo((x + 1.5) * scale, cz);
-          ctx.stroke();
-        }
-        if (grid.tiles[x]?.[z + 1]?.terrain === 'road') {
-          ctx.beginPath();
-          ctx.moveTo(cx, cz);
-          ctx.lineTo(cx, (z + 1.5) * scale);
-          ctx.stroke();
-        }
-      }
-    }
-
-    ctx.strokeStyle = '#5a361b';
-    ctx.lineWidth = scale * 1.6;
-    for (let x = 0; x < grid.width; x++) {
-      for (let z = 0; z < grid.height; z++) {
-        const tile = grid.tiles[x]?.[z];
-        if (!tile || tile.terrain !== 'road') continue;
-
-        const distRoadX = Math.abs(x - GridMap.getHighwayX(z));
-        const distRoadZ = Math.abs(z - GridMap.getHighwayZ(x));
-        const distPlaza = Math.hypot(x - 127.5, z - 127.5);
-        if (distRoadX <= 1.5 || distRoadZ <= 1.5 || distPlaza <= 4.0) continue;
-
-        const cx = (x + 0.5) * scale;
-        const cz = (z + 0.5) * scale;
-
-        if (grid.tiles[x + 1]?.[z]?.terrain === 'road') {
-          ctx.beginPath();
-          ctx.moveTo(cx, cz);
-          ctx.lineTo((x + 1.5) * scale, cz);
-          ctx.stroke();
-        }
-        if (grid.tiles[x]?.[z + 1]?.terrain === 'road') {
-          ctx.beginPath();
-          ctx.moveTo(cx, cz);
-          ctx.lineTo(cx, (z + 1.5) * scale);
-          ctx.stroke();
-        }
+    for (const pts of smoothedPlayerPaths) {
+      for (let i = 2; i < pts.length - 1; i += 5) {
+        const p = pts[i];
+        const ox = Math.sin(i * 3.7) * (localRoadWidth * 0.22);
+        const oz = Math.cos(i * 2.3) * (localRoadWidth * 0.22);
         ctx.beginPath();
-        ctx.arc(cx, cz, scale * 0.7, 0, Math.PI * 2);
-        ctx.fillStyle = '#5a361b';
+        ctx.arc(p[0] + ox, p[1] + oz, 0.85, 0, Math.PI * 2);
         ctx.fill();
       }
     }
+
     ctx.restore();
 
     for (let x = 1; x < grid.width - 1; x++) {
@@ -857,8 +1082,12 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.anisotropy = 8;
+    if (prevTexRef.current) {
+      prevTexRef.current.dispose();
+    }
+    prevTexRef.current = tex;
     return tex;
-  }, [grid, regions, playerRegionId, resourceDeposits]);
+  }, [grid, regions, playerRegionId, resourceDeposits, buildingVersion, foliageVersion]);
 
   useFrame(({ camera }) => {
     const orthoCam = camera as THREE.OrthographicCamera;
