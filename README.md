@@ -19,7 +19,7 @@
 
 **Throne of Mud** is an authentic medieval city-builder, feudal management, and colony simulation game rendered entirely in 3D WebGL via Three.js and React Three Fiber.
 
-The game combines a high-performance **Entity Component System (ECS)**, deterministic procedural terrain generation, custom **GLSL weather and terrain shaders**, procedural medieval architecture, autonomous AI agents with emotional vitality systems, and real-time 3D spatial audio.
+The game combines a high-performance **Entity Component System (ECS)**, deterministic procedural terrain generation, custom **GLSL weather and terrain shaders**, multi-tier medieval architecture with realistic animated resource extraction, autonomous AI bot lords with strategic expansion capabilities, an in-depth settler vitality and profession economy, and real-time 3D spatial audio.
 
 <p align="center">
   <img src="docs/preview.jpg" alt="Throne of Mud Gameplay Preview" width="100%" />
@@ -30,21 +30,22 @@ The game combines a high-performance **Entity Component System (ECS)**, determin
 ## Tech Stack
 
 ### 3D Graphics & Simulation Engine
-- **Three.js (r186) & React Three Fiber (v9)**: High-performance WebGL scene graph rendering, camera orchestration, and instanced mesh batching.
+- **Three.js (r186) & React Three Fiber (v9)**: High-performance WebGL scene graph rendering, camera orchestration, animated mechanical winches, and instanced mesh batching.
 - **Custom GLSL Shader Pipeline**:
   - Multi-texture terrain splatting (`grass`, `mud`, `stone`, `water`) driven by continuous data texture coordinates.
   - Dynamic weather surface darkening (`uWetness`) and procedural raindrop splash rings.
   - Autumn seasonal color shifts (`uAutumnAmount`) and progressive winter snow accumulation (`uSnowAmount`).
   - Two-layer animated wave deformation with specular sun crest sparkles for open water bodies.
   - GPU vertex-shader foliage wind waves and elastic hit shudder responses.
-- **Miniplex v2 (Entity Component System)**: High-frequency game loop separating entity state from behavior across decoupled systems (`JobSystem`, `MovementSystem`, `NeedsSystem`, `EconomySystem`, `ImmigrationSystem`, `BotAISystem`).
-- **A* Pathfinding (`AStar.ts`)**: Heuristic path planning supporting obstacle bypass, dynamic building door alignments, and regional boundary constraints.
-- **Simplex Noise & Mulberry32 PRNG**: Seeded deterministic mathematical noise for biome elevation, forest clusters, and highway curves.
+- **Miniplex v2 (Entity Component System)**: High-frequency game loop separating entity state from behavior across decoupled systems (`JobSystem`, `MovementSystem`, `NeedsSystem`, `EconomySystem`, `ProductionSystem`, `ImmigrationSystem`, `BotAISystem`).
+- **Centralized Constants Architecture**: Dedicated constant modules (`needs.ts`, `economy.ts`, `immigration.ts`, `jobs.ts`, `movement.ts`, `ai.ts`, `time.ts`, `camera.ts`, `world.ts`) eliminating magic numbers and ensuring deterministic game balancing.
+- **A* Pathfinding (`AStar.ts`)**: Heuristic path planning supporting obstacle bypass, dynamic building entrance alignments, and regional boundary constraints.
+- **Simplex Noise & Mulberry32 PRNG**: Seeded deterministic mathematical noise for biome elevation, forest clusters, natural resource veins, and highway curves.
 
 ### State Management & Architecture
 - **Zustand v5 (Slice Pattern)**: Modular, decoupled store architecture:
-  - `timeSlice`: Calendar progression, season cycles, and multi-stage weather transitions.
-  - `settlementSlice`: Resource inventories, building assignments, chronicles, and AI lords.
+  - `timeSlice`: Calendar progression, authentic 12-month season cycles, and multi-stage weather transitions.
+  - `settlementSlice`: Resource inventories, building assignments, chronicles, natural deposits, and AI lords.
   - `uiSlice`: Canvas interactions, tool selection, camera focus targets, and animations.
   - `audioSlice`: Channel gains, muting, and dual-language localization settings.
 - **Clean Architecture & Separation of Concerns**: Strict decoupling between Presentation (React UI), 3D Renderers (Three.js), Simulation Logic (ECS), State Management (Zustand), and Persistence (IndexedDB).
@@ -64,22 +65,27 @@ The game combines a high-performance **Entity Component System (ECS)**, determin
 
 ## Core Features
 
-- **Procedural Feudal Realm**: 256×256 procedural map divided into 4 sovereign fiefs (*Goldhof*, *Waldau*, *Eichenau*, *Zweiau*), dissected by sinuous royal highways and organic biomes.
-- **Procedural 3D Architecture**: Fully algorithmic medieval building generation (peasant cottages, timber-frame manors, rotating windmills, stone walls, bakeries, breweries, market stalls, and active construction scaffolds).
-- **Dynamic Calendar & Weather System**:
+- **Procedural Feudal Realm & Resource Deposits**: 256×256 procedural map divided into 4 sovereign fiefs (*Goldhof*, *Waldau*, *Eichenau*, *Zweiau*), featuring 7 distinct types of regional natural resource deposits (*iron ore veins, limestone quarry rock, clay beds, salt springs, wild berries, wildlife game, and fishing spots*) with automatic building center-snapping.
+- **Procedural 3D Architecture & Multi-Tier Production Chains**: 20+ algorithmic medieval buildings (peasant cottages, timber-frame manors, rotating windmills, stone walls, bakeries, breweries, market stalls, charcoal kilns, iron smelters, sawmills, stonecutters, brickworks, weaver workshops, taverns, wooden churches, and active construction scaffolds) powering an end-to-end raw-to-refined resource economy.
+- **Deep Iron Quarry Excavation & Extraction Cycles**: Tiered open-pit amphitheater quarry with multi-level rock strata, featuring an animated wooden winch lowering ore buckets 1.33m deep into the earth and hoisting raw iron ore.
+- **Dynamic 12-Month Calendar & Weather System**:
+  - Authentic 12-month annual calendar (March to February) spanning 4 distinct seasons with 3 months each (10 days per month, 120 days per year).
   - Full 24-hour day/night cycle with realistic sun/moon arcs, shadow angles, and twilight color temperatures.
   - Dynamic multi-stage weather engine (Clear -> Rain -> Thunderstorm with lightning -> Snow).
   - Progressive seasonal shifts: Spring renewal, Summer clarity, Autumn foliage golden tints, and heavy Winter snow cover.
-- **Interactive Forestry & Physics**:
+- **Interactive Forestry, Mining & Resource Gathering**:
   - Instanced forest rendering supporting thousands of trees with vertex-shader wind sway.
-  - Responsive tree chopping physics: directional trunk elastic shudder upon axe strikes, flying woodchips, and angular tree felling animations.
-- **Autonomous Settlers & AI Feudalism**:
+  - Responsive tree chopping physics: directional trunk shudder upon axe strikes, flying woodchips, angular tree felling animations, and fallen log sectioning.
+  - Rock clearing, stone quarrying, clay extraction, salt harvesting, berry foraging, freshwater fishing, and hunting.
+- **Autonomous Settlers & Feudal Economy**:
   - Villagers manage vitality: Hunger, Rest/Energy, Mood, and Ale satisfaction.
-  - Psychological Thoughts system with timed modifiers (e.g. *Employed*, *Preached*, *Camp Founded*).
+  - Daily wage payouts and autonomous market shopping where workers purchase food and drinks with earned gold.
+  - Psychological Thoughts system with timed modifiers (e.g. *Employed*, *Preached*, *Camp Founded*, *Paid Wages*).
+  - 24+ specialized professions with automated workplace staffing (*Miner, Quarryman, Smelter, Charcoal Burner, Weaver, Innkeeper, Priest, Baker, Hunter, Fisherman*, etc.).
   - Noble Lord commands: Rally peasant levy militias, preach from the pulpit for morale, or study manuscripts to enhance intellect.
-- **Autonomous AI Bot Lords**: Independent neighboring fiefs expand, erect settlements, chop timber, and govern their own lands.
+- **Autonomous AI Bot Lords 2.0**: Independent neighboring fiefs evaluate regional natural resource deposits, construct specialized production hubs, autonomously pave road networks from building entrances to highway arteries, manage organic immigration, and grow their feudal realms.
 - **Real-Time Dirt Road Tool**: Freeform road drawing and erasing that dynamically rasterizes into the terrain shader with realistic edge blending.
-- **Strategic Parchment Map View**: Seamless transition into an ancient cartographic parchment view detailing regional ownership, lord heraldry, and demographic analytics.
+- **Strategic Parchment Map View**: Seamless transition into an ancient cartographic parchment view detailing regional ownership, lord heraldry, demographic analytics, and economic indicators.
 
 ---
 
