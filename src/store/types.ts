@@ -1,6 +1,7 @@
 import type {
   GameTime,
   SeasonType,
+  MonthName,
   WeatherType,
   BuildingType,
   ToolType,
@@ -21,6 +22,7 @@ export interface TimeSlice {
   togglePause: () => void;
   advanceTick: () => void;
   setSeason: (season: SeasonType) => void;
+  setMonth: (month: MonthName) => void;
   setWeather: (weather: WeatherType, locked?: boolean) => void;
   setWeatherLocked: (locked: boolean) => void;
   triggerLightning: () => void;
@@ -143,3 +145,4 @@ export interface SettlementSlice {
 }
 
 export type GameState = TimeSlice & AudioSlice & UISlice & SettlementSlice;
+

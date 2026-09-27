@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { SeasonType, WeatherType } from '../../types/game';
+import type { SeasonType, MonthName, WeatherType } from '../../types/game';
 import { world } from '../../engine/ecs/world';
 import {
   TICKS_PER_MINUTE,
@@ -8,20 +8,30 @@ import {
   MINUTES_PER_DAY,
   DAY_START_HOUR,
   SEASON_BASE_DAYS,
+  MONTH_BASE_DAYS,
   DAYS_PER_SEASON,
+  DAYS_PER_MONTH,
+  getDateInfo,
   timeToTicks,
 } from '../../constants/time';
 import type { GameState, TimeSlice } from '../types';
 
 export type { TimeSlice };
 
+const initialDateInfo = getDateInfo(1);
+
 export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set) => ({
   time: {
     tick: 0,
     day: 1,
+    dayOfMonth: initialDateInfo.dayOfMonth,
+    month: initialDateInfo.month,
+    monthIndex: initialDateInfo.monthIndex,
+    monthInSeason: initialDateInfo.monthInSeason,
+    year: initialDateInfo.year,
     hour: DAY_START_HOUR,
     minute: 0,
-    season: 'Spring',
+    season: initialDateInfo.season,
     weather: 'clear',
     targetWeather: 'clear',
     nextWeather: 'clear',
@@ -63,6 +73,7 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       const currentDayInSeason = ((state.time.day - 1) % DAYS_PER_SEASON);
       const newDay = baseDay + currentDayInSeason;
       const newTick = timeToTicks(newDay, state.time.hour, state.time.minute);
+      const dateInfo = getDateInfo(newDay);
 
       let newTargetWeather = state.time.targetWeather || state.time.weather;
       if (newSeason === 'Winter' && (newTargetWeather === 'rain' || newTargetWeather === 'storm')) {
@@ -88,10 +99,48 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
           ...state.time,
           tick: newTick,
           day: newDay,
+          dayOfMonth: dateInfo.dayOfMonth,
+          month: dateInfo.month,
+          monthIndex: dateInfo.monthIndex,
+          monthInSeason: dateInfo.monthInSeason,
+          year: dateInfo.year,
           season: newSeason,
           targetWeather: newTargetWeather,
         },
         resourceDeposits: nextDeposits,
+        foliageVersion: state.foliageVersion + 1,
+      };
+    });
+  },
+
+  setMonth: (newMonth: MonthName) => {
+    set((state) => {
+      const baseDay = MONTH_BASE_DAYS[newMonth];
+      const currentDayInMonth = ((state.time.day - 1) % DAYS_PER_MONTH);
+      const newDay = baseDay + currentDayInMonth;
+      const newTick = timeToTicks(newDay, state.time.hour, state.time.minute);
+      const dateInfo = getDateInfo(newDay);
+
+      let newTargetWeather = state.time.targetWeather || state.time.weather;
+      if (dateInfo.season === 'Winter' && (newTargetWeather === 'rain' || newTargetWeather === 'storm')) {
+        newTargetWeather = 'snow';
+      } else if (dateInfo.season !== 'Winter' && newTargetWeather === 'snow') {
+        newTargetWeather = 'clear';
+      }
+
+      return {
+        time: {
+          ...state.time,
+          tick: newTick,
+          day: newDay,
+          dayOfMonth: dateInfo.dayOfMonth,
+          month: dateInfo.month,
+          monthIndex: dateInfo.monthIndex,
+          monthInSeason: dateInfo.monthInSeason,
+          year: dateInfo.year,
+          season: dateInfo.season,
+          targetWeather: newTargetWeather,
+        },
         foliageVersion: state.foliageVersion + 1,
       };
     });
@@ -159,8 +208,8 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       const minute = totalMinutes % MINUTES_PER_HOUR;
       const day = 1 + Math.floor((DAY_START_HOUR * MINUTES_PER_HOUR + totalMinutes) / MINUTES_PER_DAY);
 
-      const seasons: SeasonType[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
-      const season = seasons[Math.floor((day - 1) / DAYS_PER_SEASON) % seasons.length];
+      const dateInfo = getDateInfo(day);
+      const { season, month, monthIndex, monthInSeason, dayOfMonth, year, dayInSeason } = dateInfo;
 
       let nextDeposits = state.resourceDeposits;
       if (season === 'Spring' && state.time.season !== 'Spring' && nextDeposits) {
@@ -243,13 +292,11 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
 
       let curSnowAcc = state.time.snowAccumulation || 0;
       if (season === 'Winter') {
-        const dayInWinter = ((day - 1) % DAYS_PER_SEASON);
-        const targetWinterSnow = Math.min(1.0, (dayInWinter + 1) / (DAYS_PER_SEASON * 0.7));
+        const targetWinterSnow = Math.min(1.0, dayInSeason / (DAYS_PER_SEASON * 0.7));
         const snowRate = curSnow > 0.1 ? 0.0003 : 0.00008;
         curSnowAcc = Math.min(targetWinterSnow, curSnowAcc + snowRate);
       } else if (season === 'Spring') {
-        const dayInSpring = ((day - 1) % DAYS_PER_SEASON);
-        const targetSpringSnow = Math.max(0.0, 1.0 - (dayInSpring + 1) / (DAYS_PER_SEASON * 0.4));
+        const targetSpringSnow = Math.max(0.0, 1.0 - dayInSeason / (DAYS_PER_SEASON * 0.4));
         curSnowAcc = Math.max(targetSpringSnow, curSnowAcc - 0.0002);
       } else {
         curSnowAcc = Math.max(0.0, curSnowAcc - 0.0005);
@@ -260,6 +307,11 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
           ...state.time,
           tick: nextTick,
           day,
+          dayOfMonth,
+          month,
+          monthIndex,
+          monthInSeason,
+          year,
           hour,
           minute,
           season,
@@ -277,3 +329,4 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
     });
   },
 });
+

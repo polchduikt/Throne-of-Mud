@@ -1,6 +1,12 @@
 import { buildingEntities, characterEntities } from '../world';
 import { BUILDING_BLUEPRINTS } from '../../buildings/blueprints';
 import { useGameStore } from '../../../store/useGameStore';
+import {
+  HARVEST_WHEAT_TOTAL_WORK,
+  DEFAULT_WORK_SKILL,
+  SUPERVISOR_SKILL_MULTIPLIER,
+  RESOURCE_DEPOSIT_DRAIN_RADIUS,
+} from '../../../constants/jobs';
 
 export class ProductionSystem {
   public static update(): void {
@@ -24,7 +30,7 @@ export class ProductionSystem {
 
       let supervisorMultiplier = 1.0;
       if (building.assignedLordId) {
-        const lord = Array.from(characterEntities).find(c => c.id === building.assignedLordId);
+        const lord = Array.from(characterEntities).find((c) => c.id === building.assignedLordId);
         if (lord && lord.skills) {
           const relevantSkill = Math.max(
             lord.skills.intellect,
@@ -32,7 +38,7 @@ export class ProductionSystem {
             building.buildingType === 'brewery' ? lord.skills.brewing :
             lord.skills.building
           );
-          supervisorMultiplier += 0.1 * (relevantSkill || 5);
+          supervisorMultiplier += SUPERVISOR_SKILL_MULTIPLIER * (relevantSkill || DEFAULT_WORK_SKILL);
         }
       }
 
@@ -45,7 +51,7 @@ export class ProductionSystem {
 
         if (building.buildingType === 'wheat_farm') {
           const farmJobId = `harvest-farm-${building.id}`;
-          const existingJob = pendingJobs.find(j => j.id === farmJobId);
+          const existingJob = pendingJobs.find((j) => j.id === farmJobId);
           if (!existingJob && building.gridPosition) {
             addPendingJob({
               id: farmJobId,
@@ -53,7 +59,7 @@ export class ProductionSystem {
               targetPosition: [building.gridPosition[0], building.gridPosition[1]],
               targetBuildingId: building.id,
               progress: 0,
-              totalWork: 25,
+              totalWork: HARVEST_WHEAT_TOTAL_WORK,
             });
           }
           continue;
@@ -73,6 +79,25 @@ export class ProductionSystem {
           }
           for (const [res, amount] of Object.entries(prod.outputs)) {
             addResource(res as any, amount || 0);
+          }
+
+          if (
+            building.buildingType === 'iron_mine' ||
+            building.buildingType === 'stone_quarry' ||
+            building.buildingType === 'clay_pit' ||
+            building.buildingType === 'salt_works'
+          ) {
+            const bPos = building.gridPosition;
+            if (bPos) {
+              const deposits = useGameStore.getState().resourceDeposits || [];
+              const dep = deposits.find(
+                (d) =>
+                  Math.hypot(d.gridPosition[0] - bPos[0], d.gridPosition[1] - bPos[1]) <= RESOURCE_DEPOSIT_DRAIN_RADIUS
+              );
+              if (dep && dep.currentAmount !== undefined && dep.currentAmount > 0) {
+                dep.currentAmount = Math.max(0, dep.currentAmount - 1);
+              }
+            }
           }
         }
       }

@@ -366,6 +366,7 @@ export class GridMap {
       tile.foliageTreeType = undefined;
       tile.isPassable = tile.terrain !== 'water';
       tile.movementCost = 1.0;
+      this.removeFoliageFromCoords(x, x, z, z);
     }
   }
 
@@ -409,3 +410,4 @@ export class GridMap {
     return neighbors;
   }
 }
+

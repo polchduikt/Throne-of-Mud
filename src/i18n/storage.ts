@@ -24,3 +24,4 @@ export function saveStoredLanguage(lang: SupportedLanguage): void {
     console.warn('Could not save language to localStorage:', e);
   }
 }
+

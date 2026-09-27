@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
 import type { ResourceDeposit } from '../../types/game';
 import { GridMap } from '../../engine/grid/GridMap';
+import { BUILDING_TEXTURES } from './buildings/buildingTextures';
 
 const DEPOSIT_MATS = {
   waterRipple: new THREE.MeshBasicMaterial({ color: '#38bdf8', transparent: true, opacity: 0.55 }),
@@ -14,13 +15,13 @@ const DEPOSIT_MATS = {
   rope: new THREE.MeshStandardMaterial({ color: '#d97706', roughness: 0.9, flatShading: true }),
   fishNet: new THREE.MeshStandardMaterial({ color: '#92400e', roughness: 0.95, wireframe: true }),
 
-  berryLeaves1: new THREE.MeshStandardMaterial({ color: '#166534', roughness: 0.85, flatShading: true }),
-  berryLeaves2: new THREE.MeshStandardMaterial({ color: '#14532d', roughness: 0.9, flatShading: true }),
-  berryLeaves3: new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.8, flatShading: true }),
+  berryLeaves1: new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.8, flatShading: true }),
+  berryLeaves2: new THREE.MeshStandardMaterial({ color: '#16a34a', roughness: 0.8, flatShading: true }),
+  berryLeaves3: new THREE.MeshStandardMaterial({ color: '#166534', roughness: 0.85, flatShading: true }),
   berryStem: new THREE.MeshStandardMaterial({ color: '#3f2e18', roughness: 0.95, flatShading: true }),
-  berryBlue: new THREE.MeshStandardMaterial({ color: '#1e3a8a', roughness: 0.25, metalness: 0.2, flatShading: true }),
-  berryGlint: new THREE.MeshStandardMaterial({ color: '#2563eb', roughness: 0.2, metalness: 0.3, flatShading: true }),
-  berryDark: new THREE.MeshStandardMaterial({ color: '#090914', roughness: 0.3, flatShading: true }),
+  berryBlue: new THREE.MeshStandardMaterial({ color: '#1d4ed8', roughness: 0.25, metalness: 0.2, flatShading: true }),
+  berryGlint: new THREE.MeshStandardMaterial({ color: '#38bdf8', roughness: 0.2, metalness: 0.3, flatShading: true }),
+  berryDark: new THREE.MeshStandardMaterial({ color: '#090914', roughness: 0.2, metalness: 0.3, flatShading: true }),
   basketWicker: new THREE.MeshStandardMaterial({ color: '#b45309', roughness: 0.9, flatShading: true }),
 
   stoneLimestone: new THREE.MeshStandardMaterial({ color: '#e7e5e4', roughness: 0.85, flatShading: true }),
@@ -38,6 +39,46 @@ const DEPOSIT_MATS = {
   mineTrackWood: new THREE.MeshStandardMaterial({ color: '#27170a', roughness: 0.9, flatShading: true }),
   lanternGlow: new THREE.MeshBasicMaterial({ color: '#fbbf24' }),
 
+  quarryRock: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneFoundation,
+    color: '#8492a6',
+    roughness: 0.82,
+  }),
+  quarryCliff: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#475569',
+    roughness: 0.88,
+  }),
+  quarrySoil: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.soil,
+    color: '#6b4c33',
+    roughness: 0.94,
+  }),
+  quarryHematite: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.stoneMasonry,
+    color: '#991b1b',
+    roughness: 0.65,
+  }),
+  quarryOreDark: new THREE.MeshStandardMaterial({
+    color: '#0f172a',
+    metalness: 0.92,
+    roughness: 0.22,
+    flatShading: true,
+  }),
+  quarryTimberLogs: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberLogs,
+    color: '#cca06a',
+    roughness: 0.8,
+  }),
+  quarryTimberPlanks: new THREE.MeshStandardMaterial({
+    map: BUILDING_TEXTURES.timberPlanks,
+    color: '#deb37f',
+    roughness: 0.78,
+  }),
+  quarryVoidDepth: new THREE.MeshBasicMaterial({
+    color: '#02040a',
+  }),
+
   clayTerracotta: new THREE.MeshStandardMaterial({ color: '#9a3412', roughness: 0.92, flatShading: true }),
   clayWet: new THREE.MeshStandardMaterial({ color: '#6c2207', roughness: 0.4, flatShading: true }),
   clayMudWater: new THREE.MeshStandardMaterial({ color: '#451a03', roughness: 0.2, metalness: 0.1 }),
@@ -54,18 +95,23 @@ const DEPOSIT_MATS = {
   stagFur: new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.85, flatShading: true }),
   doeFur: new THREE.MeshStandardMaterial({ color: '#92400e', roughness: 0.85, flatShading: true }),
   fawnFur: new THREE.MeshStandardMaterial({ color: '#b45309', roughness: 0.8, flatShading: true }),
+  deerBelly: new THREE.MeshStandardMaterial({ color: '#fef3c7', roughness: 0.9, flatShading: true }),
+  deerNose: new THREE.MeshStandardMaterial({ color: '#18181b', roughness: 0.4, flatShading: true }),
+  deerHoof: new THREE.MeshStandardMaterial({ color: '#1c1917', roughness: 0.7, flatShading: true }),
   deerAntler: new THREE.MeshStandardMaterial({ color: '#f5efe6', roughness: 0.65, flatShading: true }),
+  fawnSpot: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, flatShading: true }),
   mossyLog: new THREE.MeshStandardMaterial({ color: '#3f2e18', roughness: 0.9, flatShading: true }),
   mossGreen: new THREE.MeshStandardMaterial({ color: '#365314', roughness: 0.95, flatShading: true }),
+  mushroomCap: new THREE.MeshStandardMaterial({ color: '#b91c1c', roughness: 0.6, flatShading: true }),
+  mushroomStem: new THREE.MeshStandardMaterial({ color: '#fef3c7', roughness: 0.8, flatShading: true }),
 };
 
 const BERRY_BUSH_CONFIGS = [
-  { px: 0.0, pz: 0.0, s: 1.15, mat: DEPOSIT_MATS.berryLeaves1 },
-  { px: -1.2, pz: 0.7, s: 1.05, mat: DEPOSIT_MATS.berryLeaves2 },
-  { px: 1.1, pz: -0.85, s: 1.08, mat: DEPOSIT_MATS.berryLeaves3 },
-  { px: -0.95, pz: -0.95, s: 0.95, mat: DEPOSIT_MATS.berryLeaves1 },
-  { px: 1.3, pz: 0.65, s: 1.0, mat: DEPOSIT_MATS.berryLeaves2 },
-  { px: 0.2, pz: 1.25, s: 0.95, mat: DEPOSIT_MATS.berryLeaves3 },
+  { px: -1.15, pz: -0.75, s: 1.05, mat: DEPOSIT_MATS.berryLeaves1 },
+  { px: 1.10, pz: -0.85, s: 1.0, mat: DEPOSIT_MATS.berryLeaves2 },
+  { px: -1.15, pz: 0.75, s: 0.95, mat: DEPOSIT_MATS.berryLeaves3 },
+  { px: 1.15, pz: 0.70, s: 1.0, mat: DEPOSIT_MATS.berryLeaves1 },
+  { px: 0.05, pz: 1.10, s: 0.95, mat: DEPOSIT_MATS.berryLeaves2 },
 ];
 
 export function ResourceDepositsRenderer({ grid }: { grid?: GridMap }) {
@@ -251,6 +297,7 @@ function DepositNode({
         <group>
           {BERRY_BUSH_CONFIGS.map((b, i) => (
             <group key={i} position={[b.px, 0, b.pz]} scale={[b.s, b.s, b.s]}>
+
               <mesh position={[0, 0.15, 0]} material={DEPOSIT_MATS.berryStem}>
                 <cylinderGeometry args={[0.05, 0.08, 0.35, 5]} />
               </mesh>
@@ -265,19 +312,33 @@ function DepositNode({
                 <dodecahedronGeometry args={[0.42, 1]} />
               </mesh>
 
-              <mesh position={[0.36, 0.52, 0.25]} material={DEPOSIT_MATS.berryGlint}>
-                <sphereGeometry args={[0.13, 6, 5]} />
+              <mesh position={[0.38, 0.54, 0.30]} material={DEPOSIT_MATS.berryDark}>
+                <sphereGeometry args={[0.15, 6, 5]} />
               </mesh>
-              <mesh position={[-0.34, 0.44, 0.3]} material={DEPOSIT_MATS.berryBlue}>
+              <mesh position={[-0.34, 0.60, -0.28]} material={DEPOSIT_MATS.berryDark}>
                 <sphereGeometry args={[0.14, 6, 5]} />
               </mesh>
-              <mesh position={[0.12, 0.76, -0.15]} material={DEPOSIT_MATS.berryGlint}>
-                <sphereGeometry args={[0.13, 6, 5]} />
+              <mesh position={[0.06, 0.80, 0.16]} material={DEPOSIT_MATS.berryDark}>
+                <sphereGeometry args={[0.14, 6, 5]} />
               </mesh>
-              <mesh position={[-0.3, 0.58, -0.28]} material={DEPOSIT_MATS.berryDark}>
-                <sphereGeometry args={[0.12, 6, 5]} />
+              <mesh position={[-0.42, 0.36, 0.18]} material={DEPOSIT_MATS.berryDark}>
+                <sphereGeometry args={[0.14, 6, 5]} />
               </mesh>
-              <mesh position={[0.4, 0.38, -0.2]} material={DEPOSIT_MATS.berryBlue}>
+
+              <mesh position={[-0.36, 0.46, 0.34]} material={DEPOSIT_MATS.berryBlue}>
+                <sphereGeometry args={[0.15, 6, 5]} />
+              </mesh>
+              <mesh position={[0.44, 0.38, -0.22]} material={DEPOSIT_MATS.berryBlue}>
+                <sphereGeometry args={[0.14, 6, 5]} />
+              </mesh>
+              <mesh position={[-0.10, 0.74, -0.22]} material={DEPOSIT_MATS.berryBlue}>
+                <sphereGeometry args={[0.14, 6, 5]} />
+              </mesh>
+
+              <mesh position={[0.14, 0.78, -0.14]} material={DEPOSIT_MATS.berryGlint}>
+                <sphereGeometry args={[0.14, 6, 5]} />
+              </mesh>
+              <mesh position={[0.36, 0.28, 0.22]} material={DEPOSIT_MATS.berryGlint}>
                 <sphereGeometry args={[0.13, 6, 5]} />
               </mesh>
             </group>
@@ -296,8 +357,11 @@ function DepositNode({
             <mesh position={[0, 0.15, 0]} material={DEPOSIT_MATS.basketWicker}>
               <cylinderGeometry args={[0.24, 0.18, 0.3, 8]} />
             </mesh>
-            <mesh position={[0, 0.26, 0]} material={DEPOSIT_MATS.berryGlint}>
-              <sphereGeometry args={[0.2, 7, 5]} />
+            <mesh position={[-0.04, 0.27, 0]} material={DEPOSIT_MATS.berryDark}>
+              <sphereGeometry args={[0.18, 7, 5]} />
+            </mesh>
+            <mesh position={[0.06, 0.28, 0.04]} material={DEPOSIT_MATS.berryBlue}>
+              <sphereGeometry args={[0.16, 7, 5]} />
             </mesh>
           </group>
         </group>
@@ -347,70 +411,186 @@ function DepositNode({
 
       {deposit.type === 'iron' && (
         <group>
-          <mesh position={[0, 0.95, -0.95]} rotation={[-0.1, 0, 0]} material={DEPOSIT_MATS.ironOreDark} castShadow>
-            <boxGeometry args={[3.2, 1.9, 1.6]} />
+
+          <mesh position={[0, 1.10, -1.85]} material={DEPOSIT_MATS.quarryCliff} receiveShadow castShadow>
+            <boxGeometry args={[4.2, 2.10, 1.3]} />
           </mesh>
-          <mesh position={[-1.1, 0.7, -0.4]} rotation={[0.2, 0.4, -0.1]} material={DEPOSIT_MATS.ironRust}>
-            <boxGeometry args={[1.0, 1.1, 0.7]} />
-          </mesh>
-          <mesh position={[1.15, 0.6, -0.35]} rotation={[-0.1, -0.3, 0.2]} material={DEPOSIT_MATS.ironOreDark}>
-            <boxGeometry args={[0.9, 0.9, 0.6]} />
+          <mesh position={[0, 2.18, -2.05]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
+            <boxGeometry args={[4.3, 0.35, 0.9]} />
           </mesh>
 
-          <group position={[0, 0, -0.2]}>
-            <mesh position={[0, 0.85, -0.22]} material={DEPOSIT_MATS.aditDarkness}>
-              <boxGeometry args={[1.35, 1.7, 0.25]} />
+          <mesh position={[-2.05, 0.95, -0.45]} rotation={[0, 0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow castShadow>
+            <boxGeometry args={[1.3, 1.90, 3.1]} />
+          </mesh>
+          <mesh position={[-2.35, 1.88, -0.45]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
+            <boxGeometry args={[0.9, 0.30, 3.2]} />
+          </mesh>
+
+          <mesh position={[2.05, 0.95, -0.45]} rotation={[0, -0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow castShadow>
+            <boxGeometry args={[1.3, 1.90, 3.1]} />
+          </mesh>
+          <mesh position={[2.35, 1.88, -0.45]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
+            <boxGeometry args={[0.9, 0.30, 3.2]} />
+          </mesh>
+
+          <mesh position={[-1.85, 0.45, 1.35]} rotation={[0, 0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+            <boxGeometry args={[1.2, 0.85, 1.3]} />
+          </mesh>
+          <mesh position={[1.85, 0.45, 1.35]} rotation={[0, -0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+            <boxGeometry args={[1.2, 0.85, 1.3]} />
+          </mesh>
+
+          <mesh position={[0, 0.45, -1.25]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+            <boxGeometry args={[3.2, 0.75, 0.65]} />
+          </mesh>
+          <mesh position={[-1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+            <boxGeometry args={[0.65, 0.75, 2.0]} />
+          </mesh>
+          <mesh position={[1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+            <boxGeometry args={[0.65, 0.75, 2.0]} />
+          </mesh>
+
+          <mesh position={[0, 0.85, -1.50]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <boxGeometry args={[3.5, 0.18, 0.18]} />
+          </mesh>
+          <mesh position={[-1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <boxGeometry args={[0.18, 0.18, 2.4]} />
+          </mesh>
+          <mesh position={[1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <boxGeometry args={[0.18, 0.18, 2.4]} />
+          </mesh>
+
+          {[-1.55, -0.8, 0.8, 1.55].map((px, idx) => (
+            <mesh key={`v-post-${idx}`} position={[px, 0.95, -1.45]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+              <cylinderGeometry args={[0.075, 0.085, 1.85, 6]} />
             </mesh>
-            <mesh position={[-0.7, 0.9, 0]} material={DEPOSIT_MATS.aditBeam}>
-              <boxGeometry args={[0.2, 1.8, 0.2]} />
+          ))}
+
+          <mesh position={[0, 0.06, 0.15]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
+            <boxGeometry args={[2.7, 0.12, 2.4]} />
+          </mesh>
+          <mesh position={[0, 0.13, 0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
+            <boxGeometry args={[2.4, 0.04, 2.1]} />
+          </mesh>
+
+          <group position={[0, 0.14, 0]}>
+            <mesh position={[-0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+              <boxGeometry args={[0.16, 0.16, 1.7]} />
             </mesh>
-            <mesh position={[0.7, 0.9, 0]} material={DEPOSIT_MATS.aditBeam}>
-              <boxGeometry args={[0.2, 1.8, 0.2]} />
+            <mesh position={[0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+              <boxGeometry args={[0.16, 0.16, 1.7]} />
             </mesh>
-            <mesh position={[0, 1.8, 0]} material={DEPOSIT_MATS.aditBeam}>
-              <boxGeometry args={[1.8, 0.24, 0.26]} />
+            <mesh position={[0, 0.08, -0.85]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+              <boxGeometry args={[1.7, 0.16, 0.16]} />
             </mesh>
-            <mesh position={[0, 1.45, 0.15]} material={DEPOSIT_MATS.lanternGlow}>
-              <boxGeometry args={[0.18, 0.24, 0.18]} />
+            <mesh position={[0, 0.08, 0.85]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+              <boxGeometry args={[1.7, 0.16, 0.16]} />
+            </mesh>
+
+            <mesh position={[0, 0.01, 0]} material={DEPOSIT_MATS.quarryOreDark} receiveShadow>
+              <boxGeometry args={[1.45, 0.02, 1.45]} />
             </mesh>
           </group>
 
-          <group position={[0, 0.02, 0.75]}>
-            <mesh position={[-0.4, 0.02, 0]} material={DEPOSIT_MATS.mineTrackWood}>
-              <boxGeometry args={[0.08, 0.05, 2.2]} />
+          <mesh position={[-0.35, 0.16, 0.35]} material={DEPOSIT_MATS.mineTrackWood}>
+            <boxGeometry args={[0.06, 0.03, 1.7]} />
+          </mesh>
+          <mesh position={[0.35, 0.16, 0.35]} material={DEPOSIT_MATS.mineTrackWood}>
+            <boxGeometry args={[0.06, 0.03, 1.7]} />
+          </mesh>
+          {[-0.45, -0.15, 0.15, 0.45, 0.75, 1.05].map((tz, i) => (
+            <mesh key={`tie-${i}`} position={[0, 0.15, tz]} material={DEPOSIT_MATS.mineTrackWood}>
+              <boxGeometry args={[0.85, 0.02, 0.08]} />
             </mesh>
-            <mesh position={[0.4, 0.02, 0]} material={DEPOSIT_MATS.mineTrackWood}>
-              <boxGeometry args={[0.08, 0.05, 2.2]} />
+          ))}
+
+          <group position={[-0.95, 0.85, -0.95]} rotation={[0.42, 0, -0.1]}>
+            <mesh position={[-0.14, 0, 0]} material={DEPOSIT_MATS.quarryTimberPlanks}>
+              <boxGeometry args={[0.04, 2.3, 0.04]} />
             </mesh>
-            {[-0.7, -0.2, 0.3, 0.8].map((tz, i) => (
-              <mesh key={i} position={[0, 0.01, tz]} material={DEPOSIT_MATS.mineTrackWood}>
-                <boxGeometry args={[1.05, 0.04, 0.12]} />
+            <mesh position={[0.14, 0, 0]} material={DEPOSIT_MATS.quarryTimberPlanks}>
+              <boxGeometry args={[0.04, 2.3, 0.04]} />
+            </mesh>
+            {[-0.95, -0.75, -0.55, -0.35, -0.15, 0.05, 0.25, 0.45, 0.65, 0.85, 1.05].map((ry, idx) => (
+              <mesh key={`q-rung-${idx}`} position={[0, ry, 0]} rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.quarryTimberPlanks}>
+                <cylinderGeometry args={[0.016, 0.016, 0.28, 4]} />
               </mesh>
             ))}
           </group>
 
-          <group position={[0, 0.16, 0.7]}>
-            {[-0.38, 0.38].map((wx, i) =>
-              [-0.28, 0.28].map((wz, j) => (
-                <mesh key={`${i}-${j}`} position={[wx, 0.04, wz]} rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.minecartIron}>
-                  <cylinderGeometry args={[0.1, 0.1, 0.05, 8]} />
-                </mesh>
-              ))
-            )}
-            <mesh position={[0, 0.24, 0]} material={DEPOSIT_MATS.minecartWood}>
-              <boxGeometry args={[0.72, 0.42, 0.88]} />
+          <group position={[0.95, 1.35, -1.35]}>
+            <mesh material={DEPOSIT_MATS.ironTool} position={[0, 0.12, 0]}>
+              <cylinderGeometry args={[0.04, 0.06, 0.14, 6]} />
             </mesh>
-            <mesh position={[0, 0.44, 0]} material={DEPOSIT_MATS.ironOreDark}>
-              <dodecahedronGeometry args={[0.26, 0]} />
+            <mesh material={DEPOSIT_MATS.lanternGlow}>
+              <sphereGeometry args={[0.06, 6, 6]} />
             </mesh>
-            <mesh position={[0.08, 0.48, 0.14]} material={DEPOSIT_MATS.ironRust} scale={[0.8, 0.8, 0.8]}>
-              <dodecahedronGeometry args={[0.24, 0]} />
+            <pointLight color="#f59e0b" intensity={2.0} distance={5.0} />
+          </group>
+          <group position={[-0.95, 0.55, 0.85]}>
+            <mesh material={DEPOSIT_MATS.ironTool} position={[0, 0.12, 0]}>
+              <cylinderGeometry args={[0.04, 0.06, 0.14, 6]} />
+            </mesh>
+            <mesh material={DEPOSIT_MATS.lanternGlow}>
+              <sphereGeometry args={[0.06, 6, 6]} />
+            </mesh>
+            <pointLight color="#f59e0b" intensity={1.5} distance={3.8} />
+          </group>
+
+          <mesh position={[-1.45, 1.75, -1.65]} rotation={[0.2, 0.4, -0.1]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+            <dodecahedronGeometry args={[0.92, 0]} />
+          </mesh>
+          <mesh position={[-1.85, 1.45, -1.15]} rotation={[-0.1, 0.2, 0.3]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+            <dodecahedronGeometry args={[0.70, 0]} />
+          </mesh>
+
+          <mesh position={[1.45, 1.80, -1.55]} rotation={[-0.15, -0.3, 0.2]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+            <dodecahedronGeometry args={[0.95, 0]} />
+          </mesh>
+          <mesh position={[1.85, 1.45, -1.05]} rotation={[0.2, 0.1, -0.2]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+            <dodecahedronGeometry args={[0.68, 0]} />
+          </mesh>
+
+          <mesh position={[-1.95, 0.85, 0.45]} rotation={[0.3, -0.2, 0.1]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+            <dodecahedronGeometry args={[0.72, 0]} />
+          </mesh>
+          <mesh position={[1.95, 0.85, 0.45]} rotation={[-0.2, 0.3, 0.15]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+            <dodecahedronGeometry args={[0.72, 0]} />
+          </mesh>
+
+          <mesh position={[0.45, 0.28, -0.45]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+            <dodecahedronGeometry args={[0.35, 0]} />
+          </mesh>
+          <mesh position={[-0.45, 0.26, -0.25]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+            <dodecahedronGeometry args={[0.32, 0]} />
+          </mesh>
+          <mesh position={[0.35, 0.24, 0.65]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+            <dodecahedronGeometry args={[0.26, 0]} />
+          </mesh>
+          <mesh position={[-0.45, 0.22, 0.75]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+            <dodecahedronGeometry args={[0.24, 0]} />
+          </mesh>
+
+          <group position={[0.95, 0.24, 0.85]} rotation={[0, -0.4, 0.15]}>
+            <mesh position={[0, 0.14, 0]} material={DEPOSIT_MATS.basketWicker}>
+              <cylinderGeometry args={[0.24, 0.18, 0.30, 8]} />
+            </mesh>
+            <mesh position={[-0.03, 0.26, 0]} material={DEPOSIT_MATS.quarryOreDark}>
+              <dodecahedronGeometry args={[0.16, 0]} />
+            </mesh>
+            <mesh position={[0.04, 0.27, 0.03]} material={DEPOSIT_MATS.quarryHematite}>
+              <dodecahedronGeometry args={[0.14, 0]} />
             </mesh>
           </group>
 
-          <mesh position={[0.95, 0.14, 0.5]} material={DEPOSIT_MATS.ironRust}>
-            <dodecahedronGeometry args={[0.3, 0]} />
-          </mesh>
+          <group position={[-0.75, 0.42, 0.45]} rotation={[0.4, 0.3, -0.5]}>
+            <mesh position={[0, 0.28, 0]} material={DEPOSIT_MATS.quarryTimberLogs}>
+              <cylinderGeometry args={[0.022, 0.022, 0.75, 5]} />
+            </mesh>
+            <mesh position={[0, 0.65, 0]} material={DEPOSIT_MATS.ironTool}>
+              <boxGeometry args={[0.32, 0.08, 0.05]} />
+            </mesh>
+          </group>
         </group>
       )}
 
@@ -475,37 +655,92 @@ function DepositNode({
 
       {deposit.type === 'wild_game' && (
         <group>
+
           <group position={[0.1, 0.14, -0.5]} rotation={[0, 0.35, 0]}>
-            <mesh rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.mossyLog}>
+            <mesh rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.mossyLog} castShadow>
               <cylinderGeometry args={[0.18, 0.22, 2.4, 6]} />
+            </mesh>
+            <mesh position={[0.4, 0.16, 0]} material={DEPOSIT_MATS.mossGreen}>
+              <boxGeometry args={[0.45, 0.06, 0.22]} />
+            </mesh>
+            <mesh position={[-0.5, 0.15, 0.05]} material={DEPOSIT_MATS.mossGreen}>
+              <boxGeometry args={[0.38, 0.06, 0.20]} />
             </mesh>
           </group>
 
           <group position={[0.8, 0, 0.4]} rotation={[0, -0.8, 0]}>
+
             <mesh position={[0, 0.48, 0]} material={DEPOSIT_MATS.stagFur} castShadow>
               <boxGeometry args={[0.44, 0.36, 0.78]} />
             </mesh>
+
+            <mesh position={[0, 0.34, 0]} material={DEPOSIT_MATS.deerBelly}>
+              <boxGeometry args={[0.36, 0.10, 0.68]} />
+            </mesh>
+
             {[-0.16, 0.16].map((lx, i) =>
               [-0.28, 0.28].map((lz, j) => (
-                <mesh key={`${i}-${j}`} position={[lx, 0.2, lz]} material={DEPOSIT_MATS.stagFur}>
-                  <cylinderGeometry args={[0.03, 0.024, 0.46, 5]} />
-                </mesh>
+                <group key={`stag-leg-${i}-${j}`} position={[lx, 0, lz]}>
+                  <mesh position={[0, 0.20, 0]} material={DEPOSIT_MATS.stagFur}>
+                    <cylinderGeometry args={[0.03, 0.024, 0.46, 5]} />
+                  </mesh>
+                  <mesh position={[0, 0.02, 0]} material={DEPOSIT_MATS.deerHoof}>
+                    <boxGeometry args={[0.05, 0.04, 0.05]} />
+                  </mesh>
+                </group>
               ))
             )}
+
             <group ref={stagHeadRef} position={[0, 0.65, 0.32]}>
-              <mesh position={[0, 0.2, 0.08]} rotation={[-0.45, 0, 0]} material={DEPOSIT_MATS.stagFur}>
-                <boxGeometry args={[0.2, 0.44, 0.22]} />
+
+              <mesh position={[0, 0.20, 0.08]} rotation={[-0.45, 0, 0]} material={DEPOSIT_MATS.stagFur}>
+                <cylinderGeometry args={[0.10, 0.15, 0.44, 6]} />
               </mesh>
-              <mesh position={[0, 0.4, 0.2]} material={DEPOSIT_MATS.stagFur}>
+
+              <mesh position={[0, 0.38, 0.20]} material={DEPOSIT_MATS.stagFur}>
                 <boxGeometry args={[0.18, 0.18, 0.26]} />
               </mesh>
+
+              <mesh position={[0, 0.34, 0.34]} material={DEPOSIT_MATS.deerNose}>
+                <boxGeometry args={[0.08, 0.06, 0.04]} />
+              </mesh>
+
               {[-1, 1].map((side, k) => (
-                <group key={k} position={[side * 0.09, 0.52, 0.18]}>
-                  <mesh rotation={[0.2, side * 0.2, side * 0.3]} material={DEPOSIT_MATS.deerAntler}>
-                    <cylinderGeometry args={[0.02, 0.026, 0.44, 4]} />
+                <mesh
+                  key={`stag-ear-${k}`}
+                  position={[side * 0.11, 0.48, 0.14]}
+                  rotation={[0.2, side * 0.4, side * 0.35]}
+                  material={DEPOSIT_MATS.stagFur}
+                >
+                  <boxGeometry args={[0.05, 0.14, 0.03]} />
+                </mesh>
+              ))}
+
+              {[-1, 1].map((side, k) => (
+                <group key={`antler-rack-${k}`} position={[side * 0.08, 0.46, 0.14]}>
+
+                  <mesh
+                    position={[side * 0.06, 0.18, -0.04]}
+                    rotation={[0.35, side * 0.2, side * 0.3]}
+                    material={DEPOSIT_MATS.deerAntler}
+                  >
+                    <cylinderGeometry args={[0.02, 0.028, 0.44, 4]} />
                   </mesh>
-                  <mesh position={[0, 0.14, 0.08]} rotation={[0.7, 0, 0]} material={DEPOSIT_MATS.deerAntler}>
-                    <cylinderGeometry args={[0.012, 0.018, 0.22, 4]} />
+
+                  <mesh
+                    position={[side * 0.02, 0.10, 0.08]}
+                    rotation={[0.85, side * 0.15, 0]}
+                    material={DEPOSIT_MATS.deerAntler}
+                  >
+                    <cylinderGeometry args={[0.014, 0.02, 0.20, 4]} />
+                  </mesh>
+
+                  <mesh
+                    position={[side * 0.12, 0.34, -0.08]}
+                    rotation={[-0.2, side * 0.3, side * 0.5]}
+                    material={DEPOSIT_MATS.deerAntler}
+                  >
+                    <cylinderGeometry args={[0.014, 0.018, 0.22, 4]} />
                   </mesh>
                 </group>
               ))}
@@ -516,20 +751,43 @@ function DepositNode({
             <mesh position={[0, 0.42, 0]} material={DEPOSIT_MATS.doeFur}>
               <boxGeometry args={[0.38, 0.3, 0.66]} />
             </mesh>
+            <mesh position={[0, 0.30, 0]} material={DEPOSIT_MATS.deerBelly}>
+              <boxGeometry args={[0.30, 0.08, 0.58]} />
+            </mesh>
             {[-0.14, 0.14].map((lx, i) =>
               [-0.24, 0.24].map((lz, j) => (
-                <mesh key={`${i}-${j}`} position={[lx, 0.18, lz]} material={DEPOSIT_MATS.doeFur}>
-                  <cylinderGeometry args={[0.026, 0.022, 0.4, 5]} />
-                </mesh>
+                <group key={`doe1-leg-${i}-${j}`} position={[lx, 0, lz]}>
+                  <mesh position={[0, 0.18, 0]} material={DEPOSIT_MATS.doeFur}>
+                    <cylinderGeometry args={[0.026, 0.022, 0.4, 5]} />
+                  </mesh>
+                  <mesh position={[0, 0.02, 0]} material={DEPOSIT_MATS.deerHoof}>
+                    <boxGeometry args={[0.045, 0.035, 0.045]} />
+                  </mesh>
+                </group>
               ))
             )}
+
             <group ref={doe1HeadRef} position={[0, 0.46, 0.3]}>
               <mesh position={[0, -0.12, 0.18]} rotation={[-0.8, 0, 0]} material={DEPOSIT_MATS.doeFur}>
-                <boxGeometry args={[0.16, 0.32, 0.18]} />
+                <cylinderGeometry args={[0.09, 0.13, 0.34, 6]} />
               </mesh>
-              <mesh position={[0, -0.28, 0.3]} material={DEPOSIT_MATS.doeFur}>
-                <boxGeometry args={[0.14, 0.14, 0.2]} />
+              <mesh position={[0, -0.26, 0.30]} material={DEPOSIT_MATS.doeFur}>
+                <boxGeometry args={[0.14, 0.14, 0.20]} />
               </mesh>
+              <mesh position={[0, -0.28, 0.41]} material={DEPOSIT_MATS.deerNose}>
+                <boxGeometry args={[0.06, 0.04, 0.03]} />
+              </mesh>
+
+              {[-1, 1].map((side, k) => (
+                <mesh
+                  key={`doe1-ear-${k}`}
+                  position={[side * 0.08, -0.18, 0.26]}
+                  rotation={[-0.3, side * 0.3, side * 0.4]}
+                  material={DEPOSIT_MATS.doeFur}
+                >
+                  <boxGeometry args={[0.04, 0.12, 0.025]} />
+                </mesh>
+              ))}
             </group>
           </group>
 
@@ -537,20 +795,43 @@ function DepositNode({
             <mesh position={[0, 0.42, 0]} material={DEPOSIT_MATS.doeFur}>
               <boxGeometry args={[0.38, 0.3, 0.66]} />
             </mesh>
+            <mesh position={[0, 0.30, 0]} material={DEPOSIT_MATS.deerBelly}>
+              <boxGeometry args={[0.30, 0.08, 0.58]} />
+            </mesh>
             {[-0.14, 0.14].map((lx, i) =>
               [-0.24, 0.24].map((lz, j) => (
-                <mesh key={`${i}-${j}`} position={[lx, 0.18, lz]} material={DEPOSIT_MATS.doeFur}>
-                  <cylinderGeometry args={[0.026, 0.022, 0.4, 5]} />
-                </mesh>
+                <group key={`doe2-leg-${i}-${j}`} position={[lx, 0, lz]}>
+                  <mesh position={[0, 0.18, 0]} material={DEPOSIT_MATS.doeFur}>
+                    <cylinderGeometry args={[0.026, 0.022, 0.4, 5]} />
+                  </mesh>
+                  <mesh position={[0, 0.02, 0]} material={DEPOSIT_MATS.deerHoof}>
+                    <boxGeometry args={[0.045, 0.035, 0.045]} />
+                  </mesh>
+                </group>
               ))
             )}
+
             <group ref={doe2HeadRef} position={[0, 0.54, 0.28]}>
               <mesh position={[0, 0.15, 0.05]} rotation={[-0.25, 0, 0]} material={DEPOSIT_MATS.doeFur}>
-                <boxGeometry args={[0.16, 0.34, 0.18]} />
+                <cylinderGeometry args={[0.09, 0.13, 0.34, 6]} />
               </mesh>
-              <mesh position={[0, 0.3, 0.15]} material={DEPOSIT_MATS.doeFur}>
-                <boxGeometry args={[0.14, 0.14, 0.2]} />
+              <mesh position={[0, 0.30, 0.15]} material={DEPOSIT_MATS.doeFur}>
+                <boxGeometry args={[0.14, 0.14, 0.20]} />
               </mesh>
+              <mesh position={[0, 0.28, 0.26]} material={DEPOSIT_MATS.deerNose}>
+                <boxGeometry args={[0.06, 0.04, 0.03]} />
+              </mesh>
+
+              {[-1, 1].map((side, k) => (
+                <mesh
+                  key={`doe2-ear-${k}`}
+                  position={[side * 0.08, 0.38, 0.10]}
+                  rotation={[0.2, side * 0.4, side * 0.35]}
+                  material={DEPOSIT_MATS.doeFur}
+                >
+                  <boxGeometry args={[0.04, 0.12, 0.025]} />
+                </mesh>
+              ))}
             </group>
           </group>
 
@@ -558,15 +839,29 @@ function DepositNode({
             <mesh position={[0, 0.26, 0]} material={DEPOSIT_MATS.fawnFur}>
               <boxGeometry args={[0.25, 0.2, 0.42]} />
             </mesh>
+            <mesh position={[0, 0.18, 0]} material={DEPOSIT_MATS.deerBelly}>
+              <boxGeometry args={[0.20, 0.06, 0.36]} />
+            </mesh>
+
+            {[-0.09, 0.09].map((sx, k) =>
+              [-0.10, 0.0, 0.10].map((sz, m) => (
+                <mesh key={`fawn-spot-${k}-${m}`} position={[sx, 0.34, sz]} material={DEPOSIT_MATS.fawnSpot}>
+                  <sphereGeometry args={[0.02, 4, 4]} />
+                </mesh>
+              ))
+            )}
             {[-0.09, 0.09].map((lx, i) =>
               [-0.15, 0.15].map((lz, j) => (
-                <mesh key={`${i}-${j}`} position={[lx, 0.11, lz]} material={DEPOSIT_MATS.fawnFur}>
+                <mesh key={`fawn-leg-${i}-${j}`} position={[lx, 0.11, lz]} material={DEPOSIT_MATS.fawnFur}>
                   <cylinderGeometry args={[0.018, 0.015, 0.24, 4]} />
                 </mesh>
               ))
             )}
             <mesh position={[0, 0.36, 0.16]} rotation={[-0.3, 0, 0]} material={DEPOSIT_MATS.fawnFur}>
               <boxGeometry args={[0.11, 0.22, 0.14]} />
+            </mesh>
+            <mesh position={[0, 0.34, 0.24]} material={DEPOSIT_MATS.deerNose}>
+              <boxGeometry args={[0.045, 0.03, 0.025]} />
             </mesh>
           </group>
         </group>
@@ -642,3 +937,4 @@ function DepositNode({
     </group>
   );
 }
+

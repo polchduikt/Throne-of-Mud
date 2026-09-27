@@ -5,6 +5,18 @@ import { AStar } from '../../../pathfinding/AStar';
 import { getTreeProceduralData } from '../../../world/foliageGeneration';
 import { useGameStore } from '../../../../store/useGameStore';
 import { distance2D } from '../../../../utils/mathUtils';
+import {
+  LUMBERJACK_HUT_MAX_STORAGE,
+  WOODCUTTING_SEARCH_RADIUS,
+  FALLEN_TREE_PRIORITY_BONUS,
+  CHOP_TREE_TOTAL_WORK,
+  WAIT_TREE_FALL_TOTAL_WORK,
+  CHOP_FALLEN_LOG_TOTAL_WORK,
+  CHOP_TREE_BASE_STRIKE,
+  CHOP_LOG_STRIKE,
+  CHOP_LOG_YIELD,
+  WORK_SKILL_STEP_MULTIPLIER,
+} from '../../../../constants/jobs';
 
 export class WoodcuttingJobHandler {
   public static assignWoodcutterHutJob(
@@ -17,7 +29,7 @@ export class WoodcuttingJobHandler {
     cz: number
   ): boolean {
     const hutWood = building.localInventory?.wood || 0;
-    const maxStorage = 20;
+    const maxStorage = LUMBERJACK_HUT_MAX_STORAGE;
 
     if (hutWood >= maxStorage) {
       if (
@@ -67,19 +79,19 @@ export class WoodcuttingJobHandler {
       const hutPos = building.gridPosition || [cx, cz];
       const candidateTrees: Array<{ pos: [number, number]; dist: number; isFallen: boolean }> = [];
 
-      const minSearchX = uBounds ? Math.max(uBounds.minX, hutPos[0] - 18) : Math.max(0, hutPos[0] - 18);
-      const maxSearchX = uBounds ? Math.min(uBounds.maxX, hutPos[0] + 18) : Math.min(grid.width - 1, hutPos[0] + 18);
-      const minSearchZ = uBounds ? Math.max(uBounds.minZ, hutPos[1] - 18) : Math.max(0, hutPos[1] - 18);
-      const maxSearchZ = uBounds ? Math.min(uBounds.maxZ, hutPos[1] + 18) : Math.min(grid.height - 1, hutPos[1] + 18);
+      const minSearchX = uBounds ? Math.max(uBounds.minX, hutPos[0] - WOODCUTTING_SEARCH_RADIUS) : Math.max(0, hutPos[0] - WOODCUTTING_SEARCH_RADIUS);
+      const maxSearchX = uBounds ? Math.min(uBounds.maxX, hutPos[0] + WOODCUTTING_SEARCH_RADIUS) : Math.min(grid.width - 1, hutPos[0] + WOODCUTTING_SEARCH_RADIUS);
+      const minSearchZ = uBounds ? Math.max(uBounds.minZ, hutPos[1] - WOODCUTTING_SEARCH_RADIUS) : Math.max(0, hutPos[1] - WOODCUTTING_SEARCH_RADIUS);
+      const maxSearchZ = uBounds ? Math.min(uBounds.maxZ, hutPos[1] + WOODCUTTING_SEARCH_RADIUS) : Math.min(grid.height - 1, hutPos[1] + WOODCUTTING_SEARCH_RADIUS);
 
       for (let x = minSearchX; x <= maxSearchX; x++) {
         for (let z = minSearchZ; z <= maxSearchZ; z++) {
           const tile = grid.tiles[x]?.[z];
-          if (tile && (tile.foliageType === 'fallen_tree' || tile.foliageType === 'tree')) {
+          if (tile && !tile.buildingId && (tile.foliageType === 'fallen_tree' || tile.foliageType === 'tree')) {
             const distFromHut = distance2D(x, z, hutPos[0], hutPos[1]);
             const distFromUnit = distance2D(x, z, ux, uz);
-            if (distFromHut <= 18) {
-              const priorityBonus = tile.foliageType === 'fallen_tree' ? -4.5 : 0;
+            if (distFromHut <= WOODCUTTING_SEARCH_RADIUS) {
+              const priorityBonus = tile.foliageType === 'fallen_tree' ? FALLEN_TREE_PRIORITY_BONUS : 0;
               candidateTrees.push({
                 pos: [x, z],
                 dist: distFromUnit + priorityBonus,
@@ -110,7 +122,7 @@ export class WoodcuttingJobHandler {
           type: 'chop_fallen_log',
           targetPosition: bestTarget,
           progress: 0,
-          totalWork: 45,
+          totalWork: CHOP_FALLEN_LOG_TOTAL_WORK,
         };
         unit.speechBubble = {
           text: 'Іду розрубувати повалене дерево на колоди',
@@ -123,7 +135,7 @@ export class WoodcuttingJobHandler {
           type: 'chop_tree',
           targetPosition: bestTarget,
           progress: 0,
-          totalWork: 100,
+          totalWork: CHOP_TREE_TOTAL_WORK,
         };
         unit.speechBubble = {
           text: 'Іду рубати ліс для хатини лісоруба',
@@ -145,9 +157,16 @@ export class WoodcuttingJobHandler {
     currentTick: number,
     woodSkill: number
   ): boolean {
+    if (!job.targetPosition) return false;
+    const [gx, gz] = job.targetPosition;
+    const tile = grid.getTile(gx, gz);
+    if (!tile || tile.foliageType !== 'tree') {
+      unit.currentJob = { id: `idle-${Date.now()}`, type: 'idle', progress: 0, totalWork: 0 };
+      return true;
+    }
     const isStrikeTick = currentTick % 10 === 0 || job.progress === 0;
     if (isStrikeTick) {
-      const strikePower = 11 + Math.floor(woodSkill * 0.4);
+      const strikePower = CHOP_TREE_BASE_STRIKE + Math.floor(woodSkill * WORK_SKILL_STEP_MULTIPLIER);
       job.progress += strikePower;
 
       const pct = Math.round((job.progress / job.totalWork) * 100);
@@ -195,7 +214,7 @@ export class WoodcuttingJobHandler {
         type: 'wait_tree_fall',
         targetPosition: [gx, gz],
         progress: 0,
-        totalWork: 16,
+        totalWork: WAIT_TREE_FALL_TOTAL_WORK,
       };
       unit.speechBubble = {
         text: 'Дерево падає! Чекаю приземлення...',
@@ -223,7 +242,7 @@ export class WoodcuttingJobHandler {
         type: 'chop_fallen_log',
         targetPosition: [gx, gz],
         progress: 0,
-        totalWork: 45,
+        totalWork: CHOP_FALLEN_LOG_TOTAL_WORK,
       };
       unit.speechBubble = {
         text: 'Дерево впало! Розрубую стовбур на колоди',
@@ -243,9 +262,17 @@ export class WoodcuttingJobHandler {
     currentTick: number,
     isPlayerUnit: boolean
   ): boolean {
+    if (!job.targetPosition) return false;
+    const [gx, gz] = job.targetPosition;
+    const tile = grid.getTile(gx, gz);
+    if (!tile || tile.foliageType !== 'fallen_tree') {
+      unit.currentJob = { id: `idle-${Date.now()}`, type: 'idle', progress: 0, totalWork: 0 };
+      return true;
+    }
+
     const isLogStrikeTick = currentTick % 10 === 0 || job.progress === 0;
     if (isLogStrikeTick) {
-      job.progress += 9;
+      job.progress += CHOP_LOG_STRIKE;
       unit.speechBubble = {
         text: 'Обрубую гілки та розпилюю стовбур...',
         expiresAtTick: currentTick + 15,
@@ -282,9 +309,9 @@ export class WoodcuttingJobHandler {
 
       if (b && b.buildingType === 'lumberjack_hut') {
         if (!b.localInventory) b.localInventory = { wood: 0 };
-        const maxStorage = 20;
+        const maxStorage = LUMBERJACK_HUT_MAX_STORAGE;
         const currentWood = b.localInventory.wood || 0;
-        const addAmt = Math.min(8, Math.max(0, maxStorage - currentWood));
+        const addAmt = Math.min(CHOP_LOG_YIELD, Math.max(0, maxStorage - currentWood));
         b.localInventory.wood = currentWood + addAmt;
         if (isPlayerUnit) {
           addResource('wood', addAmt);
@@ -300,10 +327,10 @@ export class WoodcuttingJobHandler {
         };
       } else {
         if (isPlayerUnit) {
-          addResource('wood', 8);
+          addResource('wood', CHOP_LOG_YIELD);
         }
         unit.speechBubble = {
-          text: 'Деревину заготовлено! (+8 деревини)',
+          text: `Деревину заготовлено! (+${CHOP_LOG_YIELD} деревини)`,
           expiresAtTick: currentTick + 25,
           type: 'work',
         };

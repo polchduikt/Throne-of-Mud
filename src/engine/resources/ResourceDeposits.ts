@@ -63,6 +63,51 @@ export const INITIAL_RESOURCE_DEPOSITS: ResourceDeposit[] = [
     harvestBuildingLabel: 'Глиняний карʼєр',
     description: 'Вологі теракотові пласти пластичної глини. Необхідні для випалювання якісної покрівельної черепиці та гончарного посуду.',
   },
+  {
+    id: 'deposit-0-game',
+    type: 'wild_game',
+    name: 'Королівські мисливські пущі',
+    regionId: 0,
+    gridPosition: [36, 42],
+    position: [36.5, 0.1, 42.5],
+    currentAmount: 60,
+    maxAmount: 60,
+    isRich: true,
+    seasonalRenewal: true,
+    icon: '🦌',
+    harvestBuildingLabel: 'Хатина мисливця',
+    description: 'Густі лісові нетрі з популяцією благородних оленів та козуль. Джерело свіжого мʼяса та цінних шкур.',
+  },
+  {
+    id: 'deposit-0-iron',
+    type: 'iron',
+    name: 'Залізна рудна жила',
+    regionId: 0,
+    gridPosition: [84, 32],
+    position: [84.0, 0.15, 32.5],
+    currentAmount: 280,
+    maxAmount: 280,
+    isRich: false,
+    seasonalRenewal: false,
+    icon: '⛏️',
+    harvestBuildingLabel: 'Залізна копальня',
+    description: 'Вихід багатої залізнякової породи на поверхню схилу пагорба. Сировина для виплавки металу та кування зброї.',
+  },
+  {
+    id: 'deposit-0-salt',
+    type: 'salt',
+    name: 'Соляні джерела низовини',
+    regionId: 0,
+    gridPosition: [75, 85],
+    position: [75.5, 0.08, 85.5],
+    currentAmount: 180,
+    maxAmount: 180,
+    isRich: false,
+    seasonalRenewal: false,
+    icon: '🧂',
+    harvestBuildingLabel: 'Солеварня',
+    description: 'Мінералізовані підземні джерела для виварювання солі, необхідної для консервації продуктів на зиму.',
+  },
 
   {
     id: 'deposit-1-game',
@@ -100,7 +145,7 @@ export const INITIAL_RESOURCE_DEPOSITS: ResourceDeposit[] = [
     name: 'Поклади залізної руди',
     regionId: 1,
     gridPosition: [165, 38],
-    position: [165.5, 0.14, 38.5],
+    position: [165.0, 0.14, 38.5],
     currentAmount: 240,
     maxAmount: 240,
     isRich: false,
@@ -222,7 +267,7 @@ export const INITIAL_RESOURCE_DEPOSITS: ResourceDeposit[] = [
     name: 'Багата залізорудна жила',
     regionId: 3,
     gridPosition: [215, 175],
-    position: [215.5, 0.28, 175.5],
+    position: [215.0, 0.28, 175.5],
     currentAmount: 420,
     maxAmount: 420,
     isRich: true,
@@ -283,15 +328,19 @@ export function initResourceDeposits(grid?: GridMap): ResourceDeposit[] {
       }
 
       if (dep.type !== 'fish') {
-        for (let dx = -2; dx <= 2; dx++) {
-          for (let dz = -2; dz <= 2; dz++) {
-            if (dx * dx + dz * dz > 5) continue;
-            const tx = gx + dx;
-            const tz = gz + dz;
-            const t = grid.getTile(tx, tz);
-            if (t && t.terrain !== 'water') {
-              if (t.foliageType === 'tree' || t.foliageType === 'rock') {
+        const clearRadius = dep.type === 'berries' ? 1.5 : 2.8;
+        const rSq = clearRadius * clearRadius;
+        const maxR = Math.ceil(clearRadius);
+        for (let dx = -maxR; dx <= maxR; dx++) {
+          for (let dz = -maxR; dz <= maxR; dz++) {
+            if (dx * dx + dz * dz <= rSq) {
+              const tx = gx + dx;
+              const tz = gz + dz;
+              const t = grid.getTile(tx, tz);
+              if (t && t.terrain !== 'water') {
                 t.foliageType = undefined;
+                t.foliageAngle = undefined;
+                t.foliageTreeType = undefined;
                 t.isPassable = true;
                 t.movementCost = 1.0;
               }
@@ -326,3 +375,4 @@ export function initResourceDeposits(grid?: GridMap): ResourceDeposit[] {
 
   return deposits;
 }
+

@@ -36,3 +36,4 @@ export class AssetLoader {
 }
 
 export const assetLoader = AssetLoader.getInstance();
+

@@ -22,6 +22,22 @@ import {
   StoneWallModel,
   ConstructionScaffold,
   DemolitionHUD,
+  FishermansHutModel,
+  ForagersHutModel,
+  HuntersHutModel,
+  IronMineModel,
+  StoneQuarryModel,
+  ClayPitModel,
+  SaltWorksModel,
+  CharcoalKilnModel,
+  IronSmelterModel,
+  StonecutterModel,
+  BrickworksModel,
+  SawmillModel,
+  WeaversWorkshopModel,
+  ForestersHutModel,
+  WoodenChurchModel,
+  TavernModel,
 } from './buildings/models';
 
 export function BuildingsRenderer() {
@@ -191,6 +207,38 @@ function Building3D({
         return <WoodenGateModel />;
       case 'stone_wall':
         return <StoneWallModel />;
+      case 'fishermans_hut':
+        return <FishermansHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'foragers_hut':
+        return <ForagersHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'hunters_hut':
+        return <HuntersHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'iron_mine':
+        return <IronMineModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'stone_quarry':
+        return <StoneQuarryModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'clay_pit':
+        return <ClayPitModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'salt_works':
+        return <SaltWorksModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'charcoal_kiln':
+        return <CharcoalKilnModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'iron_smelter':
+        return <IronSmelterModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'stonecutter':
+        return <StonecutterModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'brickworks':
+        return <BrickworksModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'sawmill':
+        return <SawmillModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'weavers_workshop':
+        return <WeaversWorkshopModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'foresters_hut':
+        return <ForestersHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'wooden_church':
+        return <WoodenChurchModel isLightOn={isLightOn} roofRef={roofRef} />;
+      case 'tavern':
+        return <TavernModel isLightOn={isLightOn} roofRef={roofRef} />;
       default:
         return <PeasantHouseModel isLightOn={isLightOn} roofRef={roofRef} />;
     }
@@ -246,3 +294,4 @@ const Building3DMemo = memo(Building3D, (prev, next) => {
     prev.building.buildingType === next.building.buildingType
   );
 });
+

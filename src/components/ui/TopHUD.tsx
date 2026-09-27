@@ -34,6 +34,9 @@ export const TopHUD: React.FC = React.memo(() => {
 
   const resources = useGameStore((s) => s.resources);
   const season = useGameStore((s) => s.time.season);
+  const month = useGameStore((s) => s.time.month);
+  const dayOfMonth = useGameStore((s) => s.time.dayOfMonth);
+  const year = useGameStore((s) => s.time.year);
   const weather = useGameStore((s) => s.time.weather);
   const day = useGameStore((s) => s.time.day);
   const hour = useGameStore((s) => s.time.hour);
@@ -65,6 +68,21 @@ export const TopHUD: React.FC = React.memo(() => {
     Summer: dict.hud.seasons.Summer,
     Autumn: dict.hud.seasons.Autumn,
     Winter: dict.hud.seasons.Winter,
+  };
+
+  const monthLabels: Record<string, string> = {
+    March: dict.hud.months.March,
+    April: dict.hud.months.April,
+    May: dict.hud.months.May,
+    June: dict.hud.months.June,
+    July: dict.hud.months.July,
+    August: dict.hud.months.August,
+    September: dict.hud.months.September,
+    October: dict.hud.months.October,
+    November: dict.hud.months.November,
+    December: dict.hud.months.December,
+    January: dict.hud.months.January,
+    February: dict.hud.months.February,
   };
 
   const weatherLabels: Record<string, string> = {
@@ -199,13 +217,18 @@ export const TopHUD: React.FC = React.memo(() => {
           <div className="flex items-center gap-3 text-xs font-mono shrink-0">
             <div
               onClick={() => setIsWeatherDebugOpen(true)}
-              className="flex items-center gap-1.5 select-none cursor-pointer hover:text-amber-200 transition group"
-              title={`${dict.common.season}: ${seasonLabels[season] || season}, ${weatherLabels[weather] || weather}, ${dict.common.day} ${day}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`}
+              className="flex items-center gap-2 select-none cursor-pointer hover:text-amber-200 transition group"
+              title={`${dict.common.season}: ${seasonLabels[season] || season}, ${month && monthLabels[month] ? `${dict.common.month}: ${monthLabels[month]}, ` : ''}${weatherLabels[weather] || weather}, ${dict.common.day} ${dayOfMonth || day}, ${dict.common.year} ${year || 1}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`}
             >
-              <CompassIcon className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform drop-shadow" />
-              <span className="font-cinzel text-[11px] font-bold text-amber-200">
-                {seasonLabels[season] || season}
-              </span>
+              <CompassIcon className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform drop-shadow shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="font-cinzel text-[11px] font-bold text-amber-200">
+                  {month && monthLabels[month] ? monthLabels[month] : (seasonLabels[season] || season)}
+                </span>
+                <span className="text-[9px] text-amber-400/80 font-mono tracking-tight">
+                  {seasonLabels[season] || season}
+                </span>
+              </div>
               <span className="text-xs select-none drop-shadow flex items-center">
                 {weather === 'clear' ? (
                   <WeatherClearIcon className="w-3.5 h-3.5 text-amber-400" />
@@ -217,10 +240,15 @@ export const TopHUD: React.FC = React.memo(() => {
                   <WeatherSnowIcon className="w-3.5 h-3.5 text-cyan-200" />
                 )}
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {language === 'uk' ? 'Д.' : 'D.'}{day}
-              </span>
-              <div className="w-[1px] h-3 bg-[#4a3b26]" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[10px] text-slate-300 font-mono font-semibold">
+                  {language === 'uk' ? 'Д.' : 'D.'}{dayOfMonth || day}
+                </span>
+                <span className="text-[9px] text-slate-400 font-mono">
+                  {language === 'uk' ? 'Р.' : 'Y.'}{year || 1}
+                </span>
+              </div>
+              <div className="w-[1px] h-3.5 bg-[#4a3b26]" />
               <div className="flex items-center gap-1">
                 <HourglassIcon className="w-3 h-3 text-amber-400 drop-shadow" />
                 <span className="text-xs font-mono font-bold text-amber-300">
@@ -296,3 +324,4 @@ export const TopHUD: React.FC = React.memo(() => {
 });
 
 TopHUD.displayName = 'TopHUD';
+

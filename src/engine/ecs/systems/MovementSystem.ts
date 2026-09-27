@@ -4,6 +4,21 @@ import { GridMap } from '../../grid/GridMap';
 import { findBuildingContainingPos, getBuildingFloorHeight } from '../../buildings/buildingNavigation';
 import { useGameStore } from '../../../store/useGameStore';
 import type { RegionData } from '../../../types/game';
+import {
+  SURFACE_SPEED_ROAD,
+  SURFACE_SPEED_MUD,
+  SURFACE_SPEED_DEFAULT,
+  ENTITY_COLLISION_DISTANCE,
+  ENTITY_COLLISION_DISTANCE_SQ,
+  ENTITY_STUCK_TICK_LIMIT,
+  ENTITY_STUCK_DISTANCE_EPSILON,
+  ENTITY_WAYPOINT_PROXIMITY,
+  ENTITY_VERTICAL_LERP_SPEED,
+  ENTITY_VERTICAL_EPSILON,
+  ENTITY_MAX_PUSH_SPEED,
+  ENTITY_LATERAL_DODGE_MAX,
+  DEFAULT_UNIT_MOVE_SPEED,
+} from '../../../constants/movement';
 
 const stuckTracker = new Map<string, { lastX: number; lastZ: number; count: number }>();
 
@@ -82,9 +97,9 @@ export class MovementSystem {
         const curZ = entity.position[2];
         if (tracker) {
           const moved = Math.hypot(curX - tracker.lastX, curZ - tracker.lastZ);
-          if (moved < 0.005) {
+          if (moved < ENTITY_STUCK_DISTANCE_EPSILON) {
             tracker.count++;
-            if (tracker.count > 40) {
+            if (tracker.count > ENTITY_STUCK_TICK_LIMIT) {
               entity.path = [];
               tracker.count = 0;
               stuckTracker.delete(entity.id);
@@ -100,16 +115,16 @@ export class MovementSystem {
         }
 
         const currentTile = grid.getTile(Math.floor(entity.position[0]), Math.floor(entity.position[2]));
-        let surfaceSpeedMultiplier = 1.0;
+        let surfaceSpeedMultiplier = SURFACE_SPEED_DEFAULT;
         if (currentTile) {
           if (currentTile.terrain === 'road') {
-            surfaceSpeedMultiplier = 1.5;
+            surfaceSpeedMultiplier = SURFACE_SPEED_ROAD;
           } else if (currentTile.terrain === 'mud') {
-            surfaceSpeedMultiplier = 0.75;
+            surfaceSpeedMultiplier = SURFACE_SPEED_MUD;
           }
         }
 
-        const speed = (entity.moveSpeed || 1.35) * surfaceSpeedMultiplier * delta;
+        const speed = (entity.moveSpeed || DEFAULT_UNIT_MOVE_SPEED) * surfaceSpeedMultiplier * delta;
         const targetX = nextWaypoint[0] + 0.5;
         const targetZ = nextWaypoint[1] + 0.5;
 
@@ -120,23 +135,7 @@ export class MovementSystem {
         const dz = targetZ - currentZ;
         const distance = Math.hypot(dx, dz);
 
-        const isLastWaypoint = entity.path.length === 1;
-        const arrivalThreshold = isLastWaypoint ? speed : 0.42;
-
-        let hasReached = distance <= arrivalThreshold;
-        if (!hasReached && isLastWaypoint && distance <= 0.38) {
-          const isTargetOccupied = Array.from(characterEntities).some(
-            (other: GameEntity) =>
-              other.id !== entity.id &&
-              other.position &&
-              Math.hypot(other.position[0] - targetX, other.position[2] - targetZ) < 0.45
-          );
-          if (isTargetOccupied) {
-            hasReached = true;
-          }
-        }
-
-        if (hasReached) {
+        if (distance <= speed) {
           entity.position[0] = targetX;
           entity.position[2] = targetZ;
           entity.gridPosition = [nextWaypoint[0], nextWaypoint[1]];
@@ -145,6 +144,21 @@ export class MovementSystem {
             stuckTracker.delete(entity.id);
           }
         } else {
+          if (entity.path.length === 1 && distance <= ENTITY_WAYPOINT_PROXIMITY) {
+            const isTargetOccupied = Array.from(characterEntities).some(
+              (other: GameEntity) =>
+                other.id !== entity.id &&
+                other.position &&
+                Math.hypot(other.position[0] - targetX, other.position[2] - targetZ) < ENTITY_WAYPOINT_PROXIMITY
+            );
+            if (isTargetOccupied) {
+              entity.gridPosition = [Math.floor(entity.position[0]), Math.floor(entity.position[2])];
+              entity.path = [];
+              stuckTracker.delete(entity.id);
+              continue;
+            }
+          }
+
           const vx = (dx / distance) * speed;
           const vz = (dz / distance) * speed;
 
@@ -182,9 +196,6 @@ export class MovementSystem {
       isFixedList.push(isStationarySleeping || isStationarySitting || isStationaryWorking);
     }
 
-    const MIN_DISTANCE = 0.46;
-    const MIN_DISTANCE_SQ = MIN_DISTANCE * MIN_DISTANCE;
-
     for (let i = 0; i < entityList.length; i++) {
       const entA = entityList[i];
       const fixedA = isFixedList[i];
@@ -202,7 +213,7 @@ export class MovementSystem {
         let dz = posA[2] - posB[2];
         let distSq = dx * dx + dz * dz;
 
-        if (distSq >= MIN_DISTANCE_SQ) continue;
+        if (distSq >= ENTITY_COLLISION_DISTANCE_SQ) continue;
 
         let dist = Math.sqrt(distSq);
         if (dist < 0.001) {
@@ -212,10 +223,10 @@ export class MovementSystem {
           dist = 0.02;
         }
 
-        const overlap = MIN_DISTANCE - dist;
+        const overlap = ENTITY_COLLISION_DISTANCE - dist;
         const nx = dx / dist;
         const nz = dz / dist;
-        const pushAmount = Math.min(overlap * 0.5, delta * 1.6);
+        const pushAmount = Math.min(overlap * 0.5, delta * ENTITY_MAX_PUSH_SPEED);
 
         const applyEntityNudge = (
           ent: GameEntity,
@@ -247,7 +258,7 @@ export class MovementSystem {
 
           const dotRight = dirNx * rightX + dirNz * rightZ;
           const dodgeDir = dotRight >= 0 ? 1 : -1;
-          const lateralAmt = Math.min(amt, 0.03);
+          const lateralAmt = Math.min(amt, ENTITY_LATERAL_DODGE_MAX);
 
           tryNudgeEntity(ent, rightX * dodgeDir * lateralAmt, rightZ * dodgeDir * lateralAmt, grid, regions);
         };
@@ -282,10 +293,10 @@ export class MovementSystem {
         const targetY = buildingBaseY + floorH;
         const currentY = entity.position[1] ?? targetY;
         const diffY = targetY - currentY;
-        if (Math.abs(diffY) < 0.005) {
+        if (Math.abs(diffY) < ENTITY_VERTICAL_EPSILON) {
           entity.position[1] = targetY;
         } else {
-          entity.position[1] = currentY + diffY * Math.min(1.0, delta * 12.0);
+          entity.position[1] = currentY + diffY * Math.min(1.0, delta * ENTITY_VERTICAL_LERP_SPEED);
         }
       }
     }

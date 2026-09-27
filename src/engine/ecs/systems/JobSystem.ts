@@ -8,10 +8,21 @@ import {
   CRITICAL_EXHAUSTION_ENERGY,
   RESTED_ENERGY_THRESHOLD,
 } from '../../../constants/needs';
+import {
+  WORK_START_HOUR,
+  WORK_END_HOUR,
+  DEFAULT_WORK_SKILL,
+  DEFAULT_BASE_WORK_STEP,
+  WORK_SKILL_STEP_MULTIPLIER,
+  MINE_ROCK_YIELD,
+  HARVEST_WHEAT_YIELD,
+} from '../../../constants/jobs';
 import { RestJobHandler, getEntityRegionId } from './jobs/RestJobHandler';
 import { WoodcuttingJobHandler } from './jobs/WoodcuttingJobHandler';
 import { ConstructionJobHandler } from './jobs/ConstructionJobHandler';
 import { WorkstationJobHandler } from './jobs/WorkstationJobHandler';
+import { GatheringJobHandler } from './jobs/GatheringJobHandler';
+import { HaulingJobHandler } from './jobs/HaulingJobHandler';
 import { ManualJobHandler } from './jobs/ManualJobHandler';
 import type { RegionData } from '../../../types/game';
 
@@ -91,12 +102,21 @@ export class JobSystem {
         }
       }
 
-      if (!isNoble && unit.workBuildingId) {
-        if (time.hour >= 7 && time.hour <= 18) {
+      if (!isNoble && unit.workBuildingId && !isMidManualJob) {
+        if (time.hour >= WORK_START_HOUR && time.hour <= WORK_END_HOUR) {
           const building = Array.from(buildingEntities).find((b: GameEntity) => b.id === unit.workBuildingId);
           if (building && building.isCompleted) {
             if (building.buildingType === 'lumberjack_hut') {
               WoodcuttingJobHandler.assignWoodcutterHutJob(unit, building, grid, uBounds, currentTick, cx, cz);
+            } else if (
+              building.buildingType === 'fishermans_hut' ||
+              building.buildingType === 'foragers_hut' ||
+              building.buildingType === 'hunters_hut' ||
+              building.buildingType === 'foresters_hut'
+            ) {
+              GatheringJobHandler.assignGatheringJob(unit, building, grid, uBounds, currentTick, cx, cz);
+            } else if (building.buildingType === 'stockpile') {
+              HaulingJobHandler.assignStockpileHaulingJob(unit, building, grid, uBounds, currentTick, cx, cz);
             } else {
               WorkstationJobHandler.assignWorkstationJob(unit, building, grid, uBounds, currentTick);
             }
@@ -124,8 +144,8 @@ export class JobSystem {
           continue;
         }
 
-        const buildSkill = unit.skills?.building || 5;
-        const woodSkill = unit.skills?.woodcutting || 5;
+        const buildSkill = unit.skills?.building || DEFAULT_WORK_SKILL;
+        const woodSkill = unit.skills?.woodcutting || DEFAULT_WORK_SKILL;
 
         if (job.type === 'chop_tree') {
           const finishedTree = WoodcuttingJobHandler.handleChopTreeProgress(unit, job, grid, currentTick, woodSkill);
@@ -171,7 +191,7 @@ export class JobSystem {
         } else if (job.type === 'work_at_building') {
           continue;
         } else {
-          const workStep = 2 + Math.floor(buildSkill * 0.4);
+          const workStep = DEFAULT_BASE_WORK_STEP + Math.floor(buildSkill * WORK_SKILL_STEP_MULTIPLIER);
           job.progress += workStep;
 
           if (job.progress >= job.totalWork) {
@@ -199,10 +219,10 @@ export class JobSystem {
           grid.removeFoliage(job.targetPosition[0], job.targetPosition[1]);
           incrementFoliageVersion();
           if (isPlayerUnit) {
-            addResource('stone', 8);
+            addResource('stone', MINE_ROCK_YIELD);
           }
           unit.speechBubble = {
-            text: 'Камінь видобуто! (+8 каменю)',
+            text: `Камінь видобуто! (+${MINE_ROCK_YIELD} каменю)`,
             expiresAtTick: currentTick + 25,
             type: 'work',
           };
@@ -211,10 +231,10 @@ export class JobSystem {
 
       case 'harvest_wheat':
         if (isPlayerUnit) {
-          addResource('wheat', 10);
+          addResource('wheat', HARVEST_WHEAT_YIELD);
         }
         unit.speechBubble = {
-          text: 'Врожай зібрано! (+10 пшениці)',
+          text: `Врожай зібрано! (+${HARVEST_WHEAT_YIELD} пшениці)`,
           expiresAtTick: currentTick + 25,
           type: 'work',
         };

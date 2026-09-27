@@ -15,7 +15,9 @@ export const en: TranslationDictionary = {
     townCenter: 'TOWN CENTER',
     day: 'Day',
     days: 'days',
+    month: 'Month',
     season: 'Season',
+    year: 'Year',
     loading: 'Loading...',
     yes: 'Yes',
     no: 'No',
@@ -81,6 +83,20 @@ export const en: TranslationDictionary = {
       Autumn: 'Autumn',
       Winter: 'Winter',
     },
+    months: {
+      March: 'March',
+      April: 'April',
+      May: 'May',
+      June: 'June',
+      July: 'July',
+      August: 'August',
+      September: 'September',
+      October: 'October',
+      November: 'November',
+      December: 'December',
+      January: 'January',
+      February: 'February',
+    },
     weather: {
       clear: 'Clear Skies',
       rain: 'Rainfall',
@@ -112,6 +128,7 @@ export const en: TranslationDictionary = {
       industry: 'Industry',
       military: 'Military',
       trade: 'Trade & Logistics',
+      community: 'Community',
     },
     items: {
       lumberjack_hut: {
@@ -136,7 +153,7 @@ export const en: TranslationDictionary = {
       },
       stockpile: {
         name: 'Storehouse & Stockpile',
-        description: 'Central depot for storing logs, dressed stone, harvested grain, bread, and barrels of ale.',
+        description: 'Central settlement warehouse. Assigned haulers (up to 4) visit production buildings, collect accumulated goods, and haul them to storage to keep production unblocked.',
       },
       market: {
         name: 'Marketplace',
@@ -173,6 +190,70 @@ export const en: TranslationDictionary = {
       stone_wall: {
         name: 'Stone Curtain Wall',
         description: 'Heavy ashlar fortification capable of withstanding prolonged sieges and siege machinery.',
+      },
+      fishermans_hut: {
+        name: "Fisherman's Hut",
+        description: 'Stilted lakeside deck and lodge. Assigned fishermen catch fresh fish along the shoreline to supply food.',
+      },
+      foragers_hut: {
+        name: "Forager's Hut",
+        description: 'Shelter for gathering wild woodland bounty. Foragers gather berries from nearby berry bushes for sweet sustenance.',
+      },
+      hunters_hut: {
+        name: "Hunter's Lodge",
+        description: 'Camp for forest stalkers. Hunters track wild game in hunting grounds to harvest fresh meat and valuable hides.',
+      },
+      iron_mine: {
+        name: 'Iron Mine',
+        description: 'Adit mine and shaft for extracting raw iron ore. Must be placed adjacent to an iron ore deposit.',
+      },
+      stone_quarry: {
+        name: 'Stone Quarry',
+        description: 'Excavation yard for quarrying heavy limestone and building stone. Must be placed adjacent to a stone deposit.',
+      },
+      clay_pit: {
+        name: 'Clay Pit',
+        description: 'Clay extraction pit and puddling troughs. Must be placed adjacent to a natural clay deposit.',
+      },
+      salt_works: {
+        name: 'Salt Works',
+        description: 'Brine boiling facility producing essential salt. Must be placed adjacent to salt deposits or brine springs.',
+      },
+      charcoal_kiln: {
+        name: 'Charcoal Kiln',
+        description: 'Earthen mound kiln for pyrolyzing hardwood logs into fuel-dense charcoal for smelters and winter warmth.',
+      },
+      iron_smelter: {
+        name: 'Iron Smelter',
+        description: 'Stone bloomery furnace converting raw iron ore and charcoal into refined bloomery iron.',
+      },
+      stonecutter: {
+        name: "Stonecutter's Yard",
+        description: 'Masonry workshop dressing rough field stones into uniform ashlar blocks and floor slabs.',
+      },
+      brickworks: {
+        name: 'Brickworks',
+        description: 'Kiln and moulding yard firing plastic clay and charcoal into durable terracotta bricks and roofing tiles.',
+      },
+      sawmill: {
+        name: 'Sawmill',
+        description: 'Timber pit saw facility sawing heavy tree trunks into uniform building planks.',
+      },
+      weavers_workshop: {
+        name: "Weaver's Workshop",
+        description: 'Textile craft hall tailoring tanned hides and wool into warm peasant clothing.',
+      },
+      foresters_hut: {
+        name: "Forester's Hut",
+        description: 'Silviculture cabin where foresters nurture saplings and replant logged forest clearings.',
+      },
+      wooden_church: {
+        name: 'Wooden Church',
+        description: 'Sacred house of worship bringing spiritual solace and elevating happiness across the entire settlement.',
+      },
+      tavern: {
+        name: 'Feudal Tavern',
+        description: 'Lively village tavern where patrons gather to drink ale, boosting morale and generating tax revenues.',
       },
     },
     cost: 'Cost',

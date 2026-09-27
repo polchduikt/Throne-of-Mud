@@ -2,32 +2,54 @@ import { world, characterEntities, buildingEntities } from '../world';
 import { GridMap } from '../../grid/GridMap';
 import { AStar } from '../../pathfinding/AStar';
 import { useGameStore } from '../../../store/useGameStore';
+import {
+  IMMIGRATION_TICK_INTERVAL,
+  DEFAULT_APPROVAL_RATING,
+  MIN_APPROVAL_FOR_IMMIGRATION,
+  HIGH_APPROVAL_THRESHOLD,
+  EXCELLENT_APPROVAL_THRESHOLD,
+  BASE_IMMIGRATION_PROGRESS_DELTA,
+  HIGH_APPROVAL_PROGRESS_DELTA,
+  EXCELLENT_APPROVAL_PROGRESS_DELTA,
+  IMMIGRATION_DECAY_DELTA,
+  MAX_IMMIGRATION_PROGRESS,
+  FEMALE_SPAWN_CHANCE,
+  DEFAULT_PEASANT_MOVE_SPEED,
+  IMMIGRANT_STARTING_HUNGER,
+  IMMIGRANT_STARTING_ENERGY,
+  IMMIGRANT_STARTING_MOOD,
+  IMMIGRANT_STARTING_ALE,
+  IMMIGRANT_STARTING_HYGIENE,
+  IMMIGRANT_THOUGHT_MODIFIER,
+  IMMIGRANT_THOUGHT_DURATION_TICKS,
+} from '../../../constants/immigration';
+import { DEFAULT_SPEECH_BUBBLE_TICKS } from '../../../constants/economy';
 
 const UKRAINIAN_NAMES_MALE = [
-  'Тарас', 'Богдан', 'Остап', 'Яромир', 'Михайло', 
+  'Тарас', 'Богдан', 'Остап', 'Яромир', 'Михайло',
   'Любомир', 'Дмитро', 'Назар', 'Степан', 'Василь',
-  'Олесь', 'Гриць', 'Юрко', 'Іван', 'Святослав'
+  'Олесь', 'Гриць', 'Юрко', 'Іван', 'Святослав',
 ];
 
 const UKRAINIAN_NAMES_FEMALE = [
-  'Одарка', 'Мирослава', 'Соломія', 'Ганна', 'Марічка', 
-  'Катерина', 'Богдана', 'Ярослава', 'Оксана', 'Наталка'
+  'Одарка', 'Мирослава', 'Соломія', 'Ганна', 'Марічка',
+  'Катерина', 'Богдана', 'Ярослава', 'Оксана', 'Наталка',
 ];
 
 const PEASANT_COLORS = [
-  '#3b82f6', '#10b981', '#06b6d4', '#8b5cf6', 
-  '#f97316', '#14b8a6', '#84cc16', '#0284c7'
+  '#3b82f6', '#10b981', '#06b6d4', '#8b5cf6',
+  '#f97316', '#14b8a6', '#84cc16', '#0284c7',
 ];
 
 export class ImmigrationSystem {
   public static update(grid: GridMap, currentTick: number): void {
-    if (currentTick % 20 !== 0) return;
+    if (currentTick % IMMIGRATION_TICK_INTERVAL !== 0) return;
 
-    const { 
-      immigrationProgress, 
-      setImmigrationProgress, 
-      addChronicleEvent, 
-      setSaveNotification, 
+    const {
+      immigrationProgress,
+      setImmigrationProgress,
+      addChronicleEvent,
+      setSaveNotification,
       settlementName,
       regions,
       playerRegionId,
@@ -46,37 +68,37 @@ export class ImmigrationSystem {
 
     const freeBeds = totalBeds - allCharacters.length;
 
-    let approvalRating = 50;
+    let approvalRating = DEFAULT_APPROVAL_RATING;
     if (allCharacters.length > 0) {
       const totalMood = allCharacters.reduce((acc, c) => acc + (c.needs?.mood || 60), 0);
       approvalRating = Math.round(totalMood / allCharacters.length);
     }
 
-    if (freeBeds <= 0 || approvalRating < 50) {
+    if (freeBeds <= 0 || approvalRating < MIN_APPROVAL_FOR_IMMIGRATION) {
       if (immigrationProgress > 0) {
-        setImmigrationProgress(Math.max(0, immigrationProgress - 0.5));
+        setImmigrationProgress(Math.max(0, immigrationProgress - IMMIGRATION_DECAY_DELTA));
       }
       return;
     }
 
-    let progressDelta = 1.2;
-    if (approvalRating >= 70) {
-      progressDelta += 1.2;
+    let progressDelta = BASE_IMMIGRATION_PROGRESS_DELTA;
+    if (approvalRating >= HIGH_APPROVAL_THRESHOLD) {
+      progressDelta += HIGH_APPROVAL_PROGRESS_DELTA;
     }
-    if (approvalRating >= 85) {
-      progressDelta += 0.8;
+    if (approvalRating >= EXCELLENT_APPROVAL_THRESHOLD) {
+      progressDelta += EXCELLENT_APPROVAL_PROGRESS_DELTA;
     }
 
     const nextProgress = immigrationProgress + progressDelta;
 
-    if (nextProgress < 100) {
+    if (nextProgress < MAX_IMMIGRATION_PROGRESS) {
       setImmigrationProgress(nextProgress);
       return;
     }
 
     setImmigrationProgress(0);
 
-    const isFemale = Math.random() < 0.45;
+    const isFemale = Math.random() < FEMALE_SPAWN_CHANCE;
     const namePool = isFemale ? UKRAINIAN_NAMES_FEMALE : UKRAINIAN_NAMES_MALE;
     const chosenName = namePool[Math.floor(Math.random() * namePool.length)];
     const avatarColor = PEASANT_COLORS[Math.floor(Math.random() * PEASANT_COLORS.length)];
@@ -125,23 +147,23 @@ export class ImmigrationSystem {
       gridPosition: [spawnX, spawnZ],
       position: [spawnX + 0.5, 0.3, spawnZ + 0.5],
       path: entryPath,
-      moveSpeed: 1.35,
+      moveSpeed: DEFAULT_PEASANT_MOVE_SPEED,
       gold: Math.floor(Math.random() * 4) + 2,
       workBuildingId: undefined,
       thoughts: [
         {
           id: 'new_settler',
-          text: 'Прибув у нове поселення (+15)',
-          modifier: 15,
-          durationTicks: 3000,
+          text: `Прибув у нове поселення (+${IMMIGRANT_THOUGHT_MODIFIER})`,
+          modifier: IMMIGRANT_THOUGHT_MODIFIER,
+          durationTicks: IMMIGRANT_THOUGHT_DURATION_TICKS,
         },
       ],
       needs: {
-        hunger: 75,
-        energy: 85,
-        mood: 75,
-        ale: 50,
-        hygiene: 75,
+        hunger: IMMIGRANT_STARTING_HUNGER,
+        energy: IMMIGRANT_STARTING_ENERGY,
+        mood: IMMIGRANT_STARTING_MOOD,
+        ale: IMMIGRANT_STARTING_ALE,
+        hygiene: IMMIGRANT_STARTING_HYGIENE,
       },
       skills: {
         farming: Math.floor(Math.random() * 5) + 4,
@@ -162,7 +184,7 @@ export class ImmigrationSystem {
       },
       speechBubble: {
         text: 'Вітаю! Шукаю прихистку та роботи.',
-        expiresAtTick: currentTick + 35,
+        expiresAtTick: currentTick + DEFAULT_SPEECH_BUBBLE_TICKS,
         type: 'mood',
       },
     });

@@ -3,13 +3,13 @@ import { GridMap } from '../../engine/grid/GridMap';
 import { DEFAULT_REGIONS, PRESET_BOT_LORDS } from '../../store/useGameStore';
 import type { WorldSetupConfig, SpawnPointData } from '../../types/game';
 import { ArrowRight } from 'lucide-react';
-import { 
-  CrownIcon, 
-  CrossCloseIcon, 
-  MapParchmentIcon, 
-  MedievalCheckIcon, 
-  WeaponsIcon, 
-  ShieldIcon, 
+import {
+  CrownIcon,
+  CrossCloseIcon,
+  MapParchmentIcon,
+  MedievalCheckIcon,
+  WeaponsIcon,
+  ShieldIcon,
   CastleKeepIcon,
   DiplomacyPactIcon
 } from './MedievalIcons';
@@ -59,7 +59,7 @@ export function NewGameSetupModal({ isOpen, onClose, onConfirm, grid }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 animate-in fade-in zoom-in-95 duration-200 select-none font-cinzel pointer-events-auto">
       <div className="relative w-full max-w-6xl h-[92vh] max-h-[850px] bg-[#1a140e] border-2 border-[#825c31] rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col pointer-events-auto">
-        
+
         <div className="flex items-center justify-between px-6 py-3.5 bg-gradient-to-b from-[#2d2013] to-[#1e150d] border-b border-[#5e4120]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-950/80 border border-amber-600/70 flex items-center justify-center shadow text-amber-300">
@@ -85,7 +85,7 @@ export function NewGameSetupModal({ isOpen, onClose, onConfirm, grid }: Props) {
         </div>
 
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          
+
           <div className="lg:w-7/12 h-64 lg:h-full bg-[#120d08] p-4 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-[#4d351b] relative">
             <div className="absolute top-4 left-5 z-10 flex items-center gap-2 bg-[#1b140d]/90 px-3 py-1.5 rounded-xl border border-amber-700/60 shadow">
               <MapParchmentIcon size={14} className="text-amber-400" />
@@ -112,7 +112,7 @@ export function NewGameSetupModal({ isOpen, onClose, onConfirm, grid }: Props) {
           </div>
 
           <div className="lg:w-5/12 h-full overflow-y-auto p-5 space-y-4 bg-[#17110a]">
-            
+
             <div className="bg-[#1e150d] p-3.5 rounded-xl border border-amber-900/50">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2.5">
@@ -320,3 +320,4 @@ export function NewGameSetupModal({ isOpen, onClose, onConfirm, grid }: Props) {
     </div>
   );
 }
+

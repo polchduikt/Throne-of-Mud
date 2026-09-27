@@ -4,6 +4,10 @@ import { GridMap } from '../../../grid/GridMap';
 import { BUILDING_BLUEPRINTS } from '../../../buildings/blueprints';
 import { useGameStore } from '../../../../store/useGameStore';
 import type { RegionData } from '../../../../types/game';
+import {
+  DEFAULT_BASE_WORK_STEP,
+  WORK_SKILL_STEP_MULTIPLIER,
+} from '../../../../constants/jobs';
 
 export class ConstructionJobHandler {
   public static handleConstructionProgress(
@@ -12,8 +16,7 @@ export class ConstructionJobHandler {
     currentTick: number,
     buildSkill: number
   ): boolean {
-    const workStep = 2 + Math.floor(buildSkill * 0.4);
-    job.progress += workStep;
+    const workStep = DEFAULT_BASE_WORK_STEP + Math.floor(buildSkill * WORK_SKILL_STEP_MULTIPLIER);
 
     if (job.type === 'build_structure' && currentTick % 12 === 0) {
       unit.speechBubble = {
@@ -29,28 +32,37 @@ export class ConstructionJobHandler {
       };
     }
 
-    if (job.type === 'build_structure' && job.targetBuildingId) {
-      for (const b of buildingEntities) {
-        const bEnt = b as GameEntity;
-        if (bEnt.id === job.targetBuildingId) {
-          const newProg = Math.min(99, Math.round((job.progress / job.totalWork) * 100));
-          bEnt.constructionProgress = newProg;
-          break;
+    if (job.targetBuildingId) {
+      const bEnt = Array.from(buildingEntities).find((b: GameEntity) => b.id === job.targetBuildingId);
+      if (bEnt) {
+        if (job.type === 'build_structure' && bEnt.isCompleted) {
+          return true;
         }
-      }
-    } else if (job.type === 'demolish_structure' && job.targetBuildingId) {
-      for (const b of buildingEntities) {
-        const bEnt = b as GameEntity;
-        if (bEnt.id === job.targetBuildingId) {
-          const newProg = Math.min(99, Math.round((job.progress / job.totalWork) * 100));
+
+        const pendingJob = useGameStore.getState().pendingJobs.find((pj) => pj.id === job.id || pj.targetBuildingId === job.targetBuildingId);
+        if (pendingJob) {
+          pendingJob.progress = (pendingJob.progress || 0) + workStep;
+          job.progress = pendingJob.progress;
+          job.totalWork = pendingJob.totalWork || 100;
+        } else {
+          job.progress = (job.progress || 0) + workStep;
+          if (!job.totalWork) job.totalWork = 100;
+        }
+
+        const newProg = Math.min(99, Math.round((job.progress / (job.totalWork || 100)) * 100));
+        if (job.type === 'build_structure') {
+          bEnt.constructionProgress = newProg;
+        } else {
           bEnt.isDemolishing = true;
           bEnt.demolitionProgress = newProg;
-          break;
         }
+
+        return job.progress >= job.totalWork;
       }
     }
 
-    return job.progress >= job.totalWork;
+    job.progress += workStep;
+    return job.progress >= (job.totalWork || 100);
   }
 
   public static completeBuilding(
@@ -123,6 +135,13 @@ export class ConstructionJobHandler {
           expiresAtTick: currentTick + 25,
           type: 'work',
         };
+
+        for (const other of characterEntities) {
+          const otherEnt = other as GameEntity;
+          if (otherEnt.id !== unit.id && otherEnt.currentJob?.targetBuildingId === bEnt.id) {
+            otherEnt.currentJob = { id: `idle-${otherEnt.id}`, type: 'idle', progress: 0, totalWork: 0 };
+          }
+        }
         break;
       }
     }

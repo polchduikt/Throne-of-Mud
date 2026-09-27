@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
 import { GridMap } from '../../engine/grid/GridMap';
 import { useGameStore } from '../../store/useGameStore';
-import { 
-  getSavedGameMeta, 
-  loadGameFromIndexedDB, 
+import {
+  getSavedGameMeta,
+  loadGameFromIndexedDB,
   saveGameToIndexedDB,
-  type SaveMetadata 
+  type SaveMetadata
 } from '../../services/storage/saveManager';
-import { 
+import {
   TownCenterIcon,
-  StorageIcon, 
-  CrossCloseIcon, 
-  ScrollIcon, 
-  CompassIcon, 
-  PlayCrestIcon, 
+  StorageIcon,
+  CrossCloseIcon,
+  ScrollIcon,
+  CompassIcon,
+  PlayCrestIcon,
   MedievalAlertIcon,
   SettingsIcon,
 } from './MedievalIcons';
@@ -129,7 +129,7 @@ export function MainMenu({ grid }: MainMenuProps) {
     : '';
 
   return (
-    <div 
+    <div
       onPointerDown={() => audioManager.unlockAudio()}
       className="fixed inset-0 z-50 flex select-none font-cinzel overflow-hidden"
     >
@@ -199,7 +199,7 @@ export function MainMenu({ grid }: MainMenuProps) {
       {showSettingsModal && (
         <div className="fixed inset-0 z-60 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 pointer-events-auto font-cinzel">
           <div className="bg-[#141720] border-2 border-[#5a4830] rounded-2xl p-6 max-w-md w-full shadow-[0_20px_60px_rgba(0,0,0,0.95)] flex flex-col gap-4 max-h-[90vh] overflow-y-auto pointer-events-auto">
-            
+
             <div className="flex items-center justify-between border-b border-[#3d3222] pb-3">
               <div className="flex items-center gap-2 text-amber-300">
                 <SettingsIcon className="w-5 h-5 text-amber-400" />
@@ -240,9 +240,9 @@ export function MainMenu({ grid }: MainMenuProps) {
               {dict.menu.confirmNewGameTitle}
             </h3>
             <p className="text-xs text-slate-300 font-sans leading-relaxed">
-              {t('menu.confirmNewGameDesc', { 
-                settlementName: saveMeta?.settlementName || '', 
-                day: saveMeta?.day || 1 
+              {t('menu.confirmNewGameDesc', {
+                settlementName: saveMeta?.settlementName || '',
+                day: saveMeta?.day || 1
               })}
             </p>
             <div className="grid grid-cols-2 gap-3 mt-2">
@@ -266,7 +266,7 @@ export function MainMenu({ grid }: MainMenuProps) {
       {showGuideModal && (
         <div className="fixed inset-0 z-60 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 pointer-events-auto">
           <div className="bg-[#141720] border-2 border-[#5a4830] rounded-2xl p-6 max-w-lg w-full shadow-[0_20px_60px_rgba(0,0,0,0.95)] flex flex-col gap-4 max-h-[90vh] overflow-y-auto pointer-events-auto">
-            
+
             <div className="flex items-center justify-between border-b border-[#3d3222] pb-3">
               <div className="flex items-center gap-2 text-amber-300">
                 <ScrollIcon size={18} className="text-amber-400" />
@@ -283,7 +283,7 @@ export function MainMenu({ grid }: MainMenuProps) {
             </div>
 
             <div className="flex flex-col gap-3 text-xs text-slate-300 font-sans leading-relaxed">
-              
+
               <div className="p-3 rounded-xl bg-[#1c202b] border border-[#2d3345]">
                 <div className="font-cinzel font-bold text-amber-200 mb-1 flex items-center gap-1.5">
                   <CompassIcon size={15} className="text-amber-400" />
@@ -347,3 +347,4 @@ export function MainMenu({ grid }: MainMenuProps) {
     </div>
   );
 }
+

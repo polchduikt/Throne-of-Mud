@@ -1,4 +1,4 @@
-import type { SeasonType } from '../types/game';
+import type { SeasonType, MonthName } from '../types/game';
 
 export const TICKS_PER_MINUTE = 6;
 export const MINUTES_PER_HOUR = 60;
@@ -6,14 +6,81 @@ export const HOURS_PER_DAY = 24;
 export const MINUTES_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR;
 export const DAY_START_HOUR = 7;
 export const DAY_START_MINUTE_OFFSET = DAY_START_HOUR * MINUTES_PER_HOUR;
-export const DAYS_PER_SEASON = 10;
+
+export const MONTHS_PER_SEASON = 3;
+export const DAYS_PER_MONTH = 10;
+export const DAYS_PER_SEASON = MONTHS_PER_SEASON * DAYS_PER_MONTH;
+export const SEASONS_PER_YEAR = 4;
+export const MONTHS_PER_YEAR = 12;
+export const DAYS_PER_YEAR = DAYS_PER_SEASON * SEASONS_PER_YEAR;
+
+export const SEASONS: SeasonType[] = ['Spring', 'Summer', 'Autumn', 'Winter'];
+
+export const MONTHS: MonthName[] = [
+  'March', 'April', 'May',
+  'June', 'July', 'August',
+  'September', 'October', 'November',
+  'December', 'January', 'February',
+];
+
+export const SEASON_MONTHS: Record<SeasonType, MonthName[]> = {
+  Spring: ['March', 'April', 'May'],
+  Summer: ['June', 'July', 'August'],
+  Autumn: ['September', 'October', 'November'],
+  Winter: ['December', 'January', 'February'],
+};
+
+export const MONTH_TO_SEASON: Record<MonthName, SeasonType> = {
+  March: 'Spring', April: 'Spring', May: 'Spring',
+  June: 'Summer', July: 'Summer', August: 'Summer',
+  September: 'Autumn', October: 'Autumn', November: 'Autumn',
+  December: 'Winter', January: 'Winter', February: 'Winter',
+};
 
 export const SEASON_BASE_DAYS: Record<SeasonType, number> = {
   Spring: 1,
-  Summer: 11,
-  Autumn: 21,
-  Winter: 31,
+  Summer: 1 + DAYS_PER_SEASON * 1,
+  Autumn: 1 + DAYS_PER_SEASON * 2,
+  Winter: 1 + DAYS_PER_SEASON * 3,
 };
+
+export const MONTH_BASE_DAYS: Record<MonthName, number> = {
+  March: 1 + DAYS_PER_MONTH * 0,
+  April: 1 + DAYS_PER_MONTH * 1,
+  May: 1 + DAYS_PER_MONTH * 2,
+  June: 1 + DAYS_PER_MONTH * 3,
+  July: 1 + DAYS_PER_MONTH * 4,
+  August: 1 + DAYS_PER_MONTH * 5,
+  September: 1 + DAYS_PER_MONTH * 6,
+  October: 1 + DAYS_PER_MONTH * 7,
+  November: 1 + DAYS_PER_MONTH * 8,
+  December: 1 + DAYS_PER_MONTH * 9,
+  January: 1 + DAYS_PER_MONTH * 10,
+  February: 1 + DAYS_PER_MONTH * 11,
+};
+
+export function getDateInfo(day: number) {
+  const dayIndex = Math.max(0, day - 1);
+  const year = Math.floor(dayIndex / DAYS_PER_YEAR) + 1;
+  const dayOfYear = dayIndex % DAYS_PER_YEAR;
+  const monthIndex = Math.floor(dayOfYear / DAYS_PER_MONTH) % MONTHS_PER_YEAR;
+  const month = MONTHS[monthIndex];
+  const season = MONTH_TO_SEASON[month];
+  const dayOfMonth = (dayOfYear % DAYS_PER_MONTH) + 1;
+  const monthInSeason = (monthIndex % MONTHS_PER_SEASON) + 1;
+  const dayInSeason = (dayOfYear % DAYS_PER_SEASON) + 1;
+
+  return {
+    year,
+    season,
+    month,
+    monthIndex,
+    dayOfMonth,
+    monthInSeason,
+    dayInSeason,
+    totalDay: day,
+  };
+}
 
 export function timeToTicks(day: number, hour: number, minute: number): number {
   const totalMinutes = (day - 1) * MINUTES_PER_DAY + (hour * MINUTES_PER_HOUR + minute) - DAY_START_MINUTE_OFFSET;
@@ -26,5 +93,7 @@ export function ticksToTime(tick: number) {
   const minuteOfDay = totalMinutes % MINUTES_PER_DAY;
   const hour = Math.floor(minuteOfDay / MINUTES_PER_HOUR);
   const minute = minuteOfDay % MINUTES_PER_HOUR;
-  return { day, hour, minute };
+  const dateInfo = getDateInfo(day);
+  return { day, hour, minute, ...dateInfo };
 }
+

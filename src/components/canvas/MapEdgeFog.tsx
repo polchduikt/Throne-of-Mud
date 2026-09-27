@@ -193,3 +193,4 @@ export function MapEdgeFog({ mapWidth = 256, mapHeight = 256 }: Props) {
     </group>
   );
 }
+

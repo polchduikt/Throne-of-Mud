@@ -136,7 +136,7 @@ export class AStar {
 
     perimeter.sort((a, b) => a.dist - b.dist);
 
-    const candidates = perimeter.slice(0, 3);
+    const candidates = perimeter.slice(0, 8);
     for (const p of candidates) {
       const path = AStar.findPath(grid, [sx, sz], [p.x, p.z], false, regionBounds);
       if (path && path.length > 0) {
@@ -175,8 +175,14 @@ export class AStar {
         const distB = Math.hypot(b.x - sx, b.z - sz);
         return distA - distB;
       });
-      tx = neighbors[0].x;
-      tz = neighbors[0].z;
+
+      for (const n of neighbors) {
+        const subPath = AStar.findPath(grid, [sx, sz], [n.x, n.z], false, regionBounds);
+        if (subPath && subPath.length > 0) {
+          return subPath;
+        }
+      }
+      return null;
     }
 
     if (sx === tx && sz === tz) {
@@ -199,7 +205,7 @@ export class AStar {
     openHeap.push(startNode);
     nodeMap.set(startKey, startNode);
 
-    const maxIterations = 1200;
+    const maxIterations = 3500;
     let iterations = 0;
 
     while (openHeap.size > 0 && iterations++ < maxIterations) {
@@ -291,3 +297,4 @@ export class AStar {
     return path;
   }
 }
+

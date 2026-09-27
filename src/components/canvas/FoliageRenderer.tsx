@@ -171,8 +171,6 @@ function createBareBushGeometry(): THREE.BufferGeometry {
 const defaultBareWinterTreeGeo = createBareWinterTreeGeometry();
 const defaultBareBushGeo = createBareBushGeometry();
 
-
-
 function FallingTreeItem({
   tree,
   grid,
@@ -184,7 +182,7 @@ function FallingTreeItem({
   const landedRef = useRef(false);
   const gx = Math.floor(tree.x);
   const gz = Math.floor(tree.z);
-  const tileH = (grid.getTile(gx, gz)?.height || 1) * 0.4;
+  const tileH = grid.getTile(gx, gz)?.height ?? 0.05;
   const season = useGameStore((state) => state.time?.season || 'Spring');
   const isWinter = season === 'Winter';
 
@@ -524,30 +522,9 @@ export function FoliageRenderer({ grid }: Props) {
 
     const dummy = new THREE.Object3D();
 
-    const depositClearings: Array<{ gx: number; gz: number; rSq: number }> = [];
-    if (resourceDeposits) {
-      for (const dep of resourceDeposits) {
-        const r = dep.type === 'berries' ? 1.5 : 2.8;
-        depositClearings.push({ gx: dep.gridPosition[0], gz: dep.gridPosition[1], rSq: r * r });
-      }
-    }
-
     const processTile = (x: number, z: number) => {
       const tile = grid.tiles[x]?.[z];
       if (!tile || !tile.foliageType || tile.buildingId) return;
-
-      for (let i = 0; i < depositClearings.length; i++) {
-        const d = depositClearings[i];
-        if (distanceSq2D(x, z, d.gx, d.gz) <= d.rSq) return;
-      }
-
-      for (const b of buildingEntities) {
-        if (!b.gridPosition) continue;
-        const [gx, gz] = b.gridPosition;
-        const bw = b.buildingWidth || 1;
-        const bh = b.buildingHeight || 1;
-        if (x >= gx - 1 && x <= gx + bw && z >= gz - 1 && z <= gz + bh) return;
-      }
 
       const tileH = tile.height || 0.05;
       const jitterX = (pseudoRandom(x, z) - 0.5) * 0.35;
@@ -751,7 +728,7 @@ export function FoliageRenderer({ grid }: Props) {
     rockGeo: new THREE.DodecahedronGeometry(0.42, 0),
     bushGeo: new THREE.DodecahedronGeometry(0.32, 1),
     bareBushGeo: defaultBareBushGeo,
-    
+
     stumpGeo: new THREE.CylinderGeometry(0.15, 0.22, 0.22, 6),
     fallenLogGeo: new THREE.CylinderGeometry(0.13, 0.16, 1.35, 6),
     fallenBranchGeo: new THREE.DodecahedronGeometry(0.42, 1),
@@ -795,16 +772,14 @@ export function FoliageRenderer({ grid }: Props) {
           `
           #include <begin_vertex>
           ${isFlower ? 'transformed *= uFlowerScale;' : ''}
-          
+
           vec4 instPos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
           float windPhase = instPos.x * 0.38 + instPos.z * 0.26 + uTime * 2.5;
           float gust = sin(windPhase) * 0.70 + sin(windPhase * 0.5 + uTime * 1.2) * 0.30;
-          
-          
+
           float heightFactor = max(0.0, position.y);
           float sway = heightFactor * heightFactor * ${swayIntensity.toFixed(2)};
 
-          
           transformed.x += gust * sway * 0.22;
           transformed.z += gust * sway * 0.16;
           transformed.y -= abs(gust) * sway * 0.04;
@@ -853,27 +828,24 @@ export function FoliageRenderer({ grid }: Props) {
           ${isCanopy ? 'transformed *= uCanopyScale;' : ''}
           vec4 instPos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
 
-          
           float windPhase = instPos.x * 0.28 + instPos.z * 0.22 + uTime * 2.0;
           float gust = sin(windPhase) * 0.65 + sin(windPhase * 0.4 + uTime * 1.1) * 0.35;
           float heightFactor = max(0.0, position.y);
           transformed.x += gust * heightFactor * 0.035;
           transformed.z += gust * heightFactor * 0.025;
 
-          
           for (int i = 0; i < 8; i++) {
             vec4 hit = uTreeHits[i];
             if (hit.w > 0.01) {
               float d = distance(instPos.xz, hit.xy);
-              
+
               if (d < 0.38) {
                 float dt = uTime - hit.z;
                 if (dt >= 0.0 && dt < 0.9) {
-                  
+
                   float decay = exp(-dt * 7.5);
                   float wobble = sin(dt * 45.0) * decay * 0.30 * hit.w;
-                  
-                  
+
                   float swayArm = max(0.2, position.y + (instPos.y > 0.2 ? 0.7 : 0.0));
                   transformed.x += wobble * swayArm;
                   transformed.z += wobble * 0.35 * swayArm;
@@ -900,7 +872,7 @@ export function FoliageRenderer({ grid }: Props) {
     pine4: createTreeMaterial('#286237', 0.85, false),
     rock: new THREE.MeshStandardMaterial({ color: '#4b5563', roughness: 0.88, flatShading: true }),
     bush: createTreeMaterial('#22c55e', 0.85, true),
-    
+
     tallGrassMat: createWindMaterial('#3f782c', 1.35, false),
     medGrassMat: createWindMaterial('#4a8c32', 1.15, false),
     shortGrassMat: createWindMaterial('#5ea338', 0.95, false),
@@ -1522,3 +1494,4 @@ export function FoliageRenderer({ grid }: Props) {
     </group>
   );
 }
+

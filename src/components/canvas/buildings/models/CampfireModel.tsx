@@ -168,3 +168,4 @@ export function CampfireModel() {
     </group>
   );
 }
+

@@ -275,4 +275,127 @@ export const SHARED_BUILDING_MATS = {
     color: '#c25e10',
     roughness: 0.75,
   }),
+  clothWhite: new THREE.MeshStandardMaterial({
+    color: '#f8fafc',
+    roughness: 0.85,
+  }),
+  ironSteel: new THREE.MeshStandardMaterial({
+    color: '#475569',
+    roughness: 0.35,
+    metalness: 0.65,
+  }),
+  fishSilver: new THREE.MeshStandardMaterial({
+    color: '#94a3b8',
+    roughness: 0.25,
+    metalness: 0.5,
+  }),
+  meatRed: new THREE.MeshStandardMaterial({
+    color: '#991b1b',
+    roughness: 0.6,
+  }),
+  hideTan: new THREE.MeshStandardMaterial({
+    color: '#a16207',
+    roughness: 0.88,
+  }),
+  ironOre: new THREE.MeshStandardMaterial({
+    color: '#573322',
+    roughness: 0.85,
+    metalness: 0.3,
+  }),
+  stoneRaw: new THREE.MeshStandardMaterial({
+    color: '#64748b',
+    roughness: 0.95,
+  }),
+  clayOrange: new THREE.MeshStandardMaterial({
+    color: '#b45309',
+    roughness: 0.9,
+  }),
+  saltWhite: new THREE.MeshStandardMaterial({
+    color: '#f1f5f9',
+    roughness: 0.4,
+    metalness: 0.1,
+  }),
+  charcoalBlack: new THREE.MeshStandardMaterial({
+    color: '#1c1917',
+    roughness: 0.95,
+  }),
+  brickRed: new THREE.MeshStandardMaterial({
+    color: '#9a3412',
+    roughness: 0.85,
+  }),
+  clothDyed: new THREE.MeshStandardMaterial({
+    color: '#3b82f6',
+    roughness: 0.8,
+  }),
+  clothRoyalBlue: new THREE.MeshStandardMaterial({
+    color: '#1d4ed8',
+    roughness: 0.78,
+  }),
+  clothGold: new THREE.MeshStandardMaterial({
+    color: '#d97706',
+    roughness: 0.78,
+  }),
+  clothEmerald: new THREE.MeshStandardMaterial({
+    color: '#047857',
+    roughness: 0.78,
+  }),
+  clothCrimson: new THREE.MeshStandardMaterial({
+    color: '#b91c1c',
+    roughness: 0.78,
+  }),
+  rawWool: new THREE.MeshStandardMaterial({
+    color: '#fef3c7',
+    roughness: 0.95,
+  }),
+  moltenIron: new THREE.MeshBasicMaterial({
+    color: '#ff7700',
+  }),
+  moltenSlag: new THREE.MeshStandardMaterial({
+    color: '#475569',
+    roughness: 0.7,
+    metalness: 0.4,
+  }),
+  copperBronze: new THREE.MeshStandardMaterial({
+    color: '#b45309',
+    roughness: 0.35,
+    metalness: 0.75,
+  }),
+  berriesBlue: new THREE.MeshStandardMaterial({
+    color: '#3b82f6',
+    roughness: 0.6,
+  }),
+  berriesRed: new THREE.MeshStandardMaterial({
+    color: '#e11d48',
+    roughness: 0.6,
+  }),
+  berriesPurple: new THREE.MeshStandardMaterial({
+    color: '#9333ea',
+    roughness: 0.6,
+  }),
+  mossGreen: new THREE.MeshStandardMaterial({
+    color: '#4d7c0f',
+    roughness: 0.92,
+  }),
+  driedHerbs: new THREE.MeshStandardMaterial({
+    color: '#65a30d',
+    roughness: 0.88,
+  }),
+  antlerBone: new THREE.MeshStandardMaterial({
+    color: '#fef3c7',
+    roughness: 0.65,
+  }),
+  furPelt: new THREE.MeshStandardMaterial({
+    color: '#78350f',
+    roughness: 0.92,
+  }),
+  clayPottery: new THREE.MeshStandardMaterial({
+    color: '#c2410c',
+    roughness: 0.8,
+  }),
+  ironIngot: new THREE.MeshStandardMaterial({
+    color: '#64748b',
+    roughness: 0.35,
+    metalness: 0.85,
+  }),
 };
+

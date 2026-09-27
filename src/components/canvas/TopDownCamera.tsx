@@ -309,3 +309,4 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
 
   return null;
 }
+

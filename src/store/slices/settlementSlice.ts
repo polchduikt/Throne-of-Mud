@@ -69,7 +69,6 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
   influence: STARTING_INFLUENCE,
   royalFavor: STARTING_ROYAL_FAVOR,
 
-
   pendingJobs: [],
   addPendingJob: (job) => {
     set((state) => {
@@ -461,6 +460,11 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
       time: {
         tick: 0,
         day: 1,
+        dayOfMonth: 1,
+        month: 'March',
+        monthIndex: 0,
+        monthInSeason: 0,
+        year: 1,
         hour: 7,
         minute: 0,
         season: 'Spring',
@@ -503,3 +507,4 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
   },
   };
 };
+

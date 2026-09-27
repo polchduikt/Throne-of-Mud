@@ -408,3 +408,4 @@ export function RoadPlacementPreview({ grid, startPoint, path, hoveredTile, snap
     </group>
   );
 }
+

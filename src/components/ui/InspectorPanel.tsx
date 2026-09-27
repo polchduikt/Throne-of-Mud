@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { world, characterEntities } from '../../engine/ecs/world';
-import { 
+import {
   CrossCloseIcon,
   CrownIcon,
   PeasantsIcon,
@@ -136,7 +136,7 @@ export function InspectorPanel() {
             {language === 'uk' ? 'Підданий сусіднього лорда' : 'Subject of neighboring fief'}
           </span>
           <span className="text-slate-400 text-[11px]">
-            {language === 'uk' 
+            {language === 'uk'
               ? `Належить до земель ${ownerRegion?.lordName || 'чужого лорда'} (${ownerRegion?.name || 'сусідній регіон'}).`
               : `Sworn to ${ownerRegion?.lordName || 'neighboring lord'} (${ownerRegion?.name || 'neighboring fief'}).`}
           </span>
@@ -169,3 +169,4 @@ export function InspectorPanel() {
     </aside>
   );
 }
+

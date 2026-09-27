@@ -1,0 +1,17 @@
+export const BOT_AI_TICK_INTERVAL = 10;
+export const BOT_AI_WORKER_ASSIGN_INTERVAL = 30;
+export const BOT_AI_IMMIGRATION_INTERVAL = 70;
+export const BOT_AI_BUILD_DECISION_INTERVAL = 110;
+
+export const BOT_AI_MAX_PEASANTS = 18;
+
+export const BOT_AI_STARTING_WOOD = 45;
+export const BOT_AI_STARTING_STONE = 20;
+export const BOT_AI_STARTING_GOLD = 30;
+export const BOT_AI_STARTING_FOOD = 25;
+export const BOT_AI_STARTING_IRON = 10;
+
+export const BOT_AI_PEASANT_MOVE_SPEED = 1.35;
+export const BOT_AI_RESOURCE_GEN_CHANCE = 0.25;
+export const BOT_AI_GATHER_CHANCE = 0.2;
+export const BOT_AI_TERRAIN_MAX_HEIGHT_DIFF = 0.22;

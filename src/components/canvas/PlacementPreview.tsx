@@ -4,6 +4,7 @@ import { GridMap } from '../../engine/grid/GridMap';
 import { useGameStore } from '../../store/useGameStore';
 import { BUILDING_BLUEPRINTS } from '../../engine/buildings/blueprints';
 import { getSnappedPlacementCoords } from '../../engine/grid/buildingSnap';
+import { validateBuildingPlacement } from '../../engine/buildings/buildingValidation';
 
 interface Props {
   grid: GridMap;
@@ -16,16 +17,17 @@ export function PlacementPreview({ grid }: Props) {
 
   const blueprint = activeBuildType ? BUILDING_BLUEPRINTS[activeBuildType] : null;
 
-  const targetCoords = useMemo(() => {
-    if (!hoveredTile || activeTool !== 'build' || !blueprint || !activeBuildType) return null;
-    return getSnappedPlacementCoords(hoveredTile[0], hoveredTile[1], blueprint.width, blueprint.height, activeBuildType, grid);
-  }, [hoveredTile, activeTool, blueprint, activeBuildType, grid]);
-
   const playerRegionId = useGameStore((s) => s.playerRegionId);
   const regions = useGameStore((s) => s.regions);
+  const resourceDeposits = useGameStore((s) => s.resourceDeposits);
+
+  const targetCoords = useMemo(() => {
+    if (!hoveredTile || activeTool !== 'build' || !blueprint || !activeBuildType) return null;
+    return getSnappedPlacementCoords(hoveredTile[0], hoveredTile[1], blueprint.width, blueprint.height, activeBuildType, grid, resourceDeposits);
+  }, [hoveredTile, activeTool, blueprint, activeBuildType, grid, resourceDeposits]);
 
   const isValid = useMemo(() => {
-    if (!targetCoords || !blueprint) return false;
+    if (!targetCoords || !blueprint || !activeBuildType) return false;
     const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
     if (pRegion?.bounds) {
       const b = pRegion.bounds;
@@ -37,8 +39,16 @@ export function PlacementPreview({ grid }: Props) {
         return false;
       }
     }
-    return grid.canBuildAt(targetCoords[0], targetCoords[1], blueprint.width, blueprint.height);
-  }, [targetCoords, blueprint, grid, regions, playerRegionId]);
+    return validateBuildingPlacement(
+      activeBuildType,
+      targetCoords[0],
+      targetCoords[1],
+      blueprint.width,
+      blueprint.height,
+      grid,
+      resourceDeposits
+    ).allowed;
+  }, [targetCoords, blueprint, activeBuildType, grid, regions, playerRegionId, resourceDeposits]);
 
   const geometries = useMemo(() => {
     if (!blueprint) return null;

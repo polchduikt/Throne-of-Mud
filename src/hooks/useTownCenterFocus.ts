@@ -26,3 +26,4 @@ export function useTownCenterFocus() {
 
   return { focusTownCenter };
 }
+

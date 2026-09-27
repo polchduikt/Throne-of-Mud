@@ -71,27 +71,23 @@ export function WeatherRenderer() {
           vec3 pos = position;
           float cycleHeight = 11.5;
 
-          
           float fall = mod(pos.y - uTime * aSpeed + aSeed * 13.0, cycleHeight);
           pos.y = fall;
 
-          
           if (aDropLen > 0.0) {
             pos.y -= aDropLen;
             pos.x -= uWind.x * aDropLen * 0.8;
             pos.z -= uWind.y * aDropLen * 0.8;
-            vAlpha = 0.85; 
+            vAlpha = 0.85;
           } else {
-            vAlpha = 0.35; 
+            vAlpha = 0.35;
           }
 
-          
           pos.x += uWind.x * (cycleHeight - pos.y) * 0.25;
           pos.z += uWind.y * (cycleHeight - pos.y) * 0.25;
 
-          
           float groundImpact = smoothstep(0.0, 0.40, pos.y);
-          
+
           float topFade = smoothstep(cycleHeight, cycleHeight - 0.75, pos.y);
           vAlpha *= groundImpact * topFade;
 
@@ -106,7 +102,7 @@ export function WeatherRenderer() {
         void main() {
           float alpha = vAlpha * uIntensity;
           if (alpha < 0.02) discard;
-          
+
           gl_FragColor = vec4(0.80, 0.89, 1.0, alpha * 0.75);
         }
       `,
@@ -151,16 +147,13 @@ export function WeatherRenderer() {
           vec3 pos = position;
           float cycleHeight = 10.0;
 
-          
           float fall = mod(pos.y - uTime * 2.6 + aSeed * 2.0, cycleHeight);
           pos.y = fall;
 
-          
           float t = uTime * 1.1 + aSeed;
           pos.x += sin(t * 0.8) * 0.65;
           pos.z += cos(t * 0.7) * 0.65;
 
-          
           float groundLanding = smoothstep(0.04, 0.35, pos.y);
           vAlpha = groundLanding * 0.85;
 
@@ -234,3 +227,4 @@ export function WeatherRenderer() {
     </group>
   );
 }
+

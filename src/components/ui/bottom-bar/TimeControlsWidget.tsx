@@ -22,6 +22,7 @@ export const TimeControlsWidget: React.FC = React.memo(() => {
   const setSpeedMultiplier = useGameStore((s) => s.setSpeedMultiplier);
   const togglePause = useGameStore((s) => s.togglePause);
   const season = useGameStore((s) => s.time.season);
+  const month = useGameStore((s) => s.time.month);
   const weather = useGameStore((s) => s.time.weather);
   const nextWeather = useGameStore((s) => s.time.nextWeather);
   const setIsWeatherDebugOpen = useGameStore((s) => s.setIsWeatherDebugOpen);
@@ -42,6 +43,7 @@ export const TimeControlsWidget: React.FC = React.memo(() => {
 
   const currentSeasonInfo = seasonLabels[season] || { label: season, icon: CompassIcon };
   const CurrentSeasonIcon = currentSeasonInfo.icon;
+  const monthLabel = month && dict.hud.months ? dict.hud.months[month] : undefined;
   const currentWeatherInfo = weatherIcons[weather] || { label: weather, icon: WeatherClearIcon, color: 'text-amber-400' };
   const CurrentWeatherIcon = currentWeatherInfo.icon;
 
@@ -51,12 +53,17 @@ export const TimeControlsWidget: React.FC = React.memo(() => {
         <div
           onClick={() => setIsWeatherDebugOpen(true)}
           className="flex items-center gap-1.5 cursor-pointer hover:bg-slate-800/80 px-1.5 py-0.5 rounded-lg transition"
-          title={`${dict.common.season}: ${currentSeasonInfo.label}`}
+          title={`${dict.common.season}: ${currentSeasonInfo.label}${monthLabel ? ` • ${dict.common.month}: ${monthLabel}` : ''}`}
         >
           <CurrentSeasonIcon className="w-4 h-4 text-amber-300 drop-shadow" />
-          <span className="text-xs font-cinzel font-bold text-amber-200">
-            {currentSeasonInfo.label}
-          </span>
+          <div className="flex flex-col text-left leading-none">
+            <span className="text-xs font-cinzel font-bold text-amber-200">
+              {monthLabel || currentSeasonInfo.label}
+            </span>
+            <span className="text-[9px] text-amber-400/80 font-mono">
+              {currentSeasonInfo.label}
+            </span>
+          </div>
         </div>
 
         <div className="w-[1px] h-3.5 bg-[#4a3b26]" />
@@ -135,3 +142,4 @@ export const TimeControlsWidget: React.FC = React.memo(() => {
 });
 
 TimeControlsWidget.displayName = 'TimeControlsWidget';
+

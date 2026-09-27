@@ -1,4 +1,3 @@
-
 import * as THREE from 'three';
 
 export interface AudioSettings {
@@ -1197,3 +1196,4 @@ if (import.meta.hot) {
     audioManager.destroy();
   });
 }
+

@@ -266,3 +266,4 @@ export function getUnitAppearance(unitId: string, characterClass = 'peasant'): U
   unitAppearanceCache.set(cacheKey, app);
   return app;
 }
+

@@ -67,3 +67,4 @@ export class GameLoop {
     this.animFrameId = requestAnimationFrame(this.loop);
   };
 }
+

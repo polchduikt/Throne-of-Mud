@@ -65,3 +65,4 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = React.memo(({ gri
 });
 
 BottomActionBar.displayName = 'BottomActionBar';
+

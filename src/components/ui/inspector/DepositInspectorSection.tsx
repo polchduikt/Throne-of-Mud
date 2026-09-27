@@ -20,7 +20,7 @@ export function DepositInspectorSection({ entity }: DepositInspectorSectionProps
   return (
     <div className="flex flex-col gap-3">
       <div className={`p-3 rounded-xl border flex flex-col gap-2 ${
-        isRich 
+        isRich
           ? 'bg-gradient-to-br from-amber-950/70 via-stone-900/90 to-amber-900/60 border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
           : 'bg-stone-900/80 border-stone-700/60'
       }`}>
@@ -104,3 +104,4 @@ export function DepositInspectorSection({ entity }: DepositInspectorSectionProps
     </div>
   );
 }
+

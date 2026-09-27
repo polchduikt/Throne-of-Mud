@@ -13,6 +13,7 @@ import { getSnappedPlacementCoords } from '../../engine/grid/buildingSnap';
 import { RoadPlacementPreview, type RoadSnapTarget } from './RoadPlacementPreview';
 import { getSmartRoadPath, isRoadPathValid } from '../../engine/grid/roadGeneration';
 import { getBuildingDoorInfo } from '../../engine/buildings/buildingNavigation';
+import { validateBuildingPlacement } from '../../engine/buildings/buildingValidation';
 
 interface Props {
   grid: GridMap;
@@ -207,11 +208,9 @@ export function TerrainRenderer({ grid }: Props) {
         float stoneWeight = splat.b;
         float roadWeight = splat.a;
 
-        
         diffuseColor.rgb = mix(diffuseColor.rgb, mudCol.rgb, smoothstep(0.12, 0.65, soilWeight));
         diffuseColor.rgb = mix(diffuseColor.rgb, stoneCol.rgb, smoothstep(0.25, 0.75, stoneWeight));
 
-        
         if (roadWeight > 0.03) {
           float roadBlend = smoothstep(0.04, 0.36, roadWeight);
 
@@ -226,67 +225,55 @@ export function TerrainRenderer({ grid }: Props) {
           diffuseColor.rgb = mix(diffuseColor.rgb, dirtRoad, roadBlend);
         }
 
-        
         if (uAutumnAmount > 0.01) {
           vec3 autumnGrass = diffuseColor.rgb * vec3(1.18, 0.94, 0.58);
           diffuseColor.rgb = mix(diffuseColor.rgb, autumnGrass, uAutumnAmount * 0.75 * (1.0 - isWater));
         }
 
-        
         if (uWetness > 0.01) {
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.80, uWetness * 0.35 * (1.0 - isWater));
         }
 
-        
         if (uWetness > 0.05) {
-          
+
           vec2 splashGrid = worldUV * 1.0;
           vec2 cellId = floor(splashGrid);
           vec2 cellFract = fract(splashGrid);
 
-          
           vec2 randHash = fract(sin(vec2(
             dot(cellId, vec2(127.1, 311.7)),
             dot(cellId, vec2(269.5, 183.3))
           )) * 43758.5453);
 
-          
           float cyclePeriod = 0.7 + randHash.x * 0.8;
           float localTime = mod(uTime * 1.4 + randHash.y * 13.7, cyclePeriod);
-          float splashDuration = 0.20; 
+          float splashDuration = 0.20;
 
           if (localTime < splashDuration) {
-            float progress = localTime / splashDuration; 
+            float progress = localTime / splashDuration;
 
-            
             vec2 dropCenter = vec2(0.22, 0.22) + randHash * 0.56;
             vec2 delta = cellFract - dropCenter;
             float dist = length(delta);
 
-            
             float ringRadius = progress * 0.09;
             float ringWidth = 0.016 * (1.0 - progress * 0.4);
             float ring = smoothstep(ringWidth, 0.0, abs(dist - ringRadius));
 
-            
             float angle = atan(delta.y, delta.x) + randHash.x * 6.28;
             float fleckRay = pow(max(0.0, cos(angle * 4.0)), 6.0);
             float fleckDist = progress * 0.07;
             float flecks = smoothstep(0.02, 0.0, abs(dist - fleckDist)) * fleckRay * (1.0 - progress);
 
-            
             float centerBead = smoothstep(0.025 * (1.0 - progress), 0.0, dist) * smoothstep(0.35, 0.0, progress);
 
-            
             float splash = (ring * 0.80 + flecks * 0.90 + centerBead * 1.1) * (1.0 - progress);
 
-            
             vec3 waterGlisten = vec3(0.85, 0.93, 1.0);
             diffuseColor.rgb = mix(diffuseColor.rgb, waterGlisten, clamp(splash * uWetness * 0.85, 0.0, 0.80));
           }
         }
 
-        
         if (uSnowAmount > 0.01) {
           vec3 snowColor = vec3(0.92, 0.95, 0.99);
           float snowMask = 1.0 - isWater;
@@ -297,9 +284,8 @@ export function TerrainRenderer({ grid }: Props) {
           }
         }
 
-        
         if (isWater > 0.02) {
-          
+
           vec2 waterUv1 = worldUV * 0.36 + vec2(uTime * 0.045, uTime * 0.025);
           vec2 waterUv2 = worldUV * 0.40 + vec2(
             -uTime * 0.035 + sin(uTime * 0.7 + worldUV.y * 1.5) * 0.025,
@@ -309,14 +295,11 @@ export function TerrainRenderer({ grid }: Props) {
           vec4 waterCol1 = texture2D(uWaterTex, waterUv1);
           vec4 waterCol2 = texture2D(uWaterTex, waterUv2);
 
-          
           vec3 livingWater = mix(waterCol1.rgb, waterCol2.rgb, 0.45);
 
-          
           float crest = (waterCol1.r + waterCol2.g) * 0.5;
           livingWater = mix(livingWater, vec3(0.92, 0.98, 1.0), smoothstep(0.70, 0.95, crest) * 0.35);
 
-          
           diffuseColor.rgb = mix(diffuseColor.rgb, livingWater, smoothstep(0.10, 0.55, isWater));
         }
         `
@@ -921,7 +904,8 @@ export function TerrainRenderer({ grid }: Props) {
       const blueprint = BUILDING_BLUEPRINTS[activeBuildType];
       if (!blueprint) return;
 
-      const [targetGx, targetGz] = getSnappedPlacementCoords(gx, gz, blueprint.width, blueprint.height, activeBuildType, grid);
+      const { resourceDeposits } = useGameStore.getState();
+      const [targetGx, targetGz] = getSnappedPlacementCoords(gx, gz, blueprint.width, blueprint.height, activeBuildType, grid, resourceDeposits);
 
       const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
       if (pRegion?.bounds) {
@@ -941,11 +925,12 @@ export function TerrainRenderer({ grid }: Props) {
         }
       }
 
-      if (!grid.canBuildAt(targetGx, targetGz, blueprint.width, blueprint.height)) {
+      const validation = validateBuildingPlacement(activeBuildType, targetGx, targetGz, blueprint.width, blueprint.height, grid, resourceDeposits);
+      if (!validation.allowed) {
         audioManager.playUIError();
         addChronicleEvent({
           title: 'Неможливо збудувати!',
-          description: 'Місце зайняте водою, іншою будівлею або перешкодами.',
+          description: validation.reason || 'Місце зайняте водою, іншою будівлею або перешкодами.',
           type: 'warning',
         });
         return;
@@ -1065,9 +1050,9 @@ export function TerrainRenderer({ grid }: Props) {
   };
 
   return (
-    <group 
+    <group
       visible={!isStrategicView}
-      onPointerMove={handlePointerMove} 
+      onPointerMove={handlePointerMove}
       onPointerDown={handlePointerDown}
       onContextMenu={(e) => {
         if (activeTool === 'road') {
@@ -1205,3 +1190,4 @@ export function TerrainRenderer({ grid }: Props) {
     </group>
   );
 }
+

@@ -218,3 +218,4 @@ export function BakeryModel({
     </group>
   );
 }
+

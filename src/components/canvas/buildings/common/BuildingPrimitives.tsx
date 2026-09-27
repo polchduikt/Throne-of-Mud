@@ -11,6 +11,8 @@ export function TriangularGable({
   position = [0, 0, 0],
   rotation = [0, 0, 0],
   material = SHARED_BUILDING_MATS.wattleDaub,
+  hasTimberFrame = true,
+  hasVent = true,
 }: {
   baseWidth: number;
   height: number;
@@ -18,6 +20,8 @@ export function TriangularGable({
   position?: [number, number, number];
   rotation?: [number, number, number];
   material?: THREE.Material;
+  hasTimberFrame?: boolean;
+  hasVent?: boolean;
 }) {
   const mats = SHARED_BUILDING_MATS;
   const half = baseWidth / 2;
@@ -38,22 +42,28 @@ export function TriangularGable({
       <mesh material={material} castShadow receiveShadow>
         <extrudeGeometry args={[shape, { depth: thickness, bevelEnabled: false }]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0, height / 2, thickness + 0.01]} castShadow>
-        <boxGeometry args={[0.08, height, 0.04]} />
-      </mesh>
-      <group position={[-half / 2, height / 2, thickness + 0.01]} rotation={[0, 0, slopeAngle - Math.PI / 2]}>
-        <mesh material={mats.timberDark} castShadow>
-          <boxGeometry args={[0.07, hypotenuse, 0.05]} />
+      {hasTimberFrame && (
+        <>
+          <mesh material={mats.timberDark} position={[0, height / 2, thickness + 0.01]} castShadow>
+            <boxGeometry args={[0.08, height, 0.04]} />
+          </mesh>
+          <group position={[-half / 2, height / 2, thickness + 0.01]} rotation={[0, 0, slopeAngle - Math.PI / 2]}>
+            <mesh material={mats.timberDark} castShadow>
+              <boxGeometry args={[0.07, hypotenuse, 0.05]} />
+            </mesh>
+          </group>
+          <group position={[half / 2, height / 2, thickness + 0.01]} rotation={[0, 0, -(slopeAngle - Math.PI / 2)]}>
+            <mesh material={mats.timberDark} castShadow>
+              <boxGeometry args={[0.07, hypotenuse, 0.05]} />
+            </mesh>
+          </group>
+        </>
+      )}
+      {hasVent && (
+        <mesh material={mats.windowUnlit} position={[0, height * 0.45, thickness + 0.02]} castShadow>
+          <cylinderGeometry args={[0.12, 0.12, 0.04, 6]} />
         </mesh>
-      </group>
-      <group position={[half / 2, height / 2, thickness + 0.01]} rotation={[0, 0, -(slopeAngle - Math.PI / 2)]}>
-        <mesh material={mats.timberDark} castShadow>
-          <boxGeometry args={[0.07, hypotenuse, 0.05]} />
-        </mesh>
-      </group>
-      <mesh material={mats.windowUnlit} position={[0, height * 0.45, thickness + 0.02]} castShadow>
-        <cylinderGeometry args={[0.12, 0.12, 0.04, 6]} />
-      </mesh>
+      )}
     </group>
   );
 }
@@ -322,14 +332,16 @@ export function FirewoodStack({
 
 export function TimberBarrel({
   position = [0, 0, 0],
+  rotation = [0, 0, 0],
   scale = 1,
 }: {
   position?: [number, number, number];
+  rotation?: [number, number, number];
   scale?: number;
 }) {
   const mats = SHARED_BUILDING_MATS;
   return (
-    <group position={position} scale={[scale, scale, scale]}>
+    <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
       <mesh material={mats.barrelWood} position={[0, 0.24, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.2, 0.18, 0.48, 8]} />
       </mesh>
@@ -461,31 +473,44 @@ export function DetailedChimney({
       </mesh>
       {potCount === 2 ? (
         <group>
+
           <mesh material={mats.stoneMed} position={[-width * 0.22, potY, 0]} castShadow>
             <cylinderGeometry args={[0.09, 0.11, 0.28, 8]} />
           </mesh>
-          <mesh material={mats.fireplaceCold} position={[-width * 0.22, potY + 0.14, 0]}>
-            <cylinderGeometry args={[0.07, 0.07, 0.02, 8]} />
+          <mesh material={mats.stoneLight} position={[-width * 0.22, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[0.085, 0.025, 8, 16]} />
           </mesh>
+
+          <mesh material={mats.charcoalBlack} position={[-width * 0.22, potY + 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.08, 12]} />
+          </mesh>
+
           <mesh material={mats.stoneMed} position={[width * 0.22, potY, 0]} castShadow>
             <cylinderGeometry args={[0.09, 0.11, 0.28, 8]} />
           </mesh>
-          <mesh material={mats.fireplaceCold} position={[width * 0.22, potY + 0.14, 0]}>
-            <cylinderGeometry args={[0.07, 0.07, 0.02, 8]} />
+          <mesh material={mats.stoneLight} position={[width * 0.22, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[0.085, 0.025, 8, 16]} />
           </mesh>
+
+          <mesh material={mats.charcoalBlack} position={[width * 0.22, potY + 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.08, 12]} />
+          </mesh>
+
           {hasSmoke && <ChimneySmoke position={[-width * 0.22, potY + 0.14, 0]} />}
           {hasSmoke && <ChimneySmoke position={[width * 0.22, potY + 0.14, 0]} />}
         </group>
       ) : (
         <group>
+
           <mesh material={mats.stoneMed} position={[0, potY, 0]} castShadow>
             <cylinderGeometry args={[0.11, 0.13, 0.28, 8]} />
           </mesh>
-          <mesh material={mats.stoneLight} position={[0, potY + 0.13, 0]} castShadow>
-            <cylinderGeometry args={[0.125, 0.125, 0.03, 8]} />
+          <mesh material={mats.stoneLight} position={[0, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <torusGeometry args={[0.10, 0.03, 8, 16]} />
           </mesh>
-          <mesh material={mats.fireplaceCold} position={[0, potY + 0.145, 0]}>
-            <cylinderGeometry args={[0.09, 0.09, 0.02, 8]} />
+
+          <mesh material={mats.charcoalBlack} position={[0, potY + 0.13, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.095, 12]} />
           </mesh>
           {hasSmoke && <ChimneySmoke position={[0, potY + 0.14, 0]} />}
         </group>
@@ -1274,3 +1299,365 @@ export function GothicManorFireplace({
     </group>
   );
 }
+
+export function MedievalStoneHearth({
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  isLightOn = false,
+  hasSmoke = true,
+  chimneyHeight = 2.15,
+}: {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  isLightOn?: boolean;
+  hasSmoke?: boolean;
+  chimneyHeight?: number;
+}) {
+  const mats = SHARED_BUILDING_MATS;
+  return (
+    <group position={position} rotation={rotation}>
+
+      <mesh material={mats.stoneDark} position={[0, 0.03, 0.08]} receiveShadow>
+        <boxGeometry args={[0.88, 0.06, 0.62]} />
+      </mesh>
+
+      <mesh material={mats.ashBed} position={[0, 0.065, -0.04]} receiveShadow>
+        <boxGeometry args={[0.56, 0.02, 0.32]} />
+      </mesh>
+
+      <mesh material={mats.charredWood} position={[0, 0.40, -0.16]} castShadow receiveShadow>
+        <boxGeometry args={[0.68, 0.72, 0.12]} />
+      </mesh>
+
+      <mesh material={mats.stoneMed} position={[-0.34, 0.40, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.18, 0.72, 0.36]} />
+      </mesh>
+
+      <mesh material={mats.stoneMed} position={[0.34, 0.40, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.18, 0.72, 0.36]} />
+      </mesh>
+
+      <mesh material={mats.stoneLight} position={[0, 0.78, 0.02]} castShadow receiveShadow>
+        <boxGeometry args={[0.88, 0.12, 0.40]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[0, 0.86, 0.04]} castShadow>
+        <boxGeometry args={[0.94, 0.05, 0.44]} />
+      </mesh>
+
+      <mesh material={mats.ceramicPot} position={[-0.28, 0.94, 0.04]} castShadow>
+        <cylinderGeometry args={[0.045, 0.035, 0.10, 7]} />
+      </mesh>
+      <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0.28, 0.92, 0.04]}>
+        <cylinderGeometry args={[0.012, 0.015, 0.07, 5]} />
+      </mesh>
+
+      <mesh material={mats.ironHardware} position={[0.22, 0.48, -0.04]} castShadow>
+        <cylinderGeometry args={[0.008, 0.008, 0.38, 4]} />
+      </mesh>
+      <mesh material={mats.ironHardware} position={[0.12, 0.65, -0.04]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.008, 0.008, 0.22, 4]} />
+      </mesh>
+      <mesh material={mats.ironHardware} position={[0.02, 0.52, -0.04]} castShadow>
+        <cylinderGeometry args={[0.005, 0.005, 0.24, 4]} />
+      </mesh>
+      <mesh material={mats.ironHardware} position={[0.02, 0.36, -0.04]} castShadow>
+        <cylinderGeometry args={[0.09, 0.07, 0.12, 8]} />
+      </mesh>
+      <mesh material={mats.ironHardware} position={[0.02, 0.43, -0.04]}>
+        <torusGeometry args={[0.07, 0.01, 5, 8]} />
+      </mesh>
+
+      <mesh material={mats.timberLogs} position={[-0.08, 0.12, -0.04]} rotation={[0.1, 0.2, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.04, 0.042, 0.36, 6]} />
+      </mesh>
+      <mesh material={mats.timberLogs} position={[0.06, 0.16, -0.02]} rotation={[-0.1, -0.2, Math.PI / 2 + 0.1]} castShadow>
+        <cylinderGeometry args={[0.035, 0.038, 0.32, 6]} />
+      </mesh>
+
+      {isLightOn ? (
+        <group position={[0, 0.14, -0.02]}>
+          <mesh material={mats.emberGlow} position={[0, 0, 0]}>
+            <boxGeometry args={[0.32, 0.05, 0.18]} />
+          </mesh>
+          <mesh material={mats.fireOrange} position={[0, 0.08, 0]}>
+            <dodecahedronGeometry args={[0.11, 0]} />
+          </mesh>
+          <mesh material={mats.fireYellow} position={[0, 0.15, 0]}>
+            <coneGeometry args={[0.06, 0.16, 5]} />
+          </mesh>
+          <pointLight color="#f97316" intensity={1.8} distance={4.5} position={[0, 0.22, 0.15]} />
+        </group>
+      ) : (
+        <mesh material={mats.charredWood} position={[0, 0.10, -0.04]}>
+          <boxGeometry args={[0.26, 0.04, 0.14]} />
+        </mesh>
+      )}
+
+      <mesh material={mats.stoneMed} position={[0, chimneyHeight * 0.58, -0.08]} castShadow receiveShadow>
+        <boxGeometry args={[0.48, chimneyHeight * 0.78, 0.44]} />
+      </mesh>
+      <mesh material={mats.stoneLight} position={[0, chimneyHeight - 0.14, -0.08]} castShadow>
+        <boxGeometry args={[0.54, 0.06, 0.50]} />
+      </mesh>
+      <mesh material={mats.stoneMed} position={[0, chimneyHeight + 0.02, -0.08]} castShadow>
+        <cylinderGeometry args={[0.12, 0.14, 0.26, 8]} />
+      </mesh>
+
+      <mesh material={mats.stoneLight} position={[0, chimneyHeight + 0.15, -0.08]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.11, 0.03, 8, 16]} />
+      </mesh>
+
+      <mesh material={mats.charcoalBlack} position={[0, chimneyHeight + 0.15, -0.08]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.105, 12]} />
+      </mesh>
+
+      {hasSmoke && <ChimneySmoke position={[0, chimneyHeight + 0.16, -0.08]} />}
+    </group>
+  );
+}
+
+export function RusticCabinBed({
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  blanketMaterial = SHARED_BUILDING_MATS.bedLinenRed,
+  pillowMaterial = SHARED_BUILDING_MATS.pillowWhite,
+}: {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  blanketMaterial?: THREE.Material;
+  pillowMaterial?: THREE.Material;
+}) {
+  const mats = SHARED_BUILDING_MATS;
+  return (
+    <group position={position} rotation={rotation}>
+
+      <mesh material={mats.timberDark} position={[-0.32, 0.22, -0.52]} castShadow>
+        <boxGeometry args={[0.065, 0.44, 0.065]} />
+      </mesh>
+      <mesh material={mats.timberLight} position={[-0.32, 0.46, -0.52]} castShadow>
+        <sphereGeometry args={[0.04, 6, 6]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[0.32, 0.22, -0.52]} castShadow>
+        <boxGeometry args={[0.065, 0.44, 0.065]} />
+      </mesh>
+      <mesh material={mats.timberLight} position={[0.32, 0.46, -0.52]} castShadow>
+        <sphereGeometry args={[0.04, 6, 6]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[-0.32, 0.16, 0.52]} castShadow>
+        <boxGeometry args={[0.065, 0.32, 0.065]} />
+      </mesh>
+      <mesh material={mats.timberLight} position={[-0.32, 0.34, 0.52]} castShadow>
+        <sphereGeometry args={[0.035, 6, 6]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[0.32, 0.16, 0.52]} castShadow>
+        <boxGeometry args={[0.065, 0.32, 0.065]} />
+      </mesh>
+      <mesh material={mats.timberLight} position={[0.32, 0.34, 0.52]} castShadow>
+        <sphereGeometry args={[0.035, 6, 6]} />
+      </mesh>
+
+      <mesh material={mats.timberPlanks} position={[-0.32, 0.15, 0]} castShadow>
+        <boxGeometry args={[0.035, 0.09, 0.98]} />
+      </mesh>
+      <mesh material={mats.timberPlanks} position={[0.32, 0.15, 0]} castShadow>
+        <boxGeometry args={[0.035, 0.09, 0.98]} />
+      </mesh>
+      <mesh material={mats.timberPlanks} position={[0, 0.15, 0.52]} castShadow>
+        <boxGeometry args={[0.58, 0.09, 0.035]} />
+      </mesh>
+      <mesh material={mats.timberPlanks} position={[0, 0.28, -0.52]} castShadow>
+        <boxGeometry args={[0.58, 0.22, 0.035]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[0, 0.12, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.58, 0.03, 0.98]} />
+      </mesh>
+
+      <mesh material={mats.bedStraw} position={[0, 0.18, 0]} receiveShadow>
+        <boxGeometry args={[0.58, 0.10, 0.96]} />
+      </mesh>
+
+      <mesh material={pillowMaterial} position={[0, 0.25, -0.34]} castShadow>
+        <boxGeometry args={[0.46, 0.06, 0.22]} />
+      </mesh>
+
+      <mesh material={blanketMaterial} position={[0, 0.24, 0.12]} castShadow>
+        <boxGeometry args={[0.59, 0.025, 0.68]} />
+      </mesh>
+      <mesh material={blanketMaterial} position={[-0.30, 0.20, 0.12]} castShadow>
+        <boxGeometry args={[0.02, 0.07, 0.66]} />
+      </mesh>
+      <mesh material={blanketMaterial} position={[0.30, 0.20, 0.12]} castShadow>
+        <boxGeometry args={[0.02, 0.07, 0.66]} />
+      </mesh>
+      <mesh material={blanketMaterial} position={[0, 0.20, 0.49]} castShadow>
+        <boxGeometry args={[0.58, 0.07, 0.02]} />
+      </mesh>
+    </group>
+  );
+}
+
+export function RusticCabinTable({
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  hasBenches = true,
+  hasFood = true,
+}: {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  hasBenches?: boolean;
+  hasFood?: boolean;
+}) {
+  const mats = SHARED_BUILDING_MATS;
+  return (
+    <group position={position} rotation={rotation}>
+
+      <mesh material={mats.timberPlanks} position={[0, 0.36, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.96, 0.045, 0.54]} />
+      </mesh>
+
+      {[-0.40, 0.40].map((lx) =>
+        [-0.20, 0.20].map((lz) => (
+          <mesh key={`tleg-${lx}-${lz}`} material={mats.timberDark} position={[lx, 0.17, lz]} castShadow>
+            <boxGeometry args={[0.05, 0.34, 0.05]} />
+          </mesh>
+        ))
+      )}
+
+      <mesh material={mats.timberDark} position={[0, 0.14, -0.20]} castShadow>
+        <boxGeometry args={[0.76, 0.03, 0.03]} />
+      </mesh>
+      <mesh material={mats.timberDark} position={[0, 0.14, 0.20]} castShadow>
+        <boxGeometry args={[0.76, 0.03, 0.03]} />
+      </mesh>
+
+      {hasFood && (
+        <group position={[0, 0.38, 0]}>
+
+          <mesh material={mats.breadCrust} position={[-0.22, 0.03, 0]} castShadow>
+            <cylinderGeometry args={[0.07, 0.09, 0.06, 7]} />
+          </mesh>
+
+          <mesh material={mats.ceramicPot} position={[0.08, 0.025, -0.06]} castShadow>
+            <cylinderGeometry args={[0.065, 0.045, 0.05, 7]} />
+          </mesh>
+
+          <mesh material={mats.ceramicPot} position={[0.24, 0.04, 0.10]} castShadow>
+            <cylinderGeometry args={[0.03, 0.025, 0.08, 6]} />
+          </mesh>
+
+          <mesh material={mats.timberDark} position={[-0.04, 0.015, 0.12]} castShadow>
+            <cylinderGeometry args={[0.035, 0.04, 0.03, 6]} />
+          </mesh>
+          <mesh material={mats.candleUnlit} position={[-0.04, 0.06, 0.12]}>
+            <cylinderGeometry args={[0.01, 0.012, 0.07, 5]} />
+          </mesh>
+        </group>
+      )}
+
+      {hasBenches && (
+        <group>
+
+          <group position={[0, 0, 0.42]}>
+            <mesh material={mats.timberPlanks} position={[0, 0.20, 0]} castShadow>
+              <boxGeometry args={[0.88, 0.035, 0.20]} />
+            </mesh>
+            <mesh material={mats.timberDark} position={[-0.34, 0.09, 0]} castShadow>
+              <boxGeometry args={[0.04, 0.18, 0.16]} />
+            </mesh>
+            <mesh material={mats.timberDark} position={[0.34, 0.09, 0]} castShadow>
+              <boxGeometry args={[0.04, 0.18, 0.16]} />
+            </mesh>
+          </group>
+
+          <group position={[0, 0, -0.42]}>
+            <mesh material={mats.timberPlanks} position={[0, 0.20, 0]} castShadow>
+              <boxGeometry args={[0.88, 0.035, 0.20]} />
+            </mesh>
+            <mesh material={mats.timberDark} position={[-0.34, 0.09, 0]} castShadow>
+              <boxGeometry args={[0.04, 0.18, 0.16]} />
+            </mesh>
+            <mesh material={mats.timberDark} position={[0.34, 0.09, 0]} castShadow>
+              <boxGeometry args={[0.04, 0.18, 0.16]} />
+            </mesh>
+          </group>
+        </group>
+      )}
+    </group>
+  );
+}
+
+export function RusticWallShelf({
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  width = 0.82,
+}: {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  width?: number;
+}) {
+  const mats = SHARED_BUILDING_MATS;
+  return (
+    <group position={position} rotation={rotation}>
+
+      <mesh material={mats.timberPlanks} position={[0, 0, 0]} castShadow>
+        <boxGeometry args={[width, 0.03, 0.18]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[-width * 0.35, -0.07, -0.04]} castShadow>
+        <boxGeometry args={[0.03, 0.12, 0.08]} />
+      </mesh>
+      <mesh material={mats.timberDark} position={[width * 0.35, -0.07, -0.04]} castShadow>
+        <boxGeometry args={[0.03, 0.12, 0.08]} />
+      </mesh>
+
+      <mesh material={mats.ceramicPot} position={[-width * 0.25, 0.06, 0]} castShadow>
+        <cylinderGeometry args={[0.035, 0.04, 0.09, 6]} />
+      </mesh>
+      <mesh material={mats.ceramicPot} position={[0, 0.05, 0]} castShadow>
+        <cylinderGeometry args={[0.03, 0.025, 0.07, 6]} />
+      </mesh>
+      <mesh material={mats.driedHerbs} position={[width * 0.25, 0.05, 0]} castShadow>
+        <dodecahedronGeometry args={[0.045, 0]} />
+      </mesh>
+    </group>
+  );
+}
+
+export function RusticChest({
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+}: {
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+}) {
+  const mats = SHARED_BUILDING_MATS;
+  return (
+    <group position={position} rotation={rotation}>
+
+      <mesh material={mats.timberDark} position={[0, 0.15, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.54, 0.28, 0.34]} />
+      </mesh>
+
+      <mesh material={mats.timberDark} position={[0, 0.30, 0]} castShadow>
+        <boxGeometry args={[0.56, 0.05, 0.36]} />
+      </mesh>
+
+      <mesh material={mats.ironHardware} position={[-0.18, 0.17, 0]} castShadow>
+        <boxGeometry args={[0.03, 0.31, 0.35]} />
+      </mesh>
+      <mesh material={mats.ironHardware} position={[0.18, 0.17, 0]} castShadow>
+        <boxGeometry args={[0.03, 0.31, 0.35]} />
+      </mesh>
+
+      <mesh material={mats.ironHardware} position={[0, 0.22, 0.18]} castShadow>
+        <boxGeometry args={[0.06, 0.08, 0.02]} />
+      </mesh>
+    </group>
+  );
+}
+

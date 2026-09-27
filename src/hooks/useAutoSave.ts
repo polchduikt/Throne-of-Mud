@@ -46,3 +46,4 @@ export function useAutoSave(grid: GridMap) {
     return () => clearInterval(interval);
   }, [grid, gameMode]);
 }
+

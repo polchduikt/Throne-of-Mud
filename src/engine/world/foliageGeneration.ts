@@ -26,3 +26,4 @@ export function getTreeProceduralData(x: number, z: number): TreeProceduralData 
 
   return { treeType, sc, rotY, jitterX, jitterZ };
 }
+

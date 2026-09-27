@@ -96,3 +96,4 @@ export const EventLog: React.FC = React.memo(() => {
 });
 
 EventLog.displayName = 'EventLog';
+

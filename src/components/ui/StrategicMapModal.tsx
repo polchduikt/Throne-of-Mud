@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { GridMap } from '../../engine/grid/GridMap';
 import { useGameStore } from '../../store/useGameStore';
 import { Eye } from 'lucide-react';
-import { 
-  MapParchmentIcon, 
-  CrossCloseIcon, 
-  ShieldIcon, 
-  PeasantsIcon, 
-  TownCenterIcon, 
-  GoldIcon, 
+import {
+  MapParchmentIcon,
+  CrossCloseIcon,
+  ShieldIcon,
+  PeasantsIcon,
+  TownCenterIcon,
+  GoldIcon,
 } from './MedievalIcons';
 import { StrategicMapCanvas } from './StrategicMapCanvas';
 import { useTranslation } from '../../i18n';
@@ -18,12 +18,12 @@ interface StrategicMapModalProps {
 }
 
 export function StrategicMapModal({ grid }: StrategicMapModalProps) {
-  const { 
-    regions, 
-    playerRegionId, 
-    isStrategicMapOpen, 
-    setIsStrategicMapOpen, 
-    focusOnRegion 
+  const {
+    regions,
+    playerRegionId,
+    isStrategicMapOpen,
+    setIsStrategicMapOpen,
+    focusOnRegion
   } = useGameStore();
 
   const { dict, language } = useTranslation();
@@ -48,7 +48,7 @@ export function StrategicMapModal({ grid }: StrategicMapModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 animate-in fade-in zoom-in-95 duration-200 select-none font-cinzel pointer-events-auto">
       <div className="relative w-full max-w-6xl h-[92vh] max-h-[850px] bg-[#1a140d] border-2 border-[#855e32] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden flex flex-col pointer-events-auto">
-        
+
         <div className="relative z-10 flex items-center justify-between px-6 py-3.5 bg-gradient-to-b from-[#2b1f13] to-[#1e150d] border-b border-[#634522]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-950/80 border border-amber-600/70 flex items-center justify-center shadow-inner text-amber-300">
@@ -79,7 +79,7 @@ export function StrategicMapModal({ grid }: StrategicMapModalProps) {
         </div>
 
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          
+
           <div className="lg:w-7/12 h-64 lg:h-full bg-[#120d08] p-4 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-[#4d351b] relative">
             <StrategicMapCanvas
               grid={grid}
@@ -212,3 +212,4 @@ export function StrategicMapModal({ grid }: StrategicMapModalProps) {
     </div>
   );
 }
+

@@ -2,20 +2,28 @@ export type TerrainType = 'grass' | 'fertile_soil' | 'water' | 'stone' | 'mud' |
 
 export type ToolType = 'select' | 'build' | 'chop' | 'mine' | 'harvest' | 'road';
 
-export type ResourceType = 
-  | 'wood' 
-  | 'stone' 
-  | 'wheat' 
-  | 'flour' 
-  | 'bread' 
-  | 'ale' 
-  | 'gold' 
+export type ResourceType =
+  | 'wood'
+  | 'stone'
+  | 'wheat'
+  | 'flour'
+  | 'bread'
+  | 'ale'
+  | 'gold'
   | 'weapons'
   | 'fish'
   | 'berries'
   | 'iron'
   | 'clay'
-  | 'salt';
+  | 'salt'
+  | 'meat'
+  | 'hides'
+  | 'iron_ore'
+  | 'coal'
+  | 'cut_stone'
+  | 'clay_bricks'
+  | 'planks'
+  | 'clothes';
 
 export interface ResourceInventory {
   wood: number;
@@ -31,6 +39,14 @@ export interface ResourceInventory {
   iron: number;
   clay: number;
   salt: number;
+  meat: number;
+  hides: number;
+  iron_ore: number;
+  coal: number;
+  cut_stone: number;
+  clay_bricks: number;
+  planks: number;
+  clothes: number;
 }
 
 export type ResourceDepositType = 'fish' | 'berries' | 'stone' | 'iron' | 'clay' | 'salt' | 'wild_game';
@@ -80,7 +96,7 @@ export interface Thought {
   durationTicks: number;
 }
 
-export type JobType = 
+export type JobType =
   | 'idle'
   | 'wander'
   | 'chop_tree'
@@ -96,6 +112,9 @@ export type JobType =
   | 'bake_bread'
   | 'brew_ale'
   | 'work_at_building'
+  | 'gather_berries'
+  | 'hunt_game'
+  | 'plant_tree'
   | 'visit_market'
   | 'patrol'
   | 'preach'
@@ -127,7 +146,7 @@ export interface Job {
   };
 }
 
-export type BuildingType = 
+export type BuildingType =
   | 'campfire'
   | 'tent'
   | 'lumberjack_hut'
@@ -142,7 +161,23 @@ export type BuildingType =
   | 'barracks'
   | 'wooden_wall'
   | 'wooden_gate'
-  | 'stone_wall';
+  | 'stone_wall'
+  | 'fishermans_hut'
+  | 'foragers_hut'
+  | 'hunters_hut'
+  | 'iron_mine'
+  | 'stone_quarry'
+  | 'clay_pit'
+  | 'salt_works'
+  | 'charcoal_kiln'
+  | 'iron_smelter'
+  | 'stonecutter'
+  | 'brickworks'
+  | 'sawmill'
+  | 'weavers_workshop'
+  | 'foresters_hut'
+  | 'wooden_church'
+  | 'tavern';
 
 export interface BuildingBlueprint {
   type: BuildingType;
@@ -151,7 +186,7 @@ export interface BuildingBlueprint {
   width: number;
   height: number;
   cost: Partial<ResourceInventory>;
-  category: 'housing' | 'agriculture' | 'production' | 'infrastructure' | 'military';
+  category: 'housing' | 'agriculture' | 'production' | 'infrastructure' | 'military' | 'gathering' | 'community';
   workSlots: number;
   bedsCount?: number;
   health: number;
@@ -186,11 +221,29 @@ export interface TileData {
 }
 
 export type SeasonType = 'Spring' | 'Summer' | 'Autumn' | 'Winter';
+export type MonthName =
+  | 'March'
+  | 'April'
+  | 'May'
+  | 'June'
+  | 'July'
+  | 'August'
+  | 'September'
+  | 'October'
+  | 'November'
+  | 'December'
+  | 'January'
+  | 'February';
 export type WeatherType = 'clear' | 'rain' | 'storm' | 'snow';
 
 export interface GameTime {
   tick: number;
   day: number;
+  dayOfMonth?: number;
+  month?: MonthName;
+  monthIndex?: number;
+  monthInSeason?: number;
+  year?: number;
   hour: number;
   minute: number;
   season: SeasonType;
@@ -260,3 +313,4 @@ export interface WorldSetupConfig {
   selectedSpawnPointId?: string;
   botCount: number;
 }
+

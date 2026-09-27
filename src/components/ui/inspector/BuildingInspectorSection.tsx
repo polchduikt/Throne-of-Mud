@@ -61,7 +61,7 @@ export function BuildingInspectorSection({
   const maxSlots = entity.workerSlots ?? blueprint?.workSlots ?? 1;
   const assignedWorkers = entity.assignedWorkers || [];
   const isHousing = blueprint?.category === 'housing';
-  const isProduction = blueprint?.category === 'production' || blueprint?.category === 'agriculture' || blueprint?.category === 'military' || bType === 'market';
+  const isProduction = blueprint?.category === 'production' || blueprint?.category === 'agriculture' || blueprint?.category === 'military' || blueprint?.category === 'gathering' || blueprint?.category === 'community' || (blueprint?.workSlots ?? 0) > 0 || bType === 'market' || bType === 'stockpile';
 
   const isDemolishPending = pendingJobs.some((j) => j.targetBuildingId === entity.id && j.type === 'demolish_structure') || Boolean(entity.isDemolishing);
   const refundWood = (blueprint?.cost?.wood || 0) + (entity.localInventory?.wood || 0);
@@ -161,64 +161,77 @@ export function BuildingInspectorSection({
 
       {entity.isCompleted && (blueprint?.maxStorage || entity.buildingType === 'lumberjack_hut' || entity.buildingType === 'stockpile') && (() => {
         const maxStorage = blueprint?.maxStorage || (entity.buildingType === 'lumberjack_hut' ? 20 : 100);
-        const storedWood = entity.localInventory?.wood || 0;
-        const isFull = storedWood >= maxStorage;
-        const pct = Math.min(100, Math.round((storedWood / maxStorage) * 100));
+        const inv = entity.localInventory || {};
+        const entries = Object.entries(inv).filter(([_, amt]) => (amt || 0) > 0);
+        const totalStored = entries.reduce((acc, [_, amt]) => acc + (amt || 0), 0);
+        const isFull = totalStored >= maxStorage;
+        const pct = Math.min(100, Math.round((totalStored / maxStorage) * 100));
 
         return (
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🪵</span>
+                <span>📦</span>
                 {dict.buildings.storage} ({dict.buildings.capacity})
               </span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border ${
                   isFull
                     ? 'bg-rose-950/80 text-rose-300 border-rose-600 animate-pulse'
-                    : storedWood > 0
+                    : totalStored > 0
                     ? 'bg-emerald-950/70 text-emerald-300 border-emerald-800/60'
                     : 'bg-slate-900 text-slate-400 border-slate-750'
                 }`}
               >
-                {isFull ? dict.buildings.storageFull : `${storedWood} / ${maxStorage}`}
+                {isFull ? dict.buildings.storageFull : `${totalStored} / ${maxStorage}`}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-300">{language === 'uk' ? 'Наявний запас:' : 'Current Stock:'}</span>
-              <span className="text-slate-400 flex items-center gap-1 font-medium">
-                <WoodIcon className="w-3.5 h-3.5 text-amber-500" />
-                {dict.hud.wood}:
-              </span>
-              <span className="font-mono font-bold text-amber-300">
-                {storedWood} / {maxStorage}
-              </span>
-            </div>
+            {entries.length > 0 ? (
+              <div className="flex flex-wrap gap-2 text-xs">
+                {entries.map(([res, amt]) => (
+                  <div key={res} className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                    <span className="text-slate-300 capitalize">{res}:</span>
+                    <span className="font-mono font-bold text-amber-300">{amt}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>{language === 'uk' ? 'Наявний запас:' : 'Current Stock:'}</span>
+                <span className="font-mono font-bold text-slate-500">0 / {maxStorage}</span>
+              </div>
+            )}
 
             <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all duration-300 ${
-                  isFull ? 'bg-rose-500' : storedWood > 14 ? 'bg-amber-400' : 'bg-emerald-500'
+                  isFull ? 'bg-rose-500' : totalStored > maxStorage * 0.7 ? 'bg-amber-400' : 'bg-emerald-500'
                 }`}
                 style={{ width: `${pct}%` }}
               />
             </div>
 
-            {isFull ? (
+            {entity.buildingType === 'stockpile' ? (
+              <span className="text-[10px] text-slate-400 leading-tight">
+                {language === 'uk'
+                  ? `Призначені носії (до 4) обходять лісопилки, мисливців та копальні, забираючи ресурси та звозячи їх на склад.`
+                  : `Assigned haulers (up to 4) visit production buildings across the settlement, gathering resources and keeping production flowing.`}
+              </span>
+            ) : isFull ? (
               <div className="text-[10px] text-amber-300 bg-amber-950/40 p-2 rounded-lg border border-amber-800/50 flex flex-col gap-0.5">
                 <span className="font-bold">{dict.buildings.storageFull} ({maxStorage}/{maxStorage})</span>
                 <span className="text-slate-300">
                   {language === 'uk'
-                    ? 'Лісоруби припинили вирубку лісу, щоб не винищувати дерева даремно. Витратьте деревину на будівництво, щоб відновити роботу.'
-                    : 'Woodcutters paused logging to avoid wasting felled timber. Consume logs for construction to resume operations.'}
+                    ? 'Сховище заповнене. Призначте робітників на Склад ресурсів, щоб носії автоматично забрали накопичені запаси.'
+                    : 'Storage is full. Assign haulers to the Stockpile to automatically collect accumulated goods.'}
                 </span>
               </div>
             ) : (
               <span className="text-[10px] text-slate-400 leading-tight">
                 {language === 'uk'
-                  ? `Лісоруби рубають навколишні дерева та заповнюють сховище хатини (до ${maxStorage} од.).`
-                  : `Workers harvest surrounding woodland and fill internal storage (up to ${maxStorage} logs).`}
+                  ? `Робітники наповнюють внутрішнє сховище (до ${maxStorage} од.). Носії зі складу періодично забирають ресурси.`
+                  : `Workers fill internal storage (up to ${maxStorage} units). Stockpile haulers periodically collect accumulated goods.`}
               </span>
             )}
           </div>
@@ -626,3 +639,4 @@ export function BuildingInspectorSection({
     </div>
   );
 }
+

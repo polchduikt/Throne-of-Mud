@@ -1,32 +1,31 @@
 import { World } from 'miniplex';
-import type { 
-  CharacterClass, 
-  CharacterNeeds, 
-  CharacterSkills, 
-  Job, 
-  ResourceInventory, 
+import type {
+  CharacterClass,
+  CharacterNeeds,
+  CharacterSkills,
+  Job,
+  ResourceInventory,
   BuildingType,
   Thought,
   ResourceDepositType
 } from '../../types/game';
 
-export type { 
-  CharacterClass, 
-  CharacterNeeds, 
-  CharacterSkills, 
-  Job, 
-  ResourceInventory, 
+export type {
+  CharacterClass,
+  CharacterNeeds,
+  CharacterSkills,
+  Job,
+  ResourceInventory,
   BuildingType,
   Thought,
   ResourceDepositType
 };
 
-
 export interface GameEntity {
   id: string;
   name?: string;
   avatarColor?: string;
-  
+
   isCharacter?: boolean;
   characterClass?: CharacterClass;
   title?: string;
@@ -74,6 +73,7 @@ export interface GameEntity {
   wage?: number;
   efficiencyBonus?: number;
   localInventory?: Partial<ResourceInventory>;
+  maxStorage?: number;
 
   isHarvestable?: boolean;
   resourceType?: 'wood' | 'stone' | 'wheat';
@@ -96,3 +96,4 @@ export const characterEntities = world.with('isCharacter', 'position', 'gridPosi
 export const buildingEntities = world.with('isBuilding', 'position', 'gridPosition', 'buildingType');
 export const resourceDepositEntities = world.with('isResourceDeposit', 'position', 'gridPosition');
 export const movingEntities = world.with('position', 'gridPosition', 'path');
+

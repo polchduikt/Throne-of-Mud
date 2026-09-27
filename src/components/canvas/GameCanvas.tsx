@@ -83,3 +83,4 @@ export function GameCanvas({ grid }: Props) {
     </div>
   );
 }
+

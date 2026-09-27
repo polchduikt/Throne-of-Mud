@@ -20,7 +20,9 @@ export interface TranslationDictionary {
     townCenter: string;
     day: string;
     days: string;
+    month: string;
     season: string;
+    year: string;
     loading: string;
     yes: string;
     no: string;
@@ -86,6 +88,20 @@ export interface TranslationDictionary {
       Autumn: string;
       Winter: string;
     };
+    months: {
+      March: string;
+      April: string;
+      May: string;
+      June: string;
+      July: string;
+      August: string;
+      September: string;
+      October: string;
+      November: string;
+      December: string;
+      January: string;
+      February: string;
+    };
     weather: {
       clear: string;
       rain: string;
@@ -117,6 +133,7 @@ export interface TranslationDictionary {
       industry: string;
       military: string;
       trade: string;
+      community: string;
     };
     items: Record<string, BuildingTranslation>;
     cost: string;

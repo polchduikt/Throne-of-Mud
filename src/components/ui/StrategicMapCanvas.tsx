@@ -615,3 +615,4 @@ export function StrategicMapCanvas({
     </div>
   );
 }
+

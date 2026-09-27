@@ -7,6 +7,29 @@ import {
   MAX_ENERGY,
   MIN_MOOD,
   MAX_MOOD,
+  MIN_ALE,
+  MAX_ALE,
+  HUNGER_DECAY_RATE,
+  WORKING_ENERGY_DECAY_RATE,
+  IDLE_ENERGY_DECAY_RATE,
+  ALE_DECAY_RATE,
+  HUNGER_EAT_THRESHOLD,
+  BREAD_HUNGER_RESTORE,
+  ALE_DRINK_THRESHOLD,
+  ALE_RESTORE_AMOUNT,
+  ALE_MOOD_RESTORE,
+  ALE_CONSUME_CHANCE,
+  SLEEP_ENERGY_RECOVERY_RATE,
+  BASE_TARGET_MOOD,
+  HUNGER_MOOD_PENALTY,
+  ENERGY_MOOD_PENALTY,
+  ALE_MOOD_BOOST,
+  ALE_BOOST_THRESHOLD,
+  ENERGY_LOW_THRESHOLD,
+  MOOD_LERP_FACTOR,
+  LOW_MOOD_THRESHOLD,
+  LOW_MOOD_SPEECH_CHANCE,
+  DEFAULT_SPEECH_DURATION_TICKS,
 } from '../../../constants/needs';
 import { clamp, lerp } from '../../../utils/mathUtils';
 
@@ -17,16 +40,19 @@ export class NeedsSystem {
     for (const unit of characterEntities) {
       if (!unit.needs) continue;
 
-      unit.needs.hunger = Math.max(MIN_HUNGER, unit.needs.hunger - 0.007);
+      unit.needs.hunger = Math.max(MIN_HUNGER, unit.needs.hunger - HUNGER_DECAY_RATE);
 
       const isWorking = unit.currentJob && unit.currentJob.type !== 'idle' && unit.currentJob.type !== 'sleep';
-      unit.needs.energy = Math.max(MIN_ENERGY, unit.needs.energy - (isWorking ? 0.010 : 0.003));
+      unit.needs.energy = Math.max(
+        MIN_ENERGY,
+        unit.needs.energy - (isWorking ? WORKING_ENERGY_DECAY_RATE : IDLE_ENERGY_DECAY_RATE)
+      );
 
-      unit.needs.ale = Math.max(0, unit.needs.ale - 0.004);
+      unit.needs.ale = Math.max(MIN_ALE, unit.needs.ale - ALE_DECAY_RATE);
 
-      if (unit.needs.hunger < 30 && resources.bread > 0) {
+      if (unit.needs.hunger < HUNGER_EAT_THRESHOLD && resources.bread > 0) {
         if (consumeResource('bread', 1)) {
-          unit.needs.hunger = Math.min(MAX_HUNGER, unit.needs.hunger + 45);
+          unit.needs.hunger = Math.min(MAX_HUNGER, unit.needs.hunger + BREAD_HUNGER_RESTORE);
           unit.speechBubble = {
             text: 'Смачний хліб!',
             expiresAtTick: currentTick + 20,
@@ -35,10 +61,10 @@ export class NeedsSystem {
         }
       }
 
-      if (unit.needs.ale < 25 && resources.ale > 0 && Math.random() < 0.02) {
+      if (unit.needs.ale < ALE_DRINK_THRESHOLD && resources.ale > 0 && Math.random() < ALE_CONSUME_CHANCE) {
         if (consumeResource('ale', 1)) {
-          unit.needs.ale = Math.min(100, unit.needs.ale + 50);
-          unit.needs.mood = Math.min(100, unit.needs.mood + 15);
+          unit.needs.ale = Math.min(MAX_ALE, unit.needs.ale + ALE_RESTORE_AMOUNT);
+          unit.needs.mood = Math.min(MAX_MOOD, unit.needs.mood + ALE_MOOD_RESTORE);
           unit.speechBubble = {
             text: 'Гарний ель гріє душу!',
             expiresAtTick: currentTick + 25,
@@ -48,14 +74,14 @@ export class NeedsSystem {
       }
 
       if (unit.currentJob?.type === 'sleep') {
-        unit.needs.energy = Math.min(MAX_ENERGY, unit.needs.energy + 0.35);
+        unit.needs.energy = Math.min(MAX_ENERGY, unit.needs.energy + SLEEP_ENERGY_RECOVERY_RATE);
       }
 
       if (unit.thoughts && unit.thoughts.length > 0) {
         for (const th of unit.thoughts) {
           th.durationTicks -= 1;
         }
-        unit.thoughts = unit.thoughts.filter(th => th.durationTicks > 0);
+        unit.thoughts = unit.thoughts.filter((th) => th.durationTicks > 0);
       }
 
       let thoughtsModifier = 0;
@@ -65,17 +91,17 @@ export class NeedsSystem {
         }
       }
 
-      let targetMood = 55 + thoughtsModifier;
-      if (unit.needs.hunger < 30) targetMood -= 30;
-      if (unit.needs.energy < 25) targetMood -= 20;
-      if (unit.needs.ale > 50) targetMood += 15;
+      let targetMood = BASE_TARGET_MOOD + thoughtsModifier;
+      if (unit.needs.hunger < HUNGER_EAT_THRESHOLD) targetMood -= HUNGER_MOOD_PENALTY;
+      if (unit.needs.energy < ENERGY_LOW_THRESHOLD) targetMood -= ENERGY_MOOD_PENALTY;
+      if (unit.needs.ale > ALE_BOOST_THRESHOLD) targetMood += ALE_MOOD_BOOST;
       targetMood = clamp(targetMood, MIN_MOOD, MAX_MOOD);
-      unit.needs.mood = lerp(unit.needs.mood, targetMood, 0.05);
+      unit.needs.mood = lerp(unit.needs.mood, targetMood, MOOD_LERP_FACTOR);
 
-      if (unit.needs.mood < 20 && Math.random() < 0.005) {
+      if (unit.needs.mood < LOW_MOOD_THRESHOLD && Math.random() < LOW_MOOD_SPEECH_CHANCE) {
         unit.speechBubble = {
           text: 'Селяни обурені умовами життя!',
-          expiresAtTick: currentTick + 30,
+          expiresAtTick: currentTick + DEFAULT_SPEECH_DURATION_TICKS,
           type: 'alert',
         };
       }

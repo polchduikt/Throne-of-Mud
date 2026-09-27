@@ -11,6 +11,7 @@ import {
   GoldIcon,
   StoneIcon,
   CrossCloseIcon,
+  PeasantsIcon,
 } from '../MedievalIcons';
 import { audioManager } from '../../../engine/audio/AudioManager';
 import { useTranslation } from '../../../i18n';
@@ -27,13 +28,14 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
   const setActiveTool = useGameStore((s) => s.setActiveTool);
   const resources = useGameStore((s) => s.resources);
 
-  const [activeCategory, setActiveCategory] = useState<'housing' | 'gathering' | 'farming' | 'industry' | 'military' | 'trade'>('housing');
+  const [activeCategory, setActiveCategory] = useState<'housing' | 'gathering' | 'farming' | 'industry' | 'community' | 'military' | 'trade'>('housing');
 
   const categories = [
     { id: 'housing', label: dict.buildings.categories.housing, icon: TownCenterIcon },
     { id: 'gathering', label: dict.buildings.categories.gathering, icon: WoodIcon },
     { id: 'farming', label: dict.buildings.categories.farming, icon: WheatIcon },
     { id: 'industry', label: dict.buildings.categories.industry, icon: BreadIcon },
+    { id: 'community', label: dict.buildings.categories.community, icon: PeasantsIcon },
     { id: 'military', label: dict.buildings.categories.military, icon: ShieldIcon },
     { id: 'trade', label: dict.buildings.categories.trade, icon: GoldIcon },
   ] as const;
@@ -45,7 +47,15 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
       BUILDING_BLUEPRINTS.manor,
     ].filter(Boolean),
     gathering: [
+      BUILDING_BLUEPRINTS.fishermans_hut,
+      BUILDING_BLUEPRINTS.foragers_hut,
+      BUILDING_BLUEPRINTS.hunters_hut,
       BUILDING_BLUEPRINTS.lumberjack_hut,
+      BUILDING_BLUEPRINTS.iron_mine,
+      BUILDING_BLUEPRINTS.stone_quarry,
+      BUILDING_BLUEPRINTS.clay_pit,
+      BUILDING_BLUEPRINTS.salt_works,
+      BUILDING_BLUEPRINTS.foresters_hut,
       BUILDING_BLUEPRINTS.stockpile,
       BUILDING_BLUEPRINTS.campfire,
     ].filter(Boolean),
@@ -56,6 +66,16 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
     industry: [
       BUILDING_BLUEPRINTS.bakery,
       BUILDING_BLUEPRINTS.brewery,
+      BUILDING_BLUEPRINTS.charcoal_kiln,
+      BUILDING_BLUEPRINTS.iron_smelter,
+      BUILDING_BLUEPRINTS.stonecutter,
+      BUILDING_BLUEPRINTS.brickworks,
+      BUILDING_BLUEPRINTS.sawmill,
+      BUILDING_BLUEPRINTS.weavers_workshop,
+    ].filter(Boolean),
+    community: [
+      BUILDING_BLUEPRINTS.tavern,
+      BUILDING_BLUEPRINTS.wooden_church,
     ].filter(Boolean),
     military: [
       BUILDING_BLUEPRINTS.barracks,
@@ -172,3 +192,4 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
 });
 
 BuildingsMenuModal.displayName = 'BuildingsMenuModal';
+

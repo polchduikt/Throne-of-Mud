@@ -212,16 +212,20 @@ export async function loadGameFromIndexedDB(grid: GridMap): Promise<boolean> {
     } else if (grid && deposits) {
       for (const dep of deposits) {
         if (dep.type !== 'fish') {
+          const clearRadius = dep.type === 'berries' ? 1.5 : 2.8;
+          const rSq = clearRadius * clearRadius;
+          const maxR = Math.ceil(clearRadius);
           const [gx, gz] = dep.gridPosition;
-          for (let dx = -2; dx <= 2; dx++) {
-            for (let dz = -2; dz <= 2; dz++) {
-              if (dx * dx + dz * dz > 5) continue;
-              const tx = gx + dx;
-              const tz = gz + dz;
-              const t = grid.getTile(tx, tz);
-              if (t && t.terrain !== 'water') {
-                if (t.foliageType === 'tree' || t.foliageType === 'rock') {
+          for (let dx = -maxR; dx <= maxR; dx++) {
+            for (let dz = -maxR; dz <= maxR; dz++) {
+              if (dx * dx + dz * dz <= rSq) {
+                const tx = gx + dx;
+                const tz = gz + dz;
+                const t = grid.getTile(tx, tz);
+                if (t && t.terrain !== 'water') {
                   t.foliageType = undefined;
+                  t.foliageAngle = undefined;
+                  t.foliageTreeType = undefined;
                   t.isPassable = true;
                   t.movementCost = 1.0;
                 }
@@ -364,3 +368,4 @@ export async function deleteSavedGame(): Promise<boolean> {
     return false;
   }
 }
+

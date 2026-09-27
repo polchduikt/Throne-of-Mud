@@ -363,3 +363,4 @@ export function makeTextureFromCanvas(canvas: HTMLCanvasElement, repX = 1, repY 
   tex.magFilter = THREE.LinearFilter;
   return tex;
 }
+

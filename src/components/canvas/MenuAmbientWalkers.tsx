@@ -167,3 +167,4 @@ export function MenuAmbientWalkers({ grid }: Props) {
 
   return null;
 }
+

@@ -103,3 +103,4 @@ export function useKeyboardShortcuts({ onFocusTownCenter }: UseKeyboardShortcuts
     };
   }, [gameMode, togglePause, setSpeedMultiplier, onFocusTownCenter]);
 }
+

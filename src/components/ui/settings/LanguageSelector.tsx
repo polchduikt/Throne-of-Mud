@@ -45,3 +45,4 @@ export const LanguageSelector: React.FC = React.memo(() => {
 });
 
 LanguageSelector.displayName = 'LanguageSelector';
+

@@ -1142,3 +1142,4 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
     </group>
   );
 }
+

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGameStore } from '../../store/useGameStore';
-import type { SeasonType, WeatherType } from '../../types/game';
+import type { SeasonType, WeatherType, MonthName } from '../../types/game';
 import {
   CrossCloseIcon,
   SpringSeasonIcon,
@@ -25,12 +25,20 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 
+const SEASON_MONTHS: Record<SeasonType, MonthName[]> = {
+  Spring: ['March', 'April', 'May'],
+  Summer: ['June', 'July', 'August'],
+  Autumn: ['September', 'October', 'November'],
+  Winter: ['December', 'January', 'February'],
+};
+
 export function WeatherDebugModal() {
   const { dict } = useTranslation();
 
   const isWeatherDebugOpen = useGameStore((s) => s.isWeatherDebugOpen);
   const setIsWeatherDebugOpen = useGameStore((s) => s.setIsWeatherDebugOpen);
   const season = useGameStore((s) => s.time.season);
+  const month = useGameStore((s) => s.time.month);
   const weather = useGameStore((s) => s.time.weather);
   const targetWeather = useGameStore((s) => s.time.targetWeather || s.time.weather);
   const nextWeather = useGameStore((s) => s.time.nextWeather);
@@ -39,6 +47,7 @@ export function WeatherDebugModal() {
   const hour = useGameStore((s) => s.time.hour);
 
   const setSeason = useGameStore((s) => s.setSeason);
+  const setMonth = useGameStore((s) => s.setMonth);
   const setWeather = useGameStore((s) => s.setWeather);
   const setWeatherLocked = useGameStore((s) => s.setWeatherLocked);
   const triggerLightning = useGameStore((s) => s.triggerLightning);
@@ -64,7 +73,7 @@ export function WeatherDebugModal() {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm select-none animate-in fade-in duration-150 pointer-events-auto">
       <div className="relative w-full max-w-lg bg-[#121418]/98 border-2 border-[#5a4830] rounded-2xl shadow-[0_16px_50px_rgba(0,0,0,0.95)] text-slate-200 font-cinzel overflow-hidden pointer-events-auto">
-        
+
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#3d3222] bg-gradient-to-r from-amber-950/40 via-transparent to-amber-950/20">
           <div className="flex items-center gap-2">
             <CompassIcon className="w-5 h-5 text-amber-400" />
@@ -97,26 +106,58 @@ export function WeatherDebugModal() {
               </span>
               <span className="text-[11px] font-mono text-slate-400">
                 {dict.common.season}: <strong className="text-amber-200">{(dict.hud.seasons as any)[season] || season}</strong>
+                {month && dict.hud.months && (
+                  <span className="text-amber-300 ml-1.5">
+                    • {dict.hud.months[month] || month}
+                  </span>
+                )}
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {seasonsList.map((s) => {
                 const Icon = s.icon;
-                const isActive = season === s.id;
+                const isActiveSeason = season === s.id;
+                const months = SEASON_MONTHS[s.id];
                 return (
-                  <button
+                  <div
                     key={s.id}
-                    onClick={() => setSeason(s.id)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition group text-center cursor-pointer ${
-                      isActive
-                        ? 'bg-amber-600/30 border-amber-500 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.25)] ring-1 ring-amber-400'
-                        : 'bg-[#181a20] border-[#3d3222] text-slate-300 hover:border-amber-600/60 hover:bg-[#20222a]'
+                    className={`flex flex-col p-2.5 rounded-xl border transition ${
+                      isActiveSeason
+                        ? 'bg-amber-600/20 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.25)] ring-1 ring-amber-400'
+                        : 'bg-[#181a20] border-[#3d3222]'
                     }`}
                   >
-                    <Icon className="w-6 h-6 mb-1.5 text-amber-300 group-hover:scale-110 transition-transform drop-shadow" />
-                    <span className="font-cinzel text-xs font-bold">{s.label}</span>
-                  </button>
+                    <button
+                      onClick={() => setSeason(s.id)}
+                      className="flex flex-col items-center justify-center p-1.5 mb-2 rounded-lg hover:bg-amber-950/30 transition text-center cursor-pointer group"
+                    >
+                      <Icon className="w-5 h-5 mb-1 text-amber-300 group-hover:scale-110 transition-transform drop-shadow" />
+                      <span className={`font-cinzel text-xs font-bold ${isActiveSeason ? 'text-amber-200' : 'text-slate-300'}`}>
+                        {s.label}
+                      </span>
+                    </button>
+
+                    <div className="flex flex-col gap-1 border-t border-[#3d3222]/80 pt-1.5">
+                      {months.map((m) => {
+                        const isCurrentMonth = month === m;
+                        const label = dict.hud.months ? dict.hud.months[m] || m : m;
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => setMonth(m)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-cinzel text-center transition cursor-pointer ${
+                              isCurrentMonth
+                                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                                : 'bg-[#121418] hover:bg-amber-950/40 text-slate-400 hover:text-amber-200 border border-[#2d251a]'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -285,3 +326,4 @@ export function WeatherDebugModal() {
     </div>
   );
 }
+
