@@ -77,399 +77,342 @@ export function getBuildingFloorHeight(bType?: string): number {
   }
 }
 
+function getBuildingCenter(building: GameEntity): [number, number] {
+  const bType = building.buildingType || 'peasant_house';
+  const [defW, defH] = getBuildingDimensions(bType);
+  const cx = building.position ? building.position[0] : (building.gridPosition ? building.gridPosition[0] + defW / 2 : 0);
+  const cz = building.position ? building.position[2] : (building.gridPosition ? building.gridPosition[1] + defH / 2 : 0);
+  return [cx, cz];
+}
+
+function localToWorldPt(
+  cx: number,
+  cz: number,
+  rot: number,
+  lx: number,
+  lz: number
+): [number, number] {
+  if (Math.abs(rot) < 0.0001) {
+    return [cx + lx, cz + lz];
+  }
+  const cos = Math.cos(rot);
+  const sin = Math.sin(rot);
+  return [
+    cx + lx * cos + lz * sin,
+    cz - lx * sin + lz * cos,
+  ];
+}
+
+function localToTilePt(
+  cx: number,
+  cz: number,
+  rot: number,
+  lx: number,
+  lz: number
+): [number, number] {
+  const [wx, wz] = localToWorldPt(cx, cz, rot, lx, lz);
+  return [Math.floor(wx), Math.floor(wz)];
+}
+
 export function getBuildingDoorInfo(building: GameEntity): {
   doorApproachPos: [number, number];
   doorWorldPos: [number, number];
   intermediatePos?: [number, number];
 } {
-  const [bx, bz] = building.gridPosition || [0, 0];
   const bType = building.buildingType || 'peasant_house';
-  const [defW, defH] = getBuildingDimensions(bType);
-  const w = building.buildingWidth || defW;
-  const h = building.buildingHeight || defH;
-  const centerX = bx + w / 2;
-  const centerZ = bz + h / 2;
+  const [, defH] = getBuildingDimensions(bType);
+  const rot = building.rotationAngle || 0;
+  const [cx, cz] = getBuildingCenter(building);
+
+  let localDoorApproach: [number, number];
+  let localDoorPos: [number, number];
+  let localIntermediate: [number, number] | undefined = undefined;
 
   switch (bType) {
     case 'market': {
-      return {
-        doorApproachPos: [bx + 2, bz + 2],
-        doorWorldPos: [centerX, centerZ + 0.75],
-        intermediatePos: [centerX, centerZ - 0.55],
-      };
+      localDoorApproach = [0, 1.6];
+      localDoorPos = [0, 0.75];
+      localIntermediate = [0, -0.55];
+      break;
     }
     case 'bakery': {
-      return {
-        doorApproachPos: [bx + 3, bz + 2],
-        doorWorldPos: [centerX + 1.05, centerZ + 0.88],
-        intermediatePos: [centerX, centerZ + 0.08],
-      };
+      localDoorApproach = [1.05, 1.5];
+      localDoorPos = [1.05, 0.88];
+      localIntermediate = [0, 0.08];
+      break;
     }
     case 'brewery': {
-      return {
-        doorApproachPos: [bx + 2, bz + 2],
-        doorWorldPos: [centerX + 0.15, centerZ + 0.88],
-      };
+      localDoorApproach = [0.15, 1.5];
+      localDoorPos = [0.15, 0.88];
+      break;
     }
     case 'lumberjack_hut': {
-      return {
-        doorApproachPos: [bx + 2, bz + 2],
-        doorWorldPos: [centerX + 0.15, centerZ + 0.88],
-      };
+      localDoorApproach = [0.15, 1.5];
+      localDoorPos = [0.15, 0.88];
+      break;
     }
     case 'barracks': {
-      return {
-        doorApproachPos: [bx + 2, bz + 3],
-        doorWorldPos: [centerX, centerZ + 1.35],
-      };
+      localDoorApproach = [0, 2.0];
+      localDoorPos = [0, 1.35];
+      break;
     }
     case 'windmill': {
-      return {
-        doorApproachPos: [bx + 1, bz + 3],
-        doorWorldPos: [centerX, centerZ + 1.25],
-      };
+      localDoorApproach = [0, 1.8];
+      localDoorPos = [0, 1.25];
+      break;
     }
     case 'tent': {
-      return {
-        doorApproachPos: [bx + 1, bz + 2],
-        doorWorldPos: [centerX - 0.45, centerZ + 0.85],
-      };
+      localDoorApproach = [-0.45, 1.4];
+      localDoorPos = [-0.45, 0.85];
+      break;
     }
     case 'manor': {
-      return {
-        doorApproachPos: [bx + 2, bz + 4],
-        doorWorldPos: [centerX, centerZ + 1.88],
-      };
+      localDoorApproach = [0, 2.5];
+      localDoorPos = [0, 1.88];
+      break;
     }
     case 'wooden_church':
     case 'tavern': {
-      return {
-        doorApproachPos: [bx + 2, bz + 3],
-        doorWorldPos: [centerX, centerZ + 1.38],
-      };
+      localDoorApproach = [0, 2.0];
+      localDoorPos = [0, 1.38];
+      break;
     }
     case 'peasant_house':
     default: {
-      if (h === 3) {
-        return {
-          doorApproachPos: [bx + Math.floor(w / 2), bz + 3],
-          doorWorldPos: [centerX, centerZ + 1.38],
-        };
+      if (defH === 3) {
+        localDoorApproach = [0, 2.0];
+        localDoorPos = [0, 1.38];
+      } else {
+        localDoorApproach = [0, 1.5];
+        localDoorPos = [0, 0.88];
       }
-      return {
-        doorApproachPos: [bx + Math.floor(w / 2), bz + 2],
-        doorWorldPos: [centerX, centerZ + 0.88],
-      };
+      break;
     }
   }
+
+  return {
+    doorApproachPos: localToTilePt(cx, cz, rot, localDoorApproach[0], localDoorApproach[1]),
+    doorWorldPos: localToWorldPt(cx, cz, rot, localDoorPos[0], localDoorPos[1]),
+    intermediatePos: localIntermediate ? localToWorldPt(cx, cz, rot, localIntermediate[0], localIntermediate[1]) : undefined,
+  };
 }
 
 export function getBuildingWorkstation(
   building: GameEntity,
   workerIndex: number = 0
 ): WorkstationInfo {
-  const [bx, bz] = building.gridPosition || [0, 0];
   const bType = building.buildingType || 'peasant_house';
-  const [defW, defH] = getBuildingDimensions(bType);
-  const w = building.buildingWidth || defW;
-  const h = building.buildingHeight || defH;
-  const centerX = bx + w / 2;
-  const centerZ = bz + h / 2;
+  const rot = building.rotationAngle || 0;
+  const [cx, cz] = getBuildingCenter(building);
   const door = getBuildingDoorInfo(building);
+
+  let localWorkPos: [number, number];
+  let localFacingTarget: [number, number];
 
   switch (bType) {
     case 'market': {
       const isRightStall = workerIndex === 1;
       const xOff = isRightStall ? 0.9 : -0.9;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        intermediatePos: door.intermediatePos,
-        workWorldPos: [centerX + xOff, centerZ - 0.55],
-        facingTarget: [centerX + xOff, centerZ + 1.2],
-      };
+      localWorkPos = [xOff, -0.55];
+      localFacingTarget = [xOff, 1.2];
+      break;
     }
     case 'bakery': {
       if (workerIndex === 1) {
-        return {
-          doorApproachPos: door.doorApproachPos,
-          doorWorldPos: door.doorWorldPos,
-          workWorldPos: [centerX + 1.15, centerZ + 0.30],
-          facingTarget: [centerX + 1.15, centerZ - 0.35],
-        };
+        localWorkPos = [1.15, 0.30];
+        localFacingTarget = [1.15, -0.35];
+      } else {
+        localWorkPos = [-0.95, 0.45];
+        localFacingTarget = [-0.95, 1.6];
       }
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        intermediatePos: door.intermediatePos,
-        workWorldPos: [centerX - 0.95, centerZ + 0.45],
-        facingTarget: [centerX - 0.95, centerZ + 1.6],
-      };
+      break;
     }
     case 'brewery': {
       if (workerIndex === 1) {
-        return {
-          doorApproachPos: door.doorApproachPos,
-          doorWorldPos: door.doorWorldPos,
-          workWorldPos: [centerX + 0.85, centerZ - 0.28],
-          facingTarget: [centerX + 1.38, centerZ - 0.28],
-        };
+        localWorkPos = [0.85, -0.28];
+        localFacingTarget = [1.38, -0.28];
+      } else {
+        localWorkPos = [-0.25, -0.2];
+        localFacingTarget = [-0.75, -0.2];
       }
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX - 0.25, centerZ - 0.2],
-        facingTarget: [centerX - 0.75, centerZ - 0.2],
-      };
+      break;
     }
     case 'lumberjack_hut': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + 1.38, centerZ],
-        facingTarget: [centerX + 1.38, centerZ - 0.5],
-      };
+      localWorkPos = [1.38, 0];
+      localFacingTarget = [1.38, -0.5];
+      break;
     }
     case 'barracks': {
-      const workX = workerIndex === 1 ? centerX + 1.2 : centerX - 1.2;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [workX, centerZ],
-        facingTarget: [workX, centerZ - 1.0],
-      };
+      const workX = workerIndex === 1 ? 1.2 : -1.2;
+      localWorkPos = [workX, 0];
+      localFacingTarget = [workX, -1.0];
+      break;
     }
     case 'windmill': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX, centerZ],
-        facingTarget: [centerX - 0.5, centerZ],
-      };
+      localWorkPos = [0, 0];
+      localFacingTarget = [-0.5, 0];
+      break;
     }
     case 'manor': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX, centerZ - 0.8],
-        facingTarget: [centerX, centerZ + 1.0],
-      };
+      localWorkPos = [0, -0.8];
+      localFacingTarget = [0, 1.0];
+      break;
     }
     case 'stockpile': {
       const offsets = [-1.25, -0.4, 0.4, 1.25];
       const xOff = offsets[workerIndex % 4] || 0;
-      return {
-        doorApproachPos: [Math.floor(centerX + xOff), bz + h],
-        doorWorldPos: [centerX + xOff, centerZ + 0.88],
-        workWorldPos: [centerX + xOff, centerZ + 0.2],
-        facingTarget: [centerX + xOff, centerZ - 0.6],
-      };
+      localWorkPos = [xOff, 0.2];
+      localFacingTarget = [xOff, -0.6];
+      break;
     }
     case 'fishermans_hut': {
       if (workerIndex === 1) {
-        return {
-          doorApproachPos: door.doorApproachPos,
-          doorWorldPos: door.doorWorldPos,
-          workWorldPos: [centerX + 0.6, centerZ],
-          facingTarget: [centerX + 0.6, centerZ - 0.8],
-        };
+        localWorkPos = [0.6, 0];
+        localFacingTarget = [0.6, -0.8];
+      } else {
+        localWorkPos = [-0.6, -0.3];
+        localFacingTarget = [-0.6, -1.2];
       }
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX - 0.6, centerZ - 0.3],
-        facingTarget: [centerX - 0.6, centerZ - 1.2],
-      };
+      break;
     }
     case 'foragers_hut': {
       if (workerIndex === 1) {
-        return {
-          doorApproachPos: door.doorApproachPos,
-          doorWorldPos: door.doorWorldPos,
-          workWorldPos: [centerX + 0.5, centerZ],
-          facingTarget: [centerX + 0.5, centerZ - 0.8],
-        };
+        localWorkPos = [0.5, 0];
+        localFacingTarget = [0.5, -0.8];
+      } else {
+        localWorkPos = [-0.5, 0];
+        localFacingTarget = [-0.5, 0.8];
       }
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX - 0.5, centerZ],
-        facingTarget: [centerX - 0.5, centerZ + 0.8],
-      };
+      break;
     }
     case 'hunters_hut': {
       if (workerIndex === 1) {
-        return {
-          doorApproachPos: door.doorApproachPos,
-          doorWorldPos: door.doorWorldPos,
-          workWorldPos: [centerX - 0.6, centerZ],
-          facingTarget: [centerX - 0.6, centerZ - 0.8],
-        };
+        localWorkPos = [-0.6, 0];
+        localFacingTarget = [-0.6, -0.8];
+      } else {
+        localWorkPos = [0.6, -0.2];
+        localFacingTarget = [0.6, 0.8];
       }
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + 0.6, centerZ - 0.2],
-        facingTarget: [centerX + 0.6, centerZ + 0.8],
-      };
+      break;
     }
     case 'iron_mine': {
       const xOff = workerIndex === 1 ? -1.0 : workerIndex === 2 ? 1.0 : 0;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ - 1.0],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, -1.0];
+      break;
     }
     case 'stone_quarry': {
       const xOff = workerIndex === 1 ? 0.9 : workerIndex === 2 ? 0 : -0.9;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ - 1.0],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, -1.0];
+      break;
     }
     case 'clay_pit': {
       const xOff = workerIndex === 1 ? 0.7 : -0.7;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ - 1.0],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, -1.0];
+      break;
     }
     case 'salt_works': {
       const xOff = workerIndex === 1 ? 0.8 : -0.8;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ - 1.0],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, -1.0];
+      break;
     }
     case 'charcoal_kiln': {
       const xOff = workerIndex === 1 ? -0.8 : 0.4;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ + 0.2],
-        facingTarget: [centerX + xOff, centerZ - 0.8],
-      };
+      localWorkPos = [xOff, 0.2];
+      localFacingTarget = [xOff, -0.8];
+      break;
     }
     case 'iron_smelter': {
       const xOff = workerIndex === 1 ? 0.8 : -0.8;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX, centerZ],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [0, 0];
+      break;
     }
     case 'stonecutter': {
       const xOff = workerIndex === 1 ? 0.6 : -0.6;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ + 0.8],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, 0.8];
+      break;
     }
     case 'brickworks': {
       const xOff = workerIndex === 1 ? 0.8 : -0.8;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ - 1.0],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, -1.0];
+      break;
     }
     case 'sawmill': {
       const xOff = workerIndex === 1 ? 1.0 : -0.8;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX, centerZ],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [0, 0];
+      break;
     }
     case 'weavers_workshop': {
       const xOff = workerIndex === 1 ? 0.7 : -0.7;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ - 0.8],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, -0.8];
+      break;
     }
     case 'foresters_hut': {
       const xOff = workerIndex === 1 ? 0.6 : -0.6;
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX + xOff, centerZ],
-        facingTarget: [centerX + xOff, centerZ + 0.8],
-      };
+      localWorkPos = [xOff, 0];
+      localFacingTarget = [xOff, 0.8];
+      break;
     }
     case 'wooden_church': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX, centerZ - 0.8],
-        facingTarget: [centerX, centerZ + 0.8],
-      };
+      localWorkPos = [0, -0.8];
+      localFacingTarget = [0, 0.8];
+      break;
     }
     case 'tavern': {
       if (workerIndex === 1) {
-        return {
-          doorApproachPos: door.doorApproachPos,
-          doorWorldPos: door.doorWorldPos,
-          workWorldPos: [centerX + 0.5, centerZ + 0.2],
-          facingTarget: [centerX - 0.4, centerZ + 0.2],
-        };
+        localWorkPos = [0.5, 0.2];
+        localFacingTarget = [-0.4, 0.2];
+      } else {
+        localWorkPos = [-0.95, -0.4];
+        localFacingTarget = [-0.2, -0.4];
       }
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX - 0.95, centerZ - 0.4],
-        facingTarget: [centerX - 0.2, centerZ - 0.4],
-      };
+      break;
     }
     default: {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        workWorldPos: [centerX, centerZ],
-        facingTarget: [centerX, centerZ + 1.0],
-      };
+      localWorkPos = [0, 0];
+      localFacingTarget = [0, 1.0];
+      break;
     }
   }
+
+  return {
+    doorApproachPos: door.doorApproachPos,
+    doorWorldPos: door.doorWorldPos,
+    intermediatePos: door.intermediatePos,
+    workWorldPos: localToWorldPt(cx, cz, rot, localWorkPos[0], localWorkPos[1]),
+    facingTarget: localToWorldPt(cx, cz, rot, localFacingTarget[0], localFacingTarget[1]),
+  };
 }
 
 export function getBuildingSleepSpot(
   building: GameEntity,
   bedIndex: number = 0
 ): SleepSpotInfo {
-  const [bx, bz] = building.gridPosition || [0, 0];
   const bType = building.buildingType || 'peasant_house';
-  const [defW, defH] = getBuildingDimensions(bType);
-  const w = building.buildingWidth || defW;
-  const h = building.buildingHeight || defH;
-  const centerX = bx + w / 2;
-  const centerZ = bz + h / 2;
+  const rot = building.rotationAngle || 0;
+  const [cx, cz] = getBuildingCenter(building);
   const door = getBuildingDoorInfo(building);
   const buildingBaseY = building.position ? building.position[1] : 0.05;
 
+  let localBedPos: [number, number];
+  let bedY: number;
+  let localFacingAngle: number = 0;
+  let localIntermediatePos: [number, number] | undefined = undefined;
+
   switch (bType) {
     case 'tent': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        bedWorldPos: [centerX + 0.55, centerZ],
-        bedY: buildingBaseY + 0.055,
-        facingAngle: 0,
-      };
+      localBedPos = [0.55, 0];
+      bedY = buildingBaseY + 0.055;
+      localFacingAngle = 0;
+      break;
     }
     case 'manor': {
       const manorOffsets: [number, number][] = [
@@ -479,47 +422,49 @@ export function getBuildingSleepSpot(
         [1.55, 0.4],
       ];
       const off = manorOffsets[bedIndex % manorOffsets.length];
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        bedWorldPos: [centerX + off[0], centerZ + off[1]],
-        bedY: buildingBaseY + 0.48,
-        facingAngle: 0,
-        intermediatePos: [centerX - 1.25, centerZ + 1.1],
-      };
+      localBedPos = [off[0], off[1]];
+      bedY = buildingBaseY + 0.48;
+      localFacingAngle = 0;
+      localIntermediatePos = [-1.25, 1.1];
+      break;
     }
     case 'lumberjack_hut': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        bedWorldPos: [centerX - 1.25, centerZ - 0.2],
-        bedY: buildingBaseY + 0.37,
-        facingAngle: 0,
-        intermediatePos: [centerX, centerZ + 0.3],
-      };
+      localBedPos = [-1.25, -0.2];
+      bedY = buildingBaseY + 0.37;
+      localFacingAngle = 0;
+      localIntermediatePos = [0, 0.3];
+      break;
     }
     case 'barracks': {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        bedWorldPos: [centerX - 1.65, centerZ - 0.5],
-        bedY: bedIndex === 1 ? buildingBaseY + 0.81 : buildingBaseY + 0.45,
-        facingAngle: -Math.PI / 2,
-        intermediatePos: [centerX, centerZ + 0.4],
-      };
+      localBedPos = [-1.65, -0.5];
+      bedY = bedIndex === 1 ? buildingBaseY + 0.81 : buildingBaseY + 0.45;
+      localFacingAngle = Math.PI / 2;
+      localIntermediatePos = [0, 0.4];
+      break;
     }
     case 'peasant_house':
     default: {
-      return {
-        doorApproachPos: door.doorApproachPos,
-        doorWorldPos: door.doorWorldPos,
-        bedWorldPos: [centerX + (bedIndex === 1 ? 1.25 : -1.25), centerZ - 0.15],
-        bedY: buildingBaseY + 0.37,
-        facingAngle: 0,
-        intermediatePos: [centerX, centerZ + 0.3],
-      };
+      localBedPos = [bedIndex === 1 ? 1.25 : -1.25, -0.15];
+      bedY = buildingBaseY + 0.37;
+      localFacingAngle = 0;
+      localIntermediatePos = [0, 0.3];
+      break;
     }
   }
+
+  const bedWorldPos = localToWorldPt(cx, cz, rot, localBedPos[0], localBedPos[1]);
+  const intermediatePos = localIntermediatePos
+    ? localToWorldPt(cx, cz, rot, localIntermediatePos[0], localIntermediatePos[1])
+    : door.intermediatePos;
+
+  return {
+    doorApproachPos: door.doorApproachPos,
+    doorWorldPos: door.doorWorldPos,
+    bedWorldPos,
+    bedY,
+    facingAngle: localFacingAngle + rot,
+    intermediatePos,
+  };
 }
 
 export function getCampfireSitSpot(campfire: GameEntity, seatIndex: number): CampfireSitSpotInfo {
@@ -529,14 +474,14 @@ export function getCampfireSitSpot(campfire: GameEntity, seatIndex: number): Cam
   const campH = campfire.position ? campfire.position[1] : 0.05;
 
   const benchSeats: { offset: [number, number]; approachOffset: [number, number]; angle: number }[] = [
-    { offset: [-0.75, -0.2], approachOffset: [-1, 0], angle: Math.PI / 2 },
-    { offset: [-0.75, 0.2], approachOffset: [-1, 1], angle: Math.PI / 2 },
-    { offset: [0.75, -0.2], approachOffset: [2, 0], angle: -Math.PI / 2 },
-    { offset: [0.75, 0.2], approachOffset: [2, 1], angle: -Math.PI / 2 },
-    { offset: [-0.2, -0.75], approachOffset: [0, -1], angle: 0 },
-    { offset: [0.2, -0.75], approachOffset: [1, -1], angle: 0 },
-    { offset: [-0.2, 0.75], approachOffset: [0, 2], angle: Math.PI },
-    { offset: [0.2, 0.75], approachOffset: [1, 2], angle: Math.PI },
+    { offset: [-0.85, -0.32], approachOffset: [-1, 0], angle: Math.PI / 2 },
+    { offset: [-0.85, 0.32], approachOffset: [-1, 1], angle: Math.PI / 2 },
+    { offset: [0.85, -0.32], approachOffset: [2, 0], angle: -Math.PI / 2 },
+    { offset: [0.85, 0.32], approachOffset: [2, 1], angle: -Math.PI / 2 },
+    { offset: [-0.32, -0.85], approachOffset: [0, -1], angle: 0 },
+    { offset: [0.32, -0.85], approachOffset: [1, -1], angle: 0 },
+    { offset: [-0.32, 0.85], approachOffset: [0, 2], angle: Math.PI },
+    { offset: [0.32, 0.85], approachOffset: [1, 2], angle: Math.PI },
   ];
 
   if (seatIndex < benchSeats.length) {
@@ -551,8 +496,10 @@ export function getCampfireSitSpot(campfire: GameEntity, seatIndex: number): Cam
   }
 
   const extraIndex = seatIndex - benchSeats.length;
-  const rad = 1.45;
-  const angle = (extraIndex * (Math.PI / 4) + Math.PI / 8) % (Math.PI * 2);
+  const ring = Math.floor(extraIndex / 8);
+  const ringIndex = extraIndex % 8;
+  const rad = 1.45 + ring * 0.55;
+  const angle = (ringIndex * (Math.PI / 4) + Math.PI / 8 + ring * 0.25) % (Math.PI * 2);
   const px = cx + Math.cos(angle) * rad;
   const pz = cz + Math.sin(angle) * rad;
   const facing = Math.atan2(cx - px, cz - pz);
@@ -601,17 +548,32 @@ export function findBuildingContainingPos(
   buildings: Iterable<GameEntity>
 ): GameEntity | undefined {
   for (const b of buildings) {
-    if (!b.gridPosition || !b.isCompleted) continue;
+    if (!b.isCompleted) continue;
     const [defW, defH] = getBuildingDimensions(b.buildingType);
-    const w = b.buildingWidth || defW;
-    const h = b.buildingHeight || defH;
-    if (
-      worldX >= b.gridPosition[0] - 0.20 &&
-      worldX <= b.gridPosition[0] + w + 0.20 &&
-      worldZ >= b.gridPosition[1] - 0.20 &&
-      worldZ <= b.gridPosition[1] + h + 0.20
-    ) {
-      return b;
+    if (b.position) {
+      const cx = b.position[0];
+      const cz = b.position[2];
+      const rot = b.rotationAngle || 0;
+      const dx = worldX - cx;
+      const dz = worldZ - cz;
+      const cos = Math.cos(rot);
+      const sin = Math.sin(rot);
+      const lx = dx * cos - dz * sin;
+      const lz = dx * sin + dz * cos;
+      if (Math.abs(lx) <= defW / 2 + 0.35 && Math.abs(lz) <= defH / 2 + 0.35) {
+        return b;
+      }
+    } else if (b.gridPosition) {
+      const w = b.buildingWidth || defW;
+      const h = b.buildingHeight || defH;
+      if (
+        worldX >= b.gridPosition[0] - 0.20 &&
+        worldX <= b.gridPosition[0] + w + 0.20 &&
+        worldZ >= b.gridPosition[1] - 0.20 &&
+        worldZ <= b.gridPosition[1] + h + 0.20
+      ) {
+        return b;
+      }
     }
   }
   return undefined;
@@ -628,15 +590,9 @@ export function createPathToInterior(
   startPos?: [number, number, number],
   targetBuilding?: GameEntity
 ): [number, number][] | null {
-  if (startPos && targetBuilding && targetBuilding.gridPosition) {
-    const [bx, bz] = targetBuilding.gridPosition;
-    const [w, h] = getBuildingDimensions(targetBuilding.buildingType);
-    if (
-      startPos[0] >= bx - 0.25 &&
-      startPos[0] <= bx + w + 0.25 &&
-      startPos[2] >= bz - 0.25 &&
-      startPos[2] <= bz + h + 0.25
-    ) {
+  if (startPos && targetBuilding) {
+    const isInsideTarget = findBuildingContainingPos(startPos[0], startPos[2], [targetBuilding]);
+    if (isInsideTarget) {
       const distToDest = Math.hypot(startPos[0] - destWorldPos[0], startPos[2] - destWorldPos[1]);
       if (distToDest < 0.6) {
         return [];

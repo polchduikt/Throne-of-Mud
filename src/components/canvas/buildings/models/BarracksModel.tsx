@@ -143,9 +143,6 @@ export function BarracksModel({
         <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0.28, 0.41, 0.12]}>
           <cylinderGeometry args={[0.015, 0.02, 0.08, 5]} />
         </mesh>
-        {isLightOn && (
-          <pointLight color="#fde047" intensity={1.1} distance={4.2} position={[0, 0.5, 0]} />
-        )}
 
         <group position={[0, 0, -0.52]}>
           <mesh material={mats.timberPlanks} position={[0, 0.18, 0]} castShadow>

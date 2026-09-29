@@ -5,9 +5,11 @@ import { ChimneySmoke } from '../common/BuildingPrimitives';
 
 export function CharcoalKilnModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -63,7 +65,7 @@ export function CharcoalKilnModel({
           <cylinderGeometry args={[0.14, 0.14, 0.02, 12]} />
         </mesh>
 
-        <ChimneySmoke position={[0, 1.45, 0]} />
+        {isWorking && <ChimneySmoke position={[0, 1.45, 0]} />}
 
         {[0, Math.PI / 3, (2 * Math.PI) / 3, Math.PI, (4 * Math.PI) / 3, (5 * Math.PI) / 3].map((angle, i) => {
           const vx = Math.cos(angle) * 1.12;
@@ -80,7 +82,6 @@ export function CharcoalKilnModel({
             </group>
           );
         })}
-        <pointLight color="#ea580c" intensity={1.8} distance={4.5} position={[0, 0.35, 0]} />
       </group>
 
       <group position={[0.35, 0.08, -0.75]}>

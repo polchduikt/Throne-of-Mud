@@ -5,9 +5,11 @@ import { ChimneySmoke } from '../common/BuildingPrimitives';
 
 export function BrickworksModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -52,7 +54,6 @@ export function BrickworksModel({
         <mesh material={mats.fireYellow} position={[0, 0.26, 1.09]}>
           <boxGeometry args={[0.28, 0.24, 0.04]} />
         </mesh>
-        <pointLight color="#ea580c" intensity={2.2} distance={4.5} position={[0, 0.40, 1.25]} />
 
         <mesh material={mats.brickRed} position={[0, 1.90, -0.45]} castShadow>
           <boxGeometry args={[0.52, 0.95, 0.52]} />
@@ -71,7 +72,7 @@ export function BrickworksModel({
         <mesh material={mats.charcoalBlack} position={[0, 2.63, -0.45]} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.145, 12]} />
         </mesh>
-        <ChimneySmoke position={[0, 2.68, -0.45]} />
+        {isWorking && <ChimneySmoke position={[0, 2.68, -0.45]} />}
 
         <group position={[-0.75, 0, 0.45]} rotation={[0, Math.PI / 2, 0]}>
           <mesh material={mats.timberLogs} position={[0, 0.08, -0.15]} rotation={[0, 0, Math.PI / 2]} castShadow>

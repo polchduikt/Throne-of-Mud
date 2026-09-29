@@ -231,10 +231,6 @@ export function HuntersHutModel({
           </group>
         ))}
       </group>
-
-      {isLightOn && (
-        <pointLight color="#fde047" intensity={0.9} distance={4.5} position={[0, 0.9, 0]} />
-      )}
     </group>
   );
 }

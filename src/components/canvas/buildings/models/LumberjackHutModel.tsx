@@ -12,9 +12,11 @@ import {
 export function LumberjackHutModel({
   isLightOn = false,
   roofRef,
+  interiorRef,
 }: {
   isLightOn?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
+  interiorRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
 
@@ -79,18 +81,17 @@ export function LumberjackHutModel({
       <MedievalDoor position={[0.15, 0.12, 0.88]} width={0.65} height={1.0} />
       <MedievalWindow position={[-1.03, 0.66, 0.89]} width={0.44} height={0.44} isLightOn={isLightOn} hasFlowerBox={false} />
 
-      <MedievalBed position={[-1.25, 0.12, -0.2]} quiltMaterial={mats.bedLinenGreen} />
+      <group ref={interiorRef} visible={false}>
+        <MedievalBed position={[-1.25, 0.12, -0.2]} quiltMaterial={mats.bedLinenGreen} />
 
-      <group position={[-0.2, 0.12, -0.2]}>
-        <mesh material={mats.timberLight} position={[0, 0.2, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.45, 0.05, 0.45]} />
-        </mesh>
-        <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.25, 0]}>
-          <cylinderGeometry args={[0.016, 0.02, 0.06, 5]} />
-        </mesh>
-        {isLightOn && (
-          <pointLight color="#fde047" intensity={0.5} distance={2.0} position={[0, 0.32, 0]} />
-        )}
+        <group position={[-0.2, 0.12, -0.2]}>
+          <mesh material={mats.timberLight} position={[0, 0.2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.45, 0.05, 0.45]} />
+          </mesh>
+          <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.25, 0]}>
+            <cylinderGeometry args={[0.016, 0.02, 0.06, 5]} />
+          </mesh>
+        </group>
       </group>
 
       <group position={[1.38, 0.12, 0]}>

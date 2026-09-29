@@ -171,9 +171,6 @@ export function ManorModel({
         <mesh material={mats.flourSack} position={[-0.1, 0.36, 0]} rotation={[0, 0.4, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.05, 0.05, 0.35, 6]} />
         </mesh>
-        {isLightOn && (
-          <pointLight color="#fde047" intensity={1.2} distance={4.8} position={[0, 0.65, 0]} />
-        )}
       </group>
 
       <GothicManorFireplace
@@ -254,6 +251,7 @@ export function ManorModel({
           depth={0.64}
           height={1.45}
           potCount={2}
+          hasSmoke={isLightOn}
         />
       </group>
     </group>

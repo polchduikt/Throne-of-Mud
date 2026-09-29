@@ -125,7 +125,13 @@ export class WorkstationJobHandler {
       unit.currentJob = { id: `idle-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
 
       if (prevBuildingId) {
-        const b = Array.from(buildingEntities).find((be: GameEntity) => be.id === prevBuildingId);
+        let b: GameEntity | undefined;
+        for (const be of buildingEntities) {
+          if (be.id === prevBuildingId) {
+            b = be;
+            break;
+          }
+        }
         if (b) {
           const assignedList = b.assignedWorkers || [];
           const workerIndex = Math.max(0, assignedList.indexOf(unit.id));

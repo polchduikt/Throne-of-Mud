@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
@@ -190,9 +190,29 @@ export function WeatherRenderer() {
     };
   }, [rainGeometry, rainMaterial, snowGeometry, snowMaterial]);
 
-  useFrame(() => {
+  const rainMeshRef = useRef<THREE.LineSegments>(null);
+  const snowMeshRef = useRef<THREE.Points>(null);
+  const isStrategicView = useGameStore((state) => state.isStrategicView);
+
+  useFrame(({ camera }) => {
+    const orthoCam = camera as THREE.OrthographicCamera;
+    const currentZoom = orthoCam.zoom || 38;
+
+    if (isStrategicView || currentZoom <= 18.5) {
+      if (rainMeshRef.current) rainMeshRef.current.visible = false;
+      if (snowMeshRef.current) snowMeshRef.current.visible = false;
+      return;
+    }
+
     const time = performance.now() / 1000;
     const { rainIntensity = 0, stormIntensity = 0, snowIntensity = 0 } = useGameStore.getState().time;
+
+    if (rainMeshRef.current) {
+      rainMeshRef.current.visible = rainIntensity > 0.005;
+    }
+    if (snowMeshRef.current) {
+      snowMeshRef.current.visible = snowIntensity > 0.005;
+    }
 
     if (rainMaterial?.uniforms?.uTime) {
       rainMaterial.uniforms.uTime.value = time;
@@ -209,20 +229,19 @@ export function WeatherRenderer() {
     }
   });
 
-  const rainIntensity = useGameStore((s) => s.time.rainIntensity ?? 0);
-  const snowIntensity = useGameStore((s) => s.time.snowIntensity ?? 0);
-
   return (
-    <group position={[0, 0, 0]}>
+    <group position={[0, 0, 0]} visible={!isStrategicView}>
       <lineSegments
+        ref={rainMeshRef}
         geometry={rainGeometry}
         material={rainMaterial}
-        visible={rainIntensity > 0.005}
+        visible={false}
       />
       <points
+        ref={snowMeshRef}
         geometry={snowGeometry}
         material={snowMaterial}
-        visible={snowIntensity > 0.005}
+        visible={false}
       />
     </group>
   );

@@ -64,9 +64,6 @@ export function TentModel({
         <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.32, 0]}>
           <cylinderGeometry args={[0.018, 0.022, 0.09, 5]} />
         </mesh>
-        {isLightOn && (
-          <pointLight color="#fde047" intensity={0.7} distance={2.8} position={[0, 0.42, 0]} />
-        )}
       </group>
 
       <group ref={roofRef}>

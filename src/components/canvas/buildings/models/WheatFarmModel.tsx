@@ -70,7 +70,6 @@ export function WheatFarmModel({
                 material={mats.goldWheat}
                 position={[0, 0.08 + wheatScale * 0.18, 0]}
                 scale={[0.11 * wheatScale, 0.38 * wheatScale, 0.11 * wheatScale]}
-                castShadow
               >
                 <coneGeometry args={[1, 1.2, 4]} />
               </mesh>
@@ -80,19 +79,19 @@ export function WheatFarmModel({
       )}
 
       <group position={[0, 0, 0]}>
-        <mesh material={mats.timberDark} position={[0, 0.45, 0]} castShadow>
+        <mesh material={mats.timberDark} position={[0, 0.45, 0]}>
           <cylinderGeometry args={[0.02, 0.025, 0.9, 4]} />
         </mesh>
-        <mesh material={mats.timberDark} position={[0, 0.65, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh material={mats.timberDark} position={[0, 0.65, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.018, 0.018, 0.55, 4]} />
         </mesh>
-        <mesh material={mats.goldWheat} position={[0, 0.8, 0]} castShadow>
+        <mesh material={mats.goldWheat} position={[0, 0.8, 0]}>
           <sphereGeometry args={[0.08, 6, 6]} />
         </mesh>
-        <mesh material={mats.thatchRoof} position={[0, 0.88, 0]} castShadow>
+        <mesh material={mats.thatchRoof} position={[0, 0.88, 0]}>
           <coneGeometry args={[0.18, 0.12, 6]} />
         </mesh>
-        <mesh material={mats.redBanner} position={[0, 0.6, 0]} castShadow>
+        <mesh material={mats.redBanner} position={[0, 0.6, 0]}>
           <boxGeometry args={[0.22, 0.25, 0.12]} />
         </mesh>
       </group>

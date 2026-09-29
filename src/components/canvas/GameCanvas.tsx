@@ -1,7 +1,8 @@
-import { Canvas } from '@react-three/fiber';
-import { useMemo } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
+import { GameLoop } from '../../engine/time/GameLoop';
 import { TopDownCamera } from './TopDownCamera';
 import { DayNightLighting } from './DayNightLighting';
 import { TerrainRenderer } from './TerrainRenderer';
@@ -28,6 +29,19 @@ interface Props {
   grid: GridMap;
 }
 
+function GameLoopSync({ grid }: { grid: GridMap }) {
+  const loopRef = useRef<GameLoop | null>(null);
+  if (!loopRef.current) {
+    loopRef.current = new GameLoop(grid);
+  }
+
+  useFrame((_, delta) => {
+    loopRef.current?.step(delta);
+  }, -100);
+
+  return null;
+}
+
 export function GameCanvas({ grid }: Props) {
   const playerSpawnPoint = useGameStore((state) => state.playerSpawnPoint);
   const cameraFocusTarget = useGameStore((state) => state.cameraFocusTarget);
@@ -38,8 +52,8 @@ export function GameCanvas({ grid }: Props) {
   return (
     <div className="w-full h-full relative z-0" style={{ isolation: 'isolate' }}>
       <Canvas
-        shadows="soft"
-        dpr={[1, 2]}
+        shadows
+        dpr={1}
         orthographic
         camera={{
           position: [center[0] + CAMERA_INITIAL_OFFSET, CAMERA_HEIGHT, center[1] + CAMERA_INITIAL_OFFSET],
@@ -50,6 +64,7 @@ export function GameCanvas({ grid }: Props) {
         gl={{
           antialias: true,
           alpha: false,
+          powerPreference: 'high-performance',
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.0,
           outputColorSpace: THREE.SRGBColorSpace,
@@ -57,6 +72,8 @@ export function GameCanvas({ grid }: Props) {
         className="w-full h-full cursor-crosshair"
       >
         <color attach="background" args={[isStrategicView ? '#18120c' : '#090d16']} />
+
+        <GameLoopSync grid={grid} />
 
         <MapEdgeFog mapWidth={grid.width} mapHeight={grid.height} />
 

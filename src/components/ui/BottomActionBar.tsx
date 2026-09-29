@@ -17,6 +17,7 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = React.memo(({ gri
   const setActiveTool = useGameStore((s) => s.setActiveTool);
   const activeMenuTab = useGameStore((s) => s.activeMenuTab);
   const setActiveMenuTab = useGameStore((s) => s.setActiveMenuTab);
+  const isWeatherDebugOpen = useGameStore((s) => s.isWeatherDebugOpen);
 
   const handleToggleTab = useCallback(
     (tabName: 'buildings' | 'military' | 'trade' | 'codex' | 'settings' | 'roads') => {
@@ -59,7 +60,7 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = React.memo(({ gri
 
       <ActionButtonsBar onToggleTab={handleToggleTab} />
       <TimeControlsWidget />
-      <WeatherDebugModal />
+      {isWeatherDebugOpen && <WeatherDebugModal />}
     </>
   );
 });

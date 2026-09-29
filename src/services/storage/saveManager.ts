@@ -187,6 +187,8 @@ export async function loadGameFromIndexedDB(grid: GridMap): Promise<boolean> {
           }
         }
       }
+      grid.isFullTerrainDirty = true;
+      grid.dirtyTerrainCoords = [];
     }
 
     for (const entity of [...world.entities]) {
@@ -305,6 +307,7 @@ export async function loadGameFromIndexedDB(grid: GridMap): Promise<boolean> {
       isStrategicMapOpen: false,
       buildingVersion: useGameStore.getState().buildingVersion + 1,
       foliageVersion: useGameStore.getState().foliageVersion + 1,
+      terrainVersion: useGameStore.getState().terrainVersion + 1,
       resourceDeposits: deposits || [],
     });
 

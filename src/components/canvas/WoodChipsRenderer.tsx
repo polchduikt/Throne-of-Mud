@@ -38,6 +38,7 @@ export function WoodChipsRenderer() {
   const dummyRef = useRef<THREE.Object3D>(new THREE.Object3D());
 
   const activeTreeHits = useGameStore((s) => s.activeTreeHits);
+  const isStrategicView = useGameStore((s) => s.isStrategicView);
 
   useEffect(() => {
     const now = performance.now() / 1000;
@@ -150,15 +151,17 @@ export function WoodChipsRenderer() {
   });
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, MAX_PARTICLES]}
-      frustumCulled={false}
-      castShadow
-    >
-      <boxGeometry args={[0.045, 0.035, 0.075]} />
-      <meshStandardMaterial roughness={0.8} flatShading />
-    </instancedMesh>
+    <group visible={!isStrategicView}>
+      <instancedMesh
+        ref={meshRef}
+        args={[undefined, undefined, MAX_PARTICLES]}
+        frustumCulled={false}
+        castShadow
+      >
+        <boxGeometry args={[0.045, 0.035, 0.075]} />
+        <meshStandardMaterial roughness={0.8} flatShading />
+      </instancedMesh>
+    </group>
   );
 }
 

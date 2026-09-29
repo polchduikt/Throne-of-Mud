@@ -1,7 +1,7 @@
 import { characterEntities, buildingEntities } from '../world';
 import type { GameEntity } from '../world';
 import { GridMap } from '../../grid/GridMap';
-import { findBuildingContainingPos, getBuildingFloorHeight } from '../../buildings/buildingNavigation';
+import { getBuildingFloorHeight } from '../../buildings/buildingNavigation';
 import { useGameStore } from '../../../store/useGameStore';
 import type { RegionData } from '../../../types/game';
 import {
@@ -10,24 +10,34 @@ import {
   SURFACE_SPEED_DEFAULT,
   ENTITY_COLLISION_DISTANCE,
   ENTITY_COLLISION_DISTANCE_SQ,
-  ENTITY_STUCK_TICK_LIMIT,
-  ENTITY_STUCK_DISTANCE_EPSILON,
-  ENTITY_WAYPOINT_PROXIMITY,
   ENTITY_VERTICAL_LERP_SPEED,
   ENTITY_VERTICAL_EPSILON,
   ENTITY_MAX_PUSH_SPEED,
-  ENTITY_LATERAL_DODGE_MAX,
   DEFAULT_UNIT_MOVE_SPEED,
 } from '../../../constants/movement';
 
-const stuckTracker = new Map<string, { lastX: number; lastZ: number; count: number }>();
+interface StuckInfo {
+  anchorX: number;
+  anchorZ: number;
+  ticks: number;
+}
+
+const stuckTracker = new Map<string, StuckInfo>();
+
+const _entityList: GameEntity[] = [];
+const _isFixedList: boolean[] = [];
+const _spatialGrid = new Map<number, number[]>();
+const _checkedPairs = new Set<number>();
+
+let _currentRegionMap: Map<number, RegionData> = new Map();
+const _buildingMap = new Map<string, GameEntity>();
 
 function tryNudgeEntity(
   ent: GameEntity,
   nudgeX: number,
   nudgeZ: number,
   grid: GridMap,
-  regions?: RegionData[]
+  _regions?: RegionData[]
 ): void {
   if (!ent.position || (nudgeX === 0 && nudgeZ === 0)) return;
   const curX = ent.position[0];
@@ -35,8 +45,8 @@ function tryNudgeEntity(
   let targetX = curX + nudgeX;
   let targetZ = curZ + nudgeZ;
 
-  if (ent.regionId !== undefined && regions) {
-    const reg = regions.find((r) => r.id === ent.regionId);
+  if (ent.regionId !== undefined && _currentRegionMap) {
+    const reg = _currentRegionMap.get(ent.regionId);
     if (reg?.bounds) {
       targetX = Math.max(reg.bounds.minX + 0.3, Math.min(reg.bounds.maxX + 0.7, targetX));
       targetZ = Math.max(reg.bounds.minZ + 0.3, Math.min(reg.bounds.maxZ + 0.7, targetZ));
@@ -47,7 +57,7 @@ function tryNudgeEntity(
     const tile = grid.getTile(Math.floor(x), Math.floor(z));
     if (!tile || tile.terrain === 'water') return false;
     if (tile.isPassable) return true;
-    return !!findBuildingContainingPos(x, z, buildingEntities);
+    return Boolean(tile.buildingId);
   };
 
   if (isPositionValid(targetX, targetZ)) {
@@ -64,19 +74,34 @@ function tryNudgeEntity(
 }
 
 export class MovementSystem {
+  private static frameCount = 0;
+
   public static update(delta: number, grid: GridMap): void {
+    MovementSystem.frameCount++;
     const { regions } = useGameStore.getState();
+    const camTarget = (typeof window !== 'undefined' ? (window as any).__lastCameraTarget : null) as [number, number] | null;
+
+    _currentRegionMap.clear();
+    for (const r of regions) {
+      _currentRegionMap.set(r.id, r);
+    }
 
     for (const entity of characterEntities) {
       if (!entity.position) {
         continue;
       }
 
+      const isDistant = camTarget ? ((entity.position[0] - camTarget[0]) ** 2 + (entity.position[2] - camTarget[1]) ** 2 > 45 * 45) : false;
+      if (isDistant && (MovementSystem.frameCount + entity.id.charCodeAt(entity.id.length - 1)) % 3 !== 0) {
+        continue;
+      }
+      const unitDelta = isDistant ? delta * 3 : delta;
+
       if (entity.path && entity.path.length > 0) {
         const nextWaypoint = entity.path[0];
 
-        if (entity.regionId !== undefined && regions) {
-          const reg = regions.find((r) => r.id === entity.regionId);
+        if (entity.regionId !== undefined && _currentRegionMap) {
+          const reg = _currentRegionMap.get(entity.regionId);
           if (reg?.bounds) {
             const b = reg.bounds;
             if (
@@ -92,26 +117,25 @@ export class MovementSystem {
           }
         }
 
-        const tracker = stuckTracker.get(entity.id);
+        let tracker = stuckTracker.get(entity.id);
         const curX = entity.position[0];
         const curZ = entity.position[2];
-        if (tracker) {
-          const moved = Math.hypot(curX - tracker.lastX, curZ - tracker.lastZ);
-          if (moved < ENTITY_STUCK_DISTANCE_EPSILON) {
-            tracker.count++;
-            if (tracker.count > ENTITY_STUCK_TICK_LIMIT) {
+        if (!tracker) {
+          tracker = { anchorX: curX, anchorZ: curZ, ticks: 0 };
+          stuckTracker.set(entity.id, tracker);
+        } else {
+          tracker.ticks++;
+          if (tracker.ticks >= 30) {
+            const netProgress = Math.hypot(curX - tracker.anchorX, curZ - tracker.anchorZ);
+            if (netProgress < 0.2) {
               entity.path = [];
-              tracker.count = 0;
               stuckTracker.delete(entity.id);
               continue;
             }
-          } else {
-            tracker.lastX = curX;
-            tracker.lastZ = curZ;
-            tracker.count = 0;
+            tracker.anchorX = curX;
+            tracker.anchorZ = curZ;
+            tracker.ticks = 0;
           }
-        } else {
-          stuckTracker.set(entity.id, { lastX: curX, lastZ: curZ, count: 0 });
         }
 
         const currentTile = grid.getTile(Math.floor(entity.position[0]), Math.floor(entity.position[2]));
@@ -124,50 +148,42 @@ export class MovementSystem {
           }
         }
 
-        const speed = (entity.moveSpeed || DEFAULT_UNIT_MOVE_SPEED) * surfaceSpeedMultiplier * delta;
-        const targetX = nextWaypoint[0] + 0.5;
-        const targetZ = nextWaypoint[1] + 0.5;
+        let remainingMove = (entity.moveSpeed || DEFAULT_UNIT_MOVE_SPEED) * surfaceSpeedMultiplier * unitDelta;
 
-        const currentX = entity.position[0];
-        const currentZ = entity.position[2];
+        while (remainingMove > 0 && entity.path.length > 0) {
+          const wp = entity.path[0];
+          const targetX = wp[0] + 0.5;
+          const targetZ = wp[1] + 0.5;
+          const currentX = entity.position[0];
+          const currentZ = entity.position[2];
 
-        const dx = targetX - currentX;
-        const dz = targetZ - currentZ;
-        const distance = Math.hypot(dx, dz);
+          const dx = targetX - currentX;
+          const dz = targetZ - currentZ;
+          const distance = Math.hypot(dx, dz);
 
-        if (distance <= speed) {
-          entity.position[0] = targetX;
-          entity.position[2] = targetZ;
-          entity.gridPosition = [nextWaypoint[0], nextWaypoint[1]];
-          entity.path.shift();
-          if (entity.path.length === 0) {
-            stuckTracker.delete(entity.id);
-          }
-        } else {
-          if (entity.path.length === 1 && distance <= ENTITY_WAYPOINT_PROXIMITY) {
-            const isTargetOccupied = Array.from(characterEntities).some(
-              (other: GameEntity) =>
-                other.id !== entity.id &&
-                other.position &&
-                Math.hypot(other.position[0] - targetX, other.position[2] - targetZ) < ENTITY_WAYPOINT_PROXIMITY
-            );
-            if (isTargetOccupied) {
-              entity.gridPosition = [Math.floor(entity.position[0]), Math.floor(entity.position[2])];
-              entity.path = [];
+
+
+          if (distance <= remainingMove) {
+            entity.position[0] = targetX;
+            entity.position[2] = targetZ;
+            entity.gridPosition = [wp[0], wp[1]];
+            entity.path.shift();
+            remainingMove -= distance;
+            if (entity.path.length === 0) {
               stuckTracker.delete(entity.id);
-              continue;
+              break;
             }
+          } else {
+            const vx = (dx / distance) * remainingMove;
+            const vz = (dz / distance) * remainingMove;
+            entity.position[0] += vx;
+            entity.position[2] += vz;
+            remainingMove = 0;
           }
-
-          const vx = (dx / distance) * speed;
-          const vz = (dz / distance) * speed;
-
-          entity.position[0] += vx;
-          entity.position[2] += vz;
         }
 
-        if (entity.regionId !== undefined && regions) {
-          const reg = regions.find((r) => r.id === entity.regionId);
+        if (entity.regionId !== undefined && _currentRegionMap) {
+          const reg = _currentRegionMap.get(entity.regionId);
           if (reg?.bounds) {
             const b = reg.bounds;
             const clampedX = Math.max(b.minX + 0.5, Math.min(b.maxX + 0.5, entity.position[0]));
@@ -184,95 +200,110 @@ export class MovementSystem {
       }
     }
 
-    const entityList: GameEntity[] = [];
-    const isFixedList: boolean[] = [];
+    _entityList.length = 0;
+    _isFixedList.length = 0;
+    _spatialGrid.clear();
+
+    const CELL_SIZE = 4;
+    const maxSimDistSq = 42 * 42;
 
     for (const entity of characterEntities) {
       if (!entity.position) continue;
-      entityList.push(entity);
+      if (camTarget) {
+        const dSq = (entity.position[0] - camTarget[0]) ** 2 + (entity.position[2] - camTarget[1]) ** 2;
+        if (dSq > maxSimDistSq) continue;
+      }
+      const idx = _entityList.length;
+      _entityList.push(entity);
       const isStationarySleeping = Boolean((!entity.path || entity.path.length === 0) && entity.currentJob?.type === 'sleep');
       const isStationarySitting = Boolean((!entity.path || entity.path.length === 0) && entity.currentJob?.type === 'sit_by_fire');
       const isStationaryWorking = Boolean((!entity.path || entity.path.length === 0) && entity.currentJob && entity.currentJob.type !== 'idle' && entity.currentJob.type !== 'wander');
-      isFixedList.push(isStationarySleeping || isStationarySitting || isStationaryWorking);
+      const isFixed = isStationarySleeping || isStationarySitting || isStationaryWorking;
+      _isFixedList.push(isFixed);
+
+      const cx = Math.floor(entity.position[0] / CELL_SIZE);
+      const cz = Math.floor(entity.position[2] / CELL_SIZE);
+      const cellKey = (cz << 16) | (cx & 0xffff);
+      let list = _spatialGrid.get(cellKey);
+      if (!list) {
+        list = [];
+        _spatialGrid.set(cellKey, list);
+      }
+      list.push(idx);
     }
 
-    for (let i = 0; i < entityList.length; i++) {
-      const entA = entityList[i];
-      const fixedA = isFixedList[i];
-      const hasPathA = Boolean(entA.path && entA.path.length > 0);
-      const posA = entA.position!;
+    _checkedPairs.clear();
 
-      for (let j = i + 1; j < entityList.length; j++) {
-        const entB = entityList[j];
-        const fixedB = isFixedList[j];
-        if (fixedA && fixedB) continue;
+    for (const [cellKey, cellIndices] of _spatialGrid) {
+      const cx = (cellKey << 16) >> 16;
+      const cz = cellKey >> 16;
 
-        const hasPathB = Boolean(entB.path && entB.path.length > 0);
-        const posB = entB.position!;
-        let dx = posA[0] - posB[0];
-        let dz = posA[2] - posB[2];
-        let distSq = dx * dx + dz * dz;
+      for (let i = 0; i < cellIndices.length; i++) {
+        const idxA = cellIndices[i];
+        const entA = _entityList[idxA];
+        const fixedA = _isFixedList[idxA];
+        const posA = entA.position!;
 
-        if (distSq >= ENTITY_COLLISION_DISTANCE_SQ) continue;
+        for (let ox = -1; ox <= 1; ox++) {
+          for (let oz = -1; oz <= 1; oz++) {
+            const nCellKey = ((cz + oz) << 16) | ((cx + ox) & 0xffff);
+            const neighborIndices = _spatialGrid.get(nCellKey);
+            if (!neighborIndices) continue;
 
-        let dist = Math.sqrt(distSq);
-        if (dist < 0.001) {
-          const pseudoAngle = ((i * 17 + j * 31) % 360) * (Math.PI / 180);
-          dx = Math.cos(pseudoAngle) * 0.02;
-          dz = Math.sin(pseudoAngle) * 0.02;
-          dist = 0.02;
-        }
+            for (let j = 0; j < neighborIndices.length; j++) {
+              const idxB = neighborIndices[j];
+              if (idxA >= idxB) continue;
 
-        const overlap = ENTITY_COLLISION_DISTANCE - dist;
-        const nx = dx / dist;
-        const nz = dz / dist;
-        const pushAmount = Math.min(overlap * 0.5, delta * ENTITY_MAX_PUSH_SPEED);
+              const pairKey = (idxA << 16) | idxB;
+              if (_checkedPairs.has(pairKey)) continue;
+              _checkedPairs.add(pairKey);
 
-        const applyEntityNudge = (
-          ent: GameEntity,
-          isFixed: boolean,
-          hasPath: boolean,
-          dirNx: number,
-          dirNz: number,
-          amt: number
-        ) => {
-          if (isFixed || amt <= 0) return;
-          if (!hasPath) {
-            tryNudgeEntity(ent, dirNx * amt, dirNz * amt, grid, regions);
-            return;
+              const entB = _entityList[idxB];
+              const fixedB = _isFixedList[idxB];
+              if (entA.regionId !== undefined && entB.regionId !== undefined && entA.regionId !== entB.regionId) continue;
+
+              const posB = entB.position!;
+              let dx = posA[0] - posB[0];
+              let dz = posA[2] - posB[2];
+              let distSq = dx * dx + dz * dz;
+
+              if (distSq >= ENTITY_COLLISION_DISTANCE_SQ) continue;
+
+              let dist = Math.sqrt(distSq);
+              if (dist < 0.001) {
+                const pseudoAngle = ((idxA * 17 + idxB * 31) % 360) * (Math.PI / 180);
+                dx = Math.cos(pseudoAngle) * 0.02;
+                dz = Math.sin(pseudoAngle) * 0.02;
+                dist = 0.02;
+              }
+
+              if (fixedA && fixedB) {
+                continue;
+              }
+
+              const overlap = ENTITY_COLLISION_DISTANCE - dist;
+              const nx = dx / dist;
+              const nz = dz / dist;
+              const pushAmount = Math.min(overlap * 0.5, delta * ENTITY_MAX_PUSH_SPEED);
+
+              if (!fixedA && !fixedB) {
+                const halfPush = pushAmount * 0.5;
+                tryNudgeEntity(entA, nx * halfPush, nz * halfPush, grid);
+                tryNudgeEntity(entB, -nx * halfPush, -nz * halfPush, grid);
+              } else if (!fixedA && fixedB) {
+                tryNudgeEntity(entA, nx * pushAmount, nz * pushAmount, grid);
+              } else if (fixedA && !fixedB) {
+                tryNudgeEntity(entB, -nx * pushAmount, -nz * pushAmount, grid);
+              }
+            }
           }
-
-          const wp = ent.path![0];
-          const fwdX = wp[0] + 0.5 - ent.position![0];
-          const fwdZ = wp[1] + 0.5 - ent.position![2];
-          const fwdLen = Math.hypot(fwdX, fwdZ);
-          if (fwdLen < 0.01) {
-            tryNudgeEntity(ent, dirNx * amt, dirNz * amt, grid, regions);
-            return;
-          }
-
-          const uFwdX = fwdX / fwdLen;
-          const uFwdZ = fwdZ / fwdLen;
-          const rightX = -uFwdZ;
-          const rightZ = uFwdX;
-
-          const dotRight = dirNx * rightX + dirNz * rightZ;
-          const dodgeDir = dotRight >= 0 ? 1 : -1;
-          const lateralAmt = Math.min(amt, ENTITY_LATERAL_DODGE_MAX);
-
-          tryNudgeEntity(ent, rightX * dodgeDir * lateralAmt, rightZ * dodgeDir * lateralAmt, grid, regions);
-        };
-
-        if (!fixedA && !fixedB) {
-          const halfPush = pushAmount * 0.5;
-          applyEntityNudge(entA, fixedA, hasPathA, nx, nz, halfPush);
-          applyEntityNudge(entB, fixedB, hasPathB, -nx, -nz, halfPush);
-        } else if (!fixedA && fixedB) {
-          applyEntityNudge(entA, fixedA, hasPathA, nx, nz, pushAmount);
-        } else if (fixedA && !fixedB) {
-          applyEntityNudge(entB, fixedB, hasPathB, -nx, -nz, pushAmount);
         }
       }
+    }
+
+    _buildingMap.clear();
+    for (const b of buildingEntities) {
+      _buildingMap.set(b.id, b);
     }
 
     for (const entity of characterEntities) {
@@ -281,11 +312,16 @@ export class MovementSystem {
       const isStationarySitting = (!entity.path || entity.path.length === 0) && entity.currentJob?.type === 'sit_by_fire';
 
       if (!isStationarySleeping && !isStationarySitting) {
-        const currentTile = grid.getTile(Math.floor(entity.position[0]), Math.floor(entity.position[2]));
+        const tileX = Math.floor(entity.position[0]);
+        const tileZ = Math.floor(entity.position[2]);
+        const currentTile = grid.getTile(tileX, tileZ);
         const terrainH = currentTile?.height || 0;
-        let inside = findBuildingContainingPos(entity.position[0], entity.position[2], buildingEntities);
-        if (!inside && entity.currentJob?.type === 'work_at_building' && entity.currentJob.targetBuildingId) {
-          inside = Array.from(buildingEntities).find((b) => b.id === entity.currentJob!.targetBuildingId && b.isCompleted);
+
+        let inside: GameEntity | undefined;
+        if (currentTile?.buildingId) {
+          inside = _buildingMap.get(currentTile.buildingId);
+        } else if (entity.currentJob?.type === 'work_at_building' && entity.currentJob.targetBuildingId) {
+          inside = _buildingMap.get(entity.currentJob.targetBuildingId);
         }
 
         const buildingBaseY = inside ? (inside.position ? inside.position[1] : terrainH) : terrainH;
@@ -293,7 +329,8 @@ export class MovementSystem {
         const targetY = buildingBaseY + floorH;
         const currentY = entity.position[1] ?? targetY;
         const diffY = targetY - currentY;
-        if (Math.abs(diffY) < ENTITY_VERTICAL_EPSILON) {
+        const isFarAway = camTarget && ((entity.position[0] - camTarget[0]) ** 2 + (entity.position[2] - camTarget[1]) ** 2 > maxSimDistSq);
+        if (isFarAway || Math.abs(diffY) < ENTITY_VERTICAL_EPSILON) {
           entity.position[1] = targetY;
         } else {
           entity.position[1] = currentY + diffY * Math.min(1.0, delta * ENTITY_VERTICAL_LERP_SPEED);

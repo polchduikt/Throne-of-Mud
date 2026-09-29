@@ -1,5 +1,5 @@
-import { useRef, useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useRef, useMemo, useEffect } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
 
@@ -14,9 +14,22 @@ interface LightingKey {
 }
 
 export function DayNightLighting() {
+  const { gl } = useThree();
+  const buildingVersion = useGameStore((s) => s.buildingVersion);
+
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
   const ambientLightRef = useRef<THREE.AmbientLight>(null);
   const hemiLightRef = useRef<THREE.HemisphereLight>(null);
+  const lastLightPosRef = useRef<[number, number]>([24, 24]);
+
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = true;
+    gl.shadowMap.needsUpdate = true;
+  }, [gl]);
+
+  useEffect(() => {
+    gl.shadowMap.needsUpdate = true;
+  }, [buildingVersion, gl]);
 
   const lightTarget = useMemo(() => {
     const obj = new THREE.Object3D();
@@ -212,6 +225,27 @@ export function DayNightLighting() {
     if (sunLightRef.current) {
       sunLightRef.current.color.copy(sunCol);
       sunLightRef.current.intensity = sunInt;
+
+      const camZoom = (window as any).__lastCameraZoom ?? 38;
+      const shouldCastShadow = camZoom > 18;
+      if (sunLightRef.current.castShadow !== shouldCastShadow) {
+        sunLightRef.current.castShadow = shouldCastShadow;
+      }
+      if (gl.shadowMap.autoUpdate !== shouldCastShadow) {
+        gl.shadowMap.autoUpdate = shouldCastShadow;
+      }
+
+      const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
+      if (camTarget && shouldCastShadow) {
+        const texelSize = 60 / 1024;
+        const snappedX = Math.round(camTarget[0] / texelSize) * texelSize;
+        const snappedZ = Math.round(camTarget[1] / texelSize) * texelSize;
+        if (snappedX !== lastLightPosRef.current[0] || snappedZ !== lastLightPosRef.current[1]) {
+          lastLightPosRef.current = [snappedX, snappedZ];
+          lightTarget.position.set(snappedX, 0, snappedZ);
+          sunLightRef.current.position.set(snappedX + 18, 36, snappedZ + 20);
+        }
+      }
     }
 
     if (ambientLightRef.current) {
@@ -239,14 +273,14 @@ export function DayNightLighting() {
         position={[24 + 18, 36, 24 + 20]}
         intensity={1.35}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
         shadow-camera-near={0.5}
         shadow-camera-far={130}
-        shadow-camera-left={-34}
-        shadow-camera-right={34}
-        shadow-camera-top={34}
-        shadow-camera-bottom={-34}
+        shadow-camera-left={-30}
+        shadow-camera-right={30}
+        shadow-camera-top={30}
+        shadow-camera-bottom={-30}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
       />

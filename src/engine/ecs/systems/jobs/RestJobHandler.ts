@@ -1,6 +1,5 @@
 import { characterEntities, buildingEntities, type GameEntity } from '../../world';
 import { GridMap } from '../../../grid/GridMap';
-import { AStar } from '../../../pathfinding/AStar';
 import type { RegionData } from '../../../../types/game';
 import {
   getBuildingSleepSpot,
@@ -37,6 +36,8 @@ export function getEntityRegionId(entity: GameEntity, regions: RegionData[], def
   return defaultRegionId;
 }
 
+const _failedRestCooldowns = new Map<string, number>();
+
 export class RestJobHandler {
   public static handleMorningWakeUp(
     unit: GameEntity,
@@ -45,7 +46,8 @@ export class RestJobHandler {
     isNoble: boolean,
     currentTick: number,
     grid: GridMap,
-    uBounds?: { minX: number; maxX: number; minZ: number; maxZ: number }
+    uBounds?: { minX: number; maxX: number; minZ: number; maxZ: number },
+    buildingMap?: Map<string, GameEntity>
   ): boolean {
     const prevSleepingBuildingId = unit.currentJob?.targetBuildingId;
     const wasSleeping = isAlreadySleeping;
@@ -79,9 +81,11 @@ export class RestJobHandler {
       DEFAULT_SPEECH_DURATION_TICKS
     );
 
-    if (prevSleepingBuildingId) {
-      const b = Array.from(buildingEntities).find((e: GameEntity) => e.id === prevSleepingBuildingId);
-      if (b) {
+    if (prevSleepingBuildingId && wasSleeping) {
+      const b = buildingMap
+        ? buildingMap.get(prevSleepingBuildingId)
+        : Array.from(buildingEntities).find((e: GameEntity) => e.id === prevSleepingBuildingId);
+      if (b && b.buildingType !== 'campfire') {
         const sleepSpot = getBuildingSleepSpot(b);
         const exitPath = createPathFromInterior(
           grid,
@@ -95,20 +99,24 @@ export class RestJobHandler {
           unit.path = exitPath;
         }
       }
-    } else if (unit.gridPosition) {
-      const [ux, uz] = unit.gridPosition;
-      const exitCandidates: [number, number][] = [
-        [ux, uz + 1],
-        [ux, uz + 2],
-        [ux + 1, uz + 1],
-        [ux - 1, uz + 1],
-        [ux, uz - 1],
-      ];
-      for (const [ex, ez] of exitCandidates) {
-        if (grid.isWalkable(ex, ez)) {
-          const exitPath = AStar.findPath(grid, [ux, uz], [ex, ez], false, uBounds);
-          if (exitPath && exitPath.length > 0) {
-            unit.path = exitPath;
+    }
+
+    if (!unit.path || unit.path.length === 0) {
+      if (unit.gridPosition) {
+        const [ux, uz] = unit.gridPosition;
+        const exitCandidates: [number, number][] = [
+          [ux, uz + 1],
+          [ux, uz + 2],
+          [ux + 1, uz + 1],
+          [ux - 1, uz + 1],
+          [ux + 1, uz],
+          [ux - 1, uz],
+          [ux, uz - 1],
+          [ux, uz - 2],
+        ];
+        for (const [ex, ez] of exitCandidates) {
+          if (grid.isWalkable(ex, ez)) {
+            unit.path = [[ex, ez]];
             break;
           }
         }
@@ -129,7 +137,8 @@ export class RestJobHandler {
     uBounds: { minX: number; maxX: number; minZ: number; maxZ: number } | undefined,
     _cx: number,
     _cz: number,
-    playerRegionId?: number
+    playerRegionId?: number,
+    buildingMap?: Map<string, GameEntity>
   ): boolean {
     const isAlreadySleeping = unit.currentJob?.type === 'sleep';
     const isAlreadySitting = unit.currentJob?.type === 'sit_by_fire';
@@ -140,12 +149,15 @@ export class RestJobHandler {
       if (targetPos) {
         const [bedX, bedZ] = targetPos;
         let targetY = sleepJob.targetY;
-        if (sleepJob.targetBuildingId && (targetY === undefined || targetY < 0.16)) {
-          const b = Array.from(buildingEntities).find((ent: GameEntity) => ent.id === sleepJob.targetBuildingId);
+        if (sleepJob.targetBuildingId && (targetY === undefined || targetY < 0.16 || sleepJob.targetAngle === undefined)) {
+          const b = buildingMap
+            ? buildingMap.get(sleepJob.targetBuildingId)
+            : Array.from(buildingEntities).find((ent: GameEntity) => ent.id === sleepJob.targetBuildingId);
           if (b) {
             const spot = getBuildingSleepSpot(b, sleepJob.bedIndex ?? 0);
             targetY = spot.bedY;
             sleepJob.targetY = spot.bedY;
+            sleepJob.targetAngle = spot.facingAngle;
           }
         }
         if (targetY === undefined) {
@@ -156,48 +168,57 @@ export class RestJobHandler {
         const distToBed = distance2D(currentUPos[0], currentUPos[2], bedX, bedZ);
 
         if (!unit.path || unit.path.length === 0) {
-          if (distToBed <= 0.45) {
+          if (distToBed <= 2.0) {
             unit.position = [bedX, targetY, bedZ];
             unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
             if (unit.needs) {
               unit.needs.energy = Math.min(100, unit.needs.energy + 0.35);
             }
           } else {
-            if (sleepJob.targetBuildingId) {
-              const b = Array.from(buildingEntities).find((ent: GameEntity) => ent.id === sleepJob.targetBuildingId);
-              if (b) {
-                const spot = getBuildingSleepSpot(b, sleepJob.bedIndex ?? 0);
-                const sleepPath = createPathToInterior(
+            const nextAllowedPath = _failedRestCooldowns.get(unit.id) || 0;
+            if (currentTick >= nextAllowedPath) {
+              if (sleepJob.targetBuildingId) {
+                const b = buildingMap
+                  ? buildingMap.get(sleepJob.targetBuildingId)
+                  : Array.from(buildingEntities).find((ent: GameEntity) => ent.id === sleepJob.targetBuildingId);
+                if (b) {
+                  const spot = getBuildingSleepSpot(b, sleepJob.bedIndex ?? 0);
+                  const sleepPath = createPathToInterior(
+                    grid,
+                    unit.gridPosition || [Math.floor(currentUPos[0]), Math.floor(currentUPos[2])],
+                    spot.doorApproachPos,
+                    spot.doorWorldPos,
+                    spot.bedWorldPos,
+                    spot.intermediatePos,
+                    uBounds,
+                    unit.position,
+                    b
+                  );
+                  if (sleepPath && sleepPath.length > 0) {
+                    unit.path = sleepPath;
+                  } else {
+                    _failedRestCooldowns.set(unit.id, currentTick + 40);
+                    unit.position = [bedX, targetY, bedZ];
+                    unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
+                  }
+                }
+              } else {
+                const sleepPath = createPathSafely(
                   grid,
-                  unit.gridPosition || [Math.floor(currentUPos[0]), Math.floor(currentUPos[2])],
-                  spot.doorApproachPos,
-                  spot.doorWorldPos,
-                  spot.bedWorldPos,
-                  spot.intermediatePos,
-                  uBounds,
                   unit.position,
-                  b
+                  unit.gridPosition,
+                  [Math.floor(bedX), Math.floor(bedZ)],
+                  buildingEntities,
+                  false,
+                  uBounds
                 );
                 if (sleepPath && sleepPath.length > 0) {
                   unit.path = sleepPath;
                 } else {
-                  unit.currentJob = { id: `idle-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
+                  _failedRestCooldowns.set(unit.id, currentTick + 40);
+                  unit.position = [bedX, targetY, bedZ];
+                  unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
                 }
-              }
-            } else {
-              const sleepPath = createPathSafely(
-                grid,
-                unit.position,
-                unit.gridPosition,
-                [Math.floor(bedX), Math.floor(bedZ)],
-                buildingEntities,
-                false,
-                uBounds
-              );
-              if (sleepPath && sleepPath.length > 0) {
-                unit.path = sleepPath;
-              } else {
-                unit.currentJob = { id: `idle-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
               }
             }
           }
@@ -216,11 +237,14 @@ export class RestJobHandler {
         const distToSit = distance2D(currentUPos[0], currentUPos[2], sitX, sitZ);
 
         if (!unit.path || unit.path.length === 0) {
-          if (distToSit <= 0.6) {
+          // A campfire bench seat is reached when the unit is at or adjacent to the bench (~2.2 distance)
+          if (distToSit <= 2.2) {
             unit.position = [sitX, targetY, sitZ];
             unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
             if (sitJob.targetAngle === undefined && sitJob.targetBuildingId) {
-              const camp = Array.from(buildingEntities).find((b: GameEntity) => b.id === sitJob.targetBuildingId);
+              const camp = buildingMap
+                ? buildingMap.get(sitJob.targetBuildingId)
+                : Array.from(buildingEntities).find((b: GameEntity) => b.id === sitJob.targetBuildingId);
               if (camp?.gridPosition) {
                 const cx = camp.gridPosition[0] + 1.0;
                 const cz = camp.gridPosition[1] + 1.0;
@@ -231,28 +255,35 @@ export class RestJobHandler {
               unit.needs.energy = Math.min(45, unit.needs.energy + 0.05);
             }
           } else {
-            const campfires = Array.from(buildingEntities).filter(
-              (b: GameEntity) => b.isCompleted && b.buildingType === 'campfire' && getEntityRegionId(b, regions, playerRegionId ?? 0) === uRegionId
-            );
-            const campfire = campfires.find((c: GameEntity) => c.id === sitJob.targetBuildingId) || (campfires.length > 0 ? campfires[0] : null);
-            const sitSpot = campfire ? getCampfireSitSpot(campfire, sitJob.seatIndex ?? 0) : null;
-            const approachTile = sitSpot?.approachTile || [Math.floor(sitX), Math.floor(sitZ)];
+            const nextAllowedPath = _failedRestCooldowns.get(unit.id) || 0;
+            if (currentTick >= nextAllowedPath) {
+              let campfire: GameEntity | null = null;
+              for (const b of buildingEntities) {
+                if (b.isCompleted && b.buildingType === 'campfire' && getEntityRegionId(b, regions, playerRegionId ?? 0) === uRegionId) {
+                  if (b.id === sitJob.targetBuildingId) { campfire = b; break; }
+                  if (!campfire) campfire = b;
+                }
+              }
+              const sitSpot = campfire ? getCampfireSitSpot(campfire, sitJob.seatIndex ?? 0) : null;
+              const approachTile = sitSpot?.approachTile || [Math.floor(sitX), Math.floor(sitZ)];
 
-            const sitPath = createPathSafely(
-              grid,
-              unit.position,
-              unit.gridPosition,
-              approachTile,
-              buildingEntities,
-              true,
-              uBounds
-            );
-            if (sitPath && sitPath.length > 0) {
-              sitPath.push([sitX - 0.5, sitZ - 0.5]);
-              unit.path = sitPath;
-            } else if (distToSit <= 1.8) {
-              unit.position = [sitX, targetY, sitZ];
-              unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
+              const sitPath = createPathSafely(
+                grid,
+                unit.position,
+                unit.gridPosition,
+                approachTile,
+                buildingEntities,
+                true,
+                uBounds
+              );
+              if (sitPath && sitPath.length > 0) {
+                sitPath.push([sitX - 0.5, sitZ - 0.5]);
+                unit.path = sitPath;
+              } else {
+                _failedRestCooldowns.set(unit.id, currentTick + 40);
+                unit.position = [sitX, targetY, sitZ];
+                unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
+              }
             }
           }
         }
@@ -260,14 +291,21 @@ export class RestJobHandler {
       return true;
     }
 
-    const completedBuildings = Array.from(buildingEntities).filter((b: GameEntity) => {
-      if (!b.isCompleted) return false;
+    const isCriticallyExhausted = Boolean(unit.needs && unit.needs.energy <= 5);
+    const unitHash = (unit.id.charCodeAt(unit.id.length - 1) + (unit.id.charCodeAt(0) || 0));
+    if (!isCriticallyExhausted && (unitHash % 4) !== (currentTick % 4)) {
+      return false;
+    }
+
+    const completedBuildings: GameEntity[] = [];
+    for (const b of buildingEntities) {
+      if (!b.isCompleted) continue;
       const bRegId = getEntityRegionId(b, regions, playerRegionId ?? 0);
-      if (bRegId !== uRegionId) return false;
-      if (isPlayerUnit && b.factionId && b.factionId !== 'player') return false;
-      if (!isPlayerUnit && b.factionId === 'player') return false;
-      return true;
-    });
+      if (bRegId !== uRegionId) continue;
+      if (isPlayerUnit && b.factionId && b.factionId !== 'player') continue;
+      if (!isPlayerUnit && b.factionId === 'player') continue;
+      completedBuildings.push(b);
+    }
 
     const buildingOccupiedBeds = new Map<string, Set<number>>();
     const campfireOccupiedSeats = new Map<string, Set<number>>();
@@ -374,6 +412,7 @@ export class RestJobHandler {
         targetBuildingId: chosenBuilding.id,
         targetPosition: [spot.bedWorldPos[0], spot.bedWorldPos[1]],
         targetY: spot.bedY,
+        targetAngle: spot.facingAngle,
         bedIndex: chosenBedIndex,
         progress: 0,
         totalWork: 100,
@@ -401,7 +440,7 @@ export class RestJobHandler {
 
       for (const campfire of campfires) {
         const occupied = campfireOccupiedSeats.get(campfire.id) || new Set<number>();
-        for (let seat = 0; seat < 16; seat++) {
+        for (let seat = 0; seat < 32; seat++) {
           if (!occupied.has(seat)) {
             chosenCampfire = campfire;
             chosenSeatIndex = seat;
@@ -414,8 +453,15 @@ export class RestJobHandler {
 
       if (!foundSeat) {
         const occupied = campfireOccupiedSeats.get(chosenCampfire.id) || new Set<number>();
-        chosenSeatIndex = occupied.size % 16;
+        chosenSeatIndex = occupied.size;
       }
+
+      let occupiedSet = campfireOccupiedSeats.get(chosenCampfire.id);
+      if (!occupiedSet) {
+        occupiedSet = new Set<number>();
+        campfireOccupiedSeats.set(chosenCampfire.id, occupiedSet);
+      }
+      occupiedSet.add(chosenSeatIndex);
 
       const sitSpot = getCampfireSitSpot(chosenCampfire, chosenSeatIndex);
 

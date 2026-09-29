@@ -56,23 +56,26 @@ export class ImmigrationSystem {
       playerSpawnPoint,
     } = useGameStore.getState();
 
-    const allCharacters = Array.from(characterEntities);
-    const buildings = Array.from(buildingEntities).filter((b) => b.isCompleted);
+    let totalCharacters = 0;
+    let totalMood = 0;
+    for (const c of characterEntities) {
+      if ((c.factionId === 'player' || c.factionId === undefined) && (c.regionId === playerRegionId || c.regionId === undefined)) {
+        totalCharacters++;
+        totalMood += (c.needs?.mood || 60);
+      }
+    }
 
     let totalBeds = 0;
-    for (const b of buildings) {
-      if (b.buildingType === 'peasant_house') totalBeds += 2;
-      else if (b.buildingType === 'tent') totalBeds += 1;
-      else if (b.buildingType === 'manor') totalBeds += 4;
+    for (const b of buildingEntities) {
+      if (b.isCompleted && (b.factionId === 'player' || b.factionId === undefined) && (b.regionId === playerRegionId || b.regionId === undefined)) {
+        if (b.buildingType === 'peasant_house') totalBeds += 2;
+        else if (b.buildingType === 'tent') totalBeds += 1;
+        else if (b.buildingType === 'manor') totalBeds += 4;
+      }
     }
 
-    const freeBeds = totalBeds - allCharacters.length;
-
-    let approvalRating = DEFAULT_APPROVAL_RATING;
-    if (allCharacters.length > 0) {
-      const totalMood = allCharacters.reduce((acc, c) => acc + (c.needs?.mood || 60), 0);
-      approvalRating = Math.round(totalMood / allCharacters.length);
-    }
+    const freeBeds = totalBeds - totalCharacters;
+    const approvalRating = totalCharacters > 0 ? Math.round(totalMood / totalCharacters) : DEFAULT_APPROVAL_RATING;
 
     if (freeBeds <= 0 || approvalRating < MIN_APPROVAL_FOR_IMMIGRATION) {
       if (immigrationProgress > 0) {

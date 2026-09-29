@@ -150,10 +150,8 @@ export function MapEdgeFog({ mapWidth = 256, mapHeight = 256 }: Props) {
   const PLANE_W = mapWidth  * 6;
   const PLANE_H = mapHeight * 6;
 
-  if (isStrategicView) return null;
-
   return (
-    <group>
+    <group visible={!isStrategicView}>
       <mesh
         position={[cx, -0.5, cz]}
         rotation={[-Math.PI / 2, 0, 0]}

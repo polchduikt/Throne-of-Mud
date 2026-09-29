@@ -47,15 +47,19 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
         },
       }));
 
-      if (type === 'wood') {
-        let remainingToDeduct = amount;
-        for (const b of world.entities) {
-          if (b.isBuilding && b.localInventory && (b.localInventory.wood || 0) > 0) {
-            const deduct = Math.min(remainingToDeduct, b.localInventory.wood || 0);
-            b.localInventory.wood = (b.localInventory.wood || 0) - deduct;
-            remainingToDeduct -= deduct;
-            if (remainingToDeduct <= 0) break;
-          }
+      const playerRegionId = get().playerRegionId ?? 0;
+      let remainingToDeduct = amount;
+      for (const b of world.entities) {
+        if (
+          b.isBuilding &&
+          (b.factionId === 'player' || (!b.factionId && (b.regionId === undefined || b.regionId === playerRegionId))) &&
+          b.localInventory &&
+          (b.localInventory[type] || 0) > 0
+        ) {
+          const deduct = Math.min(remainingToDeduct, b.localInventory[type] || 0);
+          b.localInventory[type] = (b.localInventory[type] || 0) - deduct;
+          remainingToDeduct -= deduct;
+          if (remainingToDeduct <= 0) break;
         }
       }
 
@@ -406,14 +410,31 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
     }, 150);
   },
 
+  terrainVersion: 0,
+  incrementTerrainVersion: () => {
+    set((state) => ({ terrainVersion: state.terrainVersion + 1 }));
+  },
+
   regions: JSON.parse(JSON.stringify(DEFAULT_REGIONS)),
   playerRegionId: 0,
   playerSpawnPoint: [52, 52],
-  botCount: 2,
+  botCount: 3,
   updateRegionStats: (regionId, partial) => {
-    set((state) => ({
-      regions: state.regions.map((r) => (r.id === regionId ? { ...r, ...partial } : r)),
-    }));
+    set((state) => {
+      const target = state.regions.find((r) => r.id === regionId);
+      if (!target) return state;
+      let changed = false;
+      for (const [k, v] of Object.entries(partial)) {
+        if ((target as any)[k] !== v) {
+          changed = true;
+          break;
+        }
+      }
+      if (!changed) return state;
+      return {
+        regions: state.regions.map((r) => (r.id === regionId ? { ...r, ...partial } : r)),
+      };
+    });
   },
 
   immigrationProgress: 0,
@@ -450,10 +471,14 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
       resourceDeposits: result.resourceDeposits,
     });
     get().incrementBuildingVersion();
+    get().incrementTerrainVersion();
+    get().incrementFoliageVersion(true);
   },
 
   resetWorld: (grid: GridMap, config?: WorldSetupConfig) => {
     grid.generate(Date.now() % 100000 + Math.random() * 500);
+    grid.isFullTerrainDirty = true;
+    grid.dirtyTerrainCoords = [];
 
     set({
       resources: { ...INITIAL_RESOURCES },
@@ -499,11 +524,14 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
       ],
       immigrationProgress: 0,
       isLordsBarOpen: false,
-      isInitialized: false,
+      isInitialized: true,
       isStrategicMapOpen: false,
     });
 
     get().initWorld(grid, config);
+    get().incrementBuildingVersion();
+    get().incrementTerrainVersion();
+    get().incrementFoliageVersion(true);
   },
   };
 };

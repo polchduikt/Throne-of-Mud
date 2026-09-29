@@ -11,24 +11,24 @@ interface Props {
 }
 
 export function PlacementPreview({ grid }: Props) {
+  const isStrategicView = useGameStore((s) => s.isStrategicView);
   const activeTool = useGameStore((s) => s.activeTool);
   const activeBuildType = useGameStore((s) => s.activeBuildType);
-  const hoveredTile = useGameStore((s) => s.hoveredTile);
+  const hoveredTile = useGameStore((s) => s.activeTool === 'build' ? s.hoveredTile : null);
 
   const blueprint = activeBuildType ? BUILDING_BLUEPRINTS[activeBuildType] : null;
 
   const playerRegionId = useGameStore((s) => s.playerRegionId);
-  const regions = useGameStore((s) => s.regions);
   const resourceDeposits = useGameStore((s) => s.resourceDeposits);
 
   const targetCoords = useMemo(() => {
-    if (!hoveredTile || activeTool !== 'build' || !blueprint || !activeBuildType) return null;
+    if (isStrategicView || !hoveredTile || activeTool !== 'build' || !blueprint || !activeBuildType) return null;
     return getSnappedPlacementCoords(hoveredTile[0], hoveredTile[1], blueprint.width, blueprint.height, activeBuildType, grid, resourceDeposits);
   }, [hoveredTile, activeTool, blueprint, activeBuildType, grid, resourceDeposits]);
 
   const isValid = useMemo(() => {
     if (!targetCoords || !blueprint || !activeBuildType) return false;
-    const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
+    const pRegion = useGameStore.getState().regions.find((r) => r.id === (playerRegionId ?? 0));
     if (pRegion?.bounds) {
       const b = pRegion.bounds;
       const minX = targetCoords[0];
@@ -48,7 +48,7 @@ export function PlacementPreview({ grid }: Props) {
       grid,
       resourceDeposits
     ).allowed;
-  }, [targetCoords, blueprint, activeBuildType, grid, regions, playerRegionId, resourceDeposits]);
+  }, [targetCoords, blueprint, activeBuildType, grid, playerRegionId, resourceDeposits]);
 
   const geometries = useMemo(() => {
     if (!blueprint) return null;
@@ -85,12 +85,14 @@ export function PlacementPreview({ grid }: Props) {
         material={planeMat}
         position={[0, 0.01, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
+        raycast={() => null}
       />
 
       <mesh
         geometry={geometries.box}
         material={boxMat}
         position={[0, 0.5, 0]}
+        raycast={() => null}
       />
 
       <mesh
@@ -98,6 +100,7 @@ export function PlacementPreview({ grid }: Props) {
         material={coneMat}
         position={[0, 1.3, 0]}
         rotation={[0, Math.PI / 4, 0]}
+        raycast={() => null}
       />
     </group>
   );

@@ -11,9 +11,11 @@ import {
 
 export function BreweryModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -84,7 +86,6 @@ export function BreweryModel({
         <mesh material={mats.copperBrew} position={[0, 1.2, 0]} castShadow>
           <cylinderGeometry args={[0.06, 0.06, 0.8, 8]} />
         </mesh>
-        <pointLight color="#f59e0b" intensity={1.4} distance={3.2} position={[0, 0.3, 0.4]} />
       </group>
 
       <mesh material={mats.timberDark} position={[1.85, 0.65, 0.88]} castShadow>
@@ -191,7 +192,7 @@ export function BreweryModel({
         <mesh material={mats.copperBrew} position={[-0.75, 2.38, -0.2]} castShadow>
           <coneGeometry args={[0.14, 0.12, 8]} />
         </mesh>
-        <ChimneySmoke position={[-0.75, 2.45, -0.2]} />
+        {isWorking && <ChimneySmoke position={[-0.75, 2.45, -0.2]} />}
       </group>
     </group>
   );

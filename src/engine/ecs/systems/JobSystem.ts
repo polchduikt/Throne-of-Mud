@@ -28,6 +28,10 @@ import type { RegionData } from '../../../types/game';
 
 export { getEntityRegionId };
 
+// Persistent module-level caches — reused every tick to avoid GC pressure
+const _buildingMap = new Map<string, GameEntity>();
+const _regionMap = new Map<number, RegionData>();
+
 export class JobSystem {
   public static update(grid: GridMap, currentTick: number): void {
     const {
@@ -39,12 +43,24 @@ export class JobSystem {
       playerSpawnPoint,
     } = useGameStore.getState();
 
+    // Rebuild building map once per tick — O(N_buildings), reuses persistent Map (no GC)
+    _buildingMap.clear();
+    for (const b of buildingEntities) {
+      _buildingMap.set(b.id, b);
+    }
+
+    // Build region map once — O(R) — so per-unit lookup is O(1) instead of O(R)
+    _regionMap.clear();
+    for (const r of regions) {
+      _regionMap.set(r.id, r);
+    }
+
     for (const unit of characterEntities) {
       const isPlayerUnit = unit.factionId === 'player' || unit.factionId === undefined;
       const isNoble = isNobleEntity(unit);
 
       const uRegionId = getEntityRegionId(unit, regions, playerRegionId ?? 0);
-      const uRegion = regions.find((r: RegionData) => r.id === uRegionId) || regions[0];
+      const uRegion = _regionMap.get(uRegionId) || regions[0];
       const uBounds = uRegion?.bounds;
       const campPos =
         uRegion?.campPosition ||
@@ -68,7 +84,10 @@ export class JobSystem {
         unit.currentJob?.type === 'demolish_structure';
 
       if (!isNightTime && (isAlreadySleeping || isAlreadySitting)) {
-        const isRested = !unit.needs || unit.needs.energy >= RESTED_ENERGY_THRESHOLD || time.hour === NIGHT_END_HOUR;
+        const isRested =
+          !unit.needs ||
+          (isAlreadySitting ? unit.needs.energy >= 40 : unit.needs.energy >= RESTED_ENERGY_THRESHOLD) ||
+          time.hour >= NIGHT_END_HOUR;
         if (isRested) {
           RestJobHandler.handleMorningWakeUp(
             unit,
@@ -77,7 +96,8 @@ export class JobSystem {
             isNoble,
             currentTick,
             grid,
-            uBounds
+            uBounds,
+            _buildingMap
           );
           continue;
         }
@@ -95,7 +115,8 @@ export class JobSystem {
           uBounds,
           cx,
           cz,
-          playerRegionId
+          playerRegionId,
+          _buildingMap
         );
         if (handledRest) {
           continue;
@@ -104,21 +125,25 @@ export class JobSystem {
 
       if (!isNoble && unit.workBuildingId && !isMidManualJob) {
         if (time.hour >= WORK_START_HOUR && time.hour <= WORK_END_HOUR) {
-          const building = Array.from(buildingEntities).find((b: GameEntity) => b.id === unit.workBuildingId);
+          const building = _buildingMap.get(unit.workBuildingId);
           if (building && building.isCompleted) {
+            let assigned = false;
             if (building.buildingType === 'lumberjack_hut') {
-              WoodcuttingJobHandler.assignWoodcutterHutJob(unit, building, grid, uBounds, currentTick, cx, cz);
+              assigned = WoodcuttingJobHandler.assignWoodcutterHutJob(unit, building, grid, uBounds, currentTick, cx, cz);
             } else if (
               building.buildingType === 'fishermans_hut' ||
               building.buildingType === 'foragers_hut' ||
               building.buildingType === 'hunters_hut' ||
               building.buildingType === 'foresters_hut'
             ) {
-              GatheringJobHandler.assignGatheringJob(unit, building, grid, uBounds, currentTick, cx, cz);
+              assigned = GatheringJobHandler.assignGatheringJob(unit, building, grid, uBounds, currentTick, cx, cz);
             } else if (building.buildingType === 'stockpile') {
-              HaulingJobHandler.assignStockpileHaulingJob(unit, building, grid, uBounds, currentTick, cx, cz);
+              assigned = HaulingJobHandler.assignStockpileHaulingJob(unit, building, grid, uBounds, currentTick, cx, cz);
             } else {
-              WorkstationJobHandler.assignWorkstationJob(unit, building, grid, uBounds, currentTick);
+              assigned = WorkstationJobHandler.assignWorkstationJob(unit, building, grid, uBounds, currentTick);
+            }
+            if (!assigned && (!unit.currentJob || unit.currentJob.type === 'idle') && (!unit.path || unit.path.length === 0)) {
+              ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz);
             }
           }
         } else {
@@ -230,6 +255,16 @@ export class JobSystem {
         break;
 
       case 'harvest_wheat':
+        if (job.targetBuildingId) {
+          let farmBuilding: GameEntity | undefined;
+          for (const b of buildingEntities) {
+            if (b.id === job.targetBuildingId) { farmBuilding = b; break; }
+          }
+          if (farmBuilding) {
+            farmBuilding.localInventory = farmBuilding.localInventory || {};
+            farmBuilding.localInventory.wheat = (farmBuilding.localInventory.wheat || 0) + HARVEST_WHEAT_YIELD;
+          }
+        }
         if (isPlayerUnit) {
           addResource('wheat', HARVEST_WHEAT_YIELD);
         }

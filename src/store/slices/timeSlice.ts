@@ -208,8 +208,17 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       const minute = totalMinutes % MINUTES_PER_HOUR;
       const day = 1 + Math.floor((DAY_START_HOUR * MINUTES_PER_HOUR + totalMinutes) / MINUTES_PER_DAY);
 
-      const dateInfo = getDateInfo(day);
-      const { season, month, monthIndex, monthInSeason, dayOfMonth, year, dayInSeason } = dateInfo;
+      // Only recalculate date info when the day changes — not every tick
+      const dateInfo = day !== state.time.day ? getDateInfo(day) : {
+        season: state.time.season,
+        month: state.time.month,
+        monthIndex: state.time.monthIndex,
+        monthInSeason: state.time.monthInSeason,
+        dayOfMonth: state.time.dayOfMonth,
+        year: state.time.year,
+        dayInSeason: ((day - 1) % DAYS_PER_SEASON),
+      };
+      const { season, month, monthIndex, monthInSeason, dayOfMonth, year, dayInSeason } = dateInfo as ReturnType<typeof getDateInfo>;
 
       let nextDeposits = state.resourceDeposits;
       if (season === 'Spring' && state.time.season !== 'Spring' && nextDeposits) {
@@ -300,6 +309,28 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
         curSnowAcc = Math.max(targetSpringSnow, curSnowAcc - 0.0002);
       } else {
         curSnowAcc = Math.max(0.0, curSnowAcc - 0.0005);
+      }
+
+      state.time.tick = nextTick;
+      state.time.rainIntensity = curRain;
+      state.time.stormIntensity = curStorm;
+      state.time.snowIntensity = curSnow;
+      state.time.snowAccumulation = curSnowAcc;
+      state.time.lightningFlash = flash;
+      state.time.targetWeather = targetWeather;
+      state.time.nextWeather = nextWeather;
+
+      const shouldTriggerUI =
+        state.isWeatherDebugOpen ||
+        minute !== state.time.minute ||
+        currentWeather !== state.time.weather ||
+        season !== state.time.season ||
+        day !== state.time.day ||
+        nextDeposits !== state.resourceDeposits;
+
+      if (!shouldTriggerUI) {
+        state.time.weather = currentWeather;
+        return state;
       }
 
       return {

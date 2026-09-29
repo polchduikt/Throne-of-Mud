@@ -18,6 +18,8 @@ import {
   WORK_SKILL_STEP_MULTIPLIER,
 } from '../../../../constants/jobs';
 
+const failedSearchCooldowns = new Map<string, number>();
+
 export class WoodcuttingJobHandler {
   public static assignWoodcutterHutJob(
     unit: GameEntity,
@@ -28,6 +30,10 @@ export class WoodcuttingJobHandler {
     cx: number,
     cz: number
   ): boolean {
+    const nextAllowedSearch = failedSearchCooldowns.get(unit.id) || 0;
+    if (currentTick < nextAllowedSearch) {
+      return false;
+    }
     const hutWood = building.localInventory?.wood || 0;
     const maxStorage = LUMBERJACK_HUT_MAX_STORAGE;
 
@@ -52,14 +58,14 @@ export class WoodcuttingJobHandler {
         }
       }
 
-      if (currentTick % 30 === 0) {
+      if (currentTick % 120 === 0 && Math.random() < 0.3) {
         unit.speechBubble = {
           text: `Сховище хатини повне (${hutWood}/${maxStorage})! Відпочиваю`,
           expiresAtTick: currentTick + 25,
           type: 'work',
         };
       }
-      return true;
+      return false;
     }
 
     if (
@@ -104,7 +110,8 @@ export class WoodcuttingJobHandler {
 
       candidateTrees.sort((a, b) => a.dist - b.dist);
 
-      for (const cand of candidateTrees.slice(0, 10)) {
+      // Test top 3 closest candidates (was 10) to avoid dozens of heavy A* calls per tick
+      for (const cand of candidateTrees.slice(0, 3)) {
         const path = AStar.findPath(grid, [ux, uz], cand.pos, true, uBounds);
         if (path && path.length > 0) {
           bestTarget = cand.pos;
@@ -116,6 +123,7 @@ export class WoodcuttingJobHandler {
     }
 
     if (bestTarget && bestPath) {
+      failedSearchCooldowns.delete(unit.id);
       if (isFallenCandidate) {
         unit.currentJob = {
           id: `chop-log-${unit.id}-${Date.now()}`,
@@ -147,6 +155,8 @@ export class WoodcuttingJobHandler {
       return true;
     }
 
+    // Set 30 ticks cooldown on failed search
+    failedSearchCooldowns.set(unit.id, currentTick + 30);
     return false;
   }
 
@@ -304,7 +314,12 @@ export class WoodcuttingJobHandler {
 
       let b: GameEntity | undefined;
       if (unit.workBuildingId) {
-        b = Array.from(buildingEntities).find((be: GameEntity) => be.id === unit.workBuildingId);
+        for (const be of buildingEntities) {
+          if (be.id === unit.workBuildingId) {
+            b = be;
+            break;
+          }
+        }
       }
 
       if (b && b.buildingType === 'lumberjack_hut') {

@@ -232,12 +232,15 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
       useGameStore.getState().setCameraAngleTarget(null);
     }
 
+    const isBuildMode = useGameStore.getState().activeTool === 'build' || Boolean(useGameStore.getState().activeBuildType);
     const rotSpeed = 2.4 * delta;
-    if (keysPressed.current['keyq']) {
-      targetAngle.current -= rotSpeed;
-    }
-    if (keysPressed.current['keye']) {
-      targetAngle.current += rotSpeed;
+    if (!isBuildMode) {
+      if (keysPressed.current['keyq']) {
+        targetAngle.current -= rotSpeed;
+      }
+      if (keysPressed.current['keye']) {
+        targetAngle.current += rotSpeed;
+      }
     }
 
     let diffAngle = targetAngle.current - currentAngle.current;
@@ -283,24 +286,26 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
 
     const orthoCam = camera as THREE.OrthographicCamera;
     if (orthoCam.isOrthographicCamera) {
-      const zoomLerpRate = Math.min(1.0, delta * 14.0);
-      const newZoom = THREE.MathUtils.lerp(orthoCam.zoom, targetZoom.current, zoomLerpRate);
-
-      if (Math.abs(orthoCam.zoom - newZoom) > 0.005) {
+      const zoomDiff = targetZoom.current - orthoCam.zoom;
+      if (Math.abs(zoomDiff) > 0.002) {
+        const zoomLerpRate = Math.min(1.0, delta * 18.0);
+        let newZoom = orthoCam.zoom + zoomDiff * zoomLerpRate;
+        if (Math.abs(targetZoom.current - newZoom) < 0.02) {
+          newZoom = targetZoom.current;
+        }
         orthoCam.zoom = newZoom;
-        orthoCam.near = -500;
-        orthoCam.far = 3000;
         orthoCam.updateProjectionMatrix();
       }
-      (window as any).__lastCameraZoom = newZoom;
+      (window as any).__lastCameraZoom = orthoCam.zoom;
 
       if (currentGameMode === 'playing') {
         (window as any).__lastCameraTarget = [curX, curZ];
         (window as any).__lastCameraAngle = curAngle;
       }
 
-      const isStrat = newZoom <= 16;
-      if (isStrat !== isStrategicRef.current) {
+      const currentStrat = isStrategicRef.current;
+      const isStrat = currentStrat ? orthoCam.zoom < 18.0 : orthoCam.zoom <= 17.0;
+      if (isStrat !== currentStrat) {
         isStrategicRef.current = isStrat;
         useGameStore.getState().setIsStrategicView(isStrat);
       }

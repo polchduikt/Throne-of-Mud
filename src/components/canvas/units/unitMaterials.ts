@@ -27,6 +27,16 @@ export interface UnitAppearance {
 
 const unitAppearanceCache = new Map<string, UnitAppearance>();
 
+const faceMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const skinMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const tunicMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const trousersMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const bootsMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const hairMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const hatMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const apronMatCache = new Map<string, THREE.MeshStandardMaterial>();
+const shieldMatCache = new Map<string, THREE.MeshStandardMaterial>();
+
 const MALE_TUNIC_PALETTES = [
   { base: '#b87c47', pattern: 'weave' as const },
   { base: '#52825e', pattern: 'plain' as const },
@@ -116,24 +126,35 @@ export function getUnitAppearance(unitId: string, characterClass = 'peasant'): U
     beardType = 'mustache';
   }
 
-  const faceCanvas = createFaceCanvas(
-    skinEntry.tone,
-    skinEntry.eyes,
-    hairColor,
-    beardType,
-    isLord ? 'determined' : seed % 3 === 0 ? 'smile' : 'calm'
-  );
-  const faceTex = makeTextureFromCanvas(faceCanvas, 1, 1);
-  const faceMat = new THREE.MeshStandardMaterial({
-    map: faceTex,
-    roughness: 0.82,
-    transparent: false,
-  });
 
-  const skinMat = new THREE.MeshStandardMaterial({
-    color: skinEntry.tone,
-    roughness: 0.85,
-  });
+  const faceExpr = isLord ? 'determined' : seed % 3 === 0 ? 'smile' : 'calm';
+  const faceKey = `${skinEntry.tone}_${skinEntry.eyes}_${hairColor}_${beardType}_${faceExpr}`;
+  let faceMat = faceMatCache.get(faceKey);
+  if (!faceMat) {
+    const faceCanvas = createFaceCanvas(
+      skinEntry.tone,
+      skinEntry.eyes,
+      hairColor,
+      beardType,
+      faceExpr
+    );
+    const faceTex = makeTextureFromCanvas(faceCanvas, 1, 1);
+    faceMat = new THREE.MeshStandardMaterial({
+      map: faceTex,
+      roughness: 0.82,
+      transparent: false,
+    });
+    faceMatCache.set(faceKey, faceMat);
+  }
+
+  let skinMat = skinMatCache.get(skinEntry.tone);
+  if (!skinMat) {
+    skinMat = new THREE.MeshStandardMaterial({
+      color: skinEntry.tone,
+      roughness: 0.85,
+    });
+    skinMatCache.set(skinEntry.tone, skinMat);
+  }
 
   let tunicColor = '#b87c47';
   let tunicPattern: 'plain' | 'weave' | 'stripes' | 'check' | 'embroidery' = 'weave';
@@ -157,60 +178,71 @@ export function getUnitAppearance(unitId: string, characterClass = 'peasant'): U
     tunicPattern = entry.pattern;
   }
 
-  const tunicCanvas = createTunicCanvas(tunicColor, tunicPattern, '#fbbf24');
-  const tunicTex = makeTextureFromCanvas(tunicCanvas, 2, 2);
-  const tunicMat = new THREE.MeshStandardMaterial({
-    map: tunicTex,
-    color: tunicColor,
-    roughness: 0.8,
-  });
+  const tunicKey = `${tunicColor}_${tunicPattern}`;
+  let tunicMat = tunicMatCache.get(tunicKey);
+  if (!tunicMat) {
+    const tunicCanvas = createTunicCanvas(tunicColor, tunicPattern, '#fbbf24');
+    const tunicTex = makeTextureFromCanvas(tunicCanvas, 2, 2);
+    tunicMat = new THREE.MeshStandardMaterial({
+      map: tunicTex,
+      color: tunicColor,
+      roughness: 0.8,
+    });
+    tunicMatCache.set(tunicKey, tunicMat);
+  }
 
   const trousersColor = TROUSERS_PALETTES[(seed + 4) % TROUSERS_PALETTES.length];
-  const trousersCanvas = createTrousersCanvas(trousersColor);
-  const trousersTex = makeTextureFromCanvas(trousersCanvas, 1, 2);
-  const trousersMat = new THREE.MeshStandardMaterial({
-    map: trousersTex,
-    color: trousersColor,
-    roughness: 0.85,
-  });
+  let trousersMat = trousersMatCache.get(trousersColor);
+  if (!trousersMat) {
+    const trousersCanvas = createTrousersCanvas(trousersColor);
+    const trousersTex = makeTextureFromCanvas(trousersCanvas, 1, 2);
+    trousersMat = new THREE.MeshStandardMaterial({
+      map: trousersTex,
+      color: trousersColor,
+      roughness: 0.85,
+    });
+    trousersMatCache.set(trousersColor, trousersMat);
+  }
 
-  const leatherCanvas = createLeatherCanvas('#442916');
-  const leatherTex = makeTextureFromCanvas(leatherCanvas, 1, 1);
-  const bootsMat = new THREE.MeshStandardMaterial({
-    map: leatherTex,
-    color: '#3d2514',
-    roughness: 0.82,
-  });
+  let bootsMat = bootsMatCache.get('default');
+  if (!bootsMat) {
+    const leatherCanvas = createLeatherCanvas('#442916');
+    const leatherTex = makeTextureFromCanvas(leatherCanvas, 1, 1);
+    bootsMat = new THREE.MeshStandardMaterial({
+      map: leatherTex,
+      color: '#3d2514',
+      roughness: 0.82,
+    });
+    bootsMatCache.set('default', bootsMat);
+  }
 
-  const hairMat = new THREE.MeshStandardMaterial({
-    color: hairColor,
-    roughness: 0.88,
-  });
+  let hairMat = hairMatCache.get(hairColor);
+  if (!hairMat) {
+    hairMat = new THREE.MeshStandardMaterial({
+      color: hairColor,
+      roughness: 0.88,
+    });
+    hairMatCache.set(hairColor, hairMat);
+  }
 
   let hairStyle = (seed >> 3) % 6;
   let headwearType: 'none' | 'straw_hat' | 'hood' | 'cap' | 'headscarf' | 'wimple' | 'bun' | 'braids' = 'none';
-  let hatMat: THREE.MeshStandardMaterial | undefined = undefined;
 
   if (gender === 'male' && !isLord && !isKnight) {
     const hwRoll = (seed >> 2) % 6;
     if (hwRoll === 0) {
       headwearType = 'straw_hat';
-      hatMat = new THREE.MeshStandardMaterial({ color: '#fed46a', roughness: 0.85 });
     } else if (hwRoll === 1) {
       headwearType = 'hood';
-      hatMat = new THREE.MeshStandardMaterial({ color: tunicColor, roughness: 0.8 });
     } else if (hwRoll === 2) {
       headwearType = 'cap';
-      hatMat = new THREE.MeshStandardMaterial({ color: '#634b3d', roughness: 0.8 });
     }
   } else if (gender === 'female' && !isLady) {
     const hwRoll = (seed >> 2) % 4;
     if (hwRoll === 0) {
       headwearType = 'headscarf';
-      hatMat = new THREE.MeshStandardMaterial({ color: '#fef3c7', roughness: 0.8 });
     } else if (hwRoll === 1) {
       headwearType = 'wimple';
-      hatMat = new THREE.MeshStandardMaterial({ color: '#fafaf9', roughness: 0.8 });
     } else if (hwRoll === 2) {
       headwearType = 'bun';
     } else {
@@ -218,32 +250,67 @@ export function getUnitAppearance(unitId: string, characterClass = 'peasant'): U
     }
   }
 
-  let apronType: 'none' | 'leather_apron' | 'linen_apron' | 'vest' = 'none';
-  let apronMat: THREE.MeshStandardMaterial | undefined = undefined;
+  let hatMat: THREE.MeshStandardMaterial | undefined = undefined;
+  if (headwearType !== 'none' && headwearType !== 'bun' && headwearType !== 'braids') {
+    const hatKey = `${headwearType}_${headwearType === 'hood' ? tunicColor : ''}`;
+    hatMat = hatMatCache.get(hatKey);
+    if (!hatMat) {
+      if (headwearType === 'straw_hat') {
+        hatMat = new THREE.MeshStandardMaterial({ color: '#fed46a', roughness: 0.85 });
+      } else if (headwearType === 'hood') {
+        hatMat = new THREE.MeshStandardMaterial({ color: tunicColor, roughness: 0.8 });
+      } else if (headwearType === 'cap') {
+        hatMat = new THREE.MeshStandardMaterial({ color: '#634b3d', roughness: 0.8 });
+      } else if (headwearType === 'headscarf') {
+        hatMat = new THREE.MeshStandardMaterial({ color: '#fef3c7', roughness: 0.8 });
+      } else if (headwearType === 'wimple') {
+        hatMat = new THREE.MeshStandardMaterial({ color: '#fafaf9', roughness: 0.8 });
+      }
+      if (hatMat) hatMatCache.set(hatKey, hatMat);
+    }
+  }
 
+  let apronType: 'none' | 'leather_apron' | 'linen_apron' | 'vest' = 'none';
   if (!isLord && !isLady && !isKnight) {
     const apRoll = (seed >> 4) % 5;
     if (apRoll === 0) {
       apronType = 'leather_apron';
-      apronMat = new THREE.MeshStandardMaterial({ color: '#664227', roughness: 0.85 });
     } else if (apRoll === 1) {
       apronType = 'linen_apron';
-      apronMat = new THREE.MeshStandardMaterial({ color: '#faf5ea', roughness: 0.85 });
     } else if (apRoll === 2) {
       apronType = 'vest';
-      apronMat = new THREE.MeshStandardMaterial({ color: '#4f321e', roughness: 0.85 });
+    }
+  }
+
+  let apronMat: THREE.MeshStandardMaterial | undefined = undefined;
+  if (apronType !== 'none') {
+    apronMat = apronMatCache.get(apronType);
+    if (!apronMat) {
+      if (apronType === 'leather_apron') {
+        apronMat = new THREE.MeshStandardMaterial({ color: '#664227', roughness: 0.85 });
+      } else if (apronType === 'linen_apron') {
+        apronMat = new THREE.MeshStandardMaterial({ color: '#faf5ea', roughness: 0.85 });
+      } else if (apronType === 'vest') {
+        apronMat = new THREE.MeshStandardMaterial({ color: '#4f321e', roughness: 0.85 });
+      }
+      if (apronMat) apronMatCache.set(apronType, apronMat);
     }
   }
 
   let shieldMat: THREE.MeshStandardMaterial | undefined = undefined;
   if (isKnight) {
     const emblems: ('cross' | 'lion' | 'chevron' | 'tree')[] = ['cross', 'lion', 'chevron', 'tree'];
-    const shieldCanvas = createShieldCanvas('#1e40af', emblems[seed % emblems.length]);
-    const shieldTex = makeTextureFromCanvas(shieldCanvas, 1, 1);
-    shieldMat = new THREE.MeshStandardMaterial({
-      map: shieldTex,
-      roughness: 0.65,
-    });
+    const emblem = emblems[seed % emblems.length];
+    shieldMat = shieldMatCache.get(emblem);
+    if (!shieldMat) {
+      const shieldCanvas = createShieldCanvas('#1e40af', emblem);
+      const shieldTex = makeTextureFromCanvas(shieldCanvas, 1, 1);
+      shieldMat = new THREE.MeshStandardMaterial({
+        map: shieldTex,
+        roughness: 0.65,
+      });
+      shieldMatCache.set(emblem, shieldMat);
+    }
   }
 
   const app: UnitAppearance = {

@@ -31,6 +31,16 @@ export const createUISlice: StateCreator<GameState, [], [], UISlice> = (set, get
     set({ hoveredTile: tile });
   },
 
+  buildRotation: 0,
+  setBuildRotation: (val) => set({ buildRotation: typeof val === 'function' ? val(get().buildRotation) : val }),
+  rotateBuilding: (direction = 'cw', step = Math.PI / 12) =>
+    set((s) => {
+      const delta = direction === 'ccw' ? -step : step;
+      return {
+        buildRotation: ((s.buildRotation + delta) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2),
+      };
+    }),
+
   previewAnimation: null,
   triggerAnimation: (entityId, anim, durationMs = 3500) => {
     set({

@@ -5,9 +5,11 @@ import { ChimneySmoke } from '../common/BuildingPrimitives';
 
 export function IronSmelterModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -52,7 +54,7 @@ export function IronSmelterModel({
           <circleGeometry args={[0.21, 12]} />
         </mesh>
 
-        <ChimneySmoke position={[0, 2.02, 0]} />
+        {isWorking && <ChimneySmoke position={[0, 2.02, 0]} />}
 
         <mesh material={mats.stoneLight} position={[0, 0.32, 0.74]} castShadow>
           <boxGeometry args={[0.54, 0.48, 0.18]} />
@@ -67,7 +69,6 @@ export function IronSmelterModel({
         <mesh material={mats.moltenIron} position={[0, 0.04, 0.98]} receiveShadow>
           <boxGeometry args={[0.20, 0.04, 0.32]} />
         </mesh>
-        <pointLight color="#ea580c" intensity={2.4} distance={4.2} position={[0, 0.35, 1.1]} />
 
         <group position={[-0.72, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
           <mesh material={mats.bootsLeather} position={[0, 0.24, 0]} rotation={[0.15, 0, 0]} castShadow>

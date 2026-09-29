@@ -37,6 +37,12 @@ export class NeedsSystem {
   public static update(currentTick: number): void {
     const { resources, consumeResource } = useGameStore.getState();
 
+    // Track consumption totals — apply in single Zustand set() after the loop
+    let breadAvailable = resources.bread || 0;
+    let aleAvailable = resources.ale || 0;
+    let breadConsumed = 0;
+    let aleConsumed = 0;
+
     for (const unit of characterEntities) {
       if (!unit.needs) continue;
 
@@ -50,27 +56,29 @@ export class NeedsSystem {
 
       unit.needs.ale = Math.max(MIN_ALE, unit.needs.ale - ALE_DECAY_RATE);
 
-      if (unit.needs.hunger < HUNGER_EAT_THRESHOLD && resources.bread > 0) {
-        if (consumeResource('bread', 1)) {
-          unit.needs.hunger = Math.min(MAX_HUNGER, unit.needs.hunger + BREAD_HUNGER_RESTORE);
-          unit.speechBubble = {
-            text: 'Смачний хліб!',
-            expiresAtTick: currentTick + 20,
-            type: 'mood',
-          };
-        }
+      const isPlayerUnit = unit.factionId === 'player' || unit.factionId === undefined;
+
+      if (isPlayerUnit && unit.needs.hunger < HUNGER_EAT_THRESHOLD && breadAvailable > 0) {
+        breadAvailable--;
+        breadConsumed++;
+        unit.needs.hunger = Math.min(MAX_HUNGER, unit.needs.hunger + BREAD_HUNGER_RESTORE);
+        unit.speechBubble = {
+          text: 'Смачний хліб!',
+          expiresAtTick: currentTick + 20,
+          type: 'mood',
+        };
       }
 
-      if (unit.needs.ale < ALE_DRINK_THRESHOLD && resources.ale > 0 && Math.random() < ALE_CONSUME_CHANCE) {
-        if (consumeResource('ale', 1)) {
-          unit.needs.ale = Math.min(MAX_ALE, unit.needs.ale + ALE_RESTORE_AMOUNT);
-          unit.needs.mood = Math.min(MAX_MOOD, unit.needs.mood + ALE_MOOD_RESTORE);
-          unit.speechBubble = {
-            text: 'Гарний ель гріє душу!',
-            expiresAtTick: currentTick + 25,
-            type: 'mood',
-          };
-        }
+      if (isPlayerUnit && unit.needs.ale < ALE_DRINK_THRESHOLD && aleAvailable > 0 && Math.random() < ALE_CONSUME_CHANCE) {
+        aleAvailable--;
+        aleConsumed++;
+        unit.needs.ale = Math.min(MAX_ALE, unit.needs.ale + ALE_RESTORE_AMOUNT);
+        unit.needs.mood = Math.min(MAX_MOOD, unit.needs.mood + ALE_MOOD_RESTORE);
+        unit.speechBubble = {
+          text: 'Гарний ель гріє душу!',
+          expiresAtTick: currentTick + 25,
+          type: 'mood',
+        };
       }
 
       if (unit.currentJob?.type === 'sleep') {
@@ -110,5 +118,9 @@ export class NeedsSystem {
         unit.speechBubble = undefined;
       }
     }
+
+    // Apply batched consumption — at most 2 Zustand set() calls per tick instead of up to 135
+    if (breadConsumed > 0) consumeResource('bread', breadConsumed);
+    if (aleConsumed > 0) consumeResource('ale', aleConsumed);
   }
 }

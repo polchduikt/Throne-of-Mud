@@ -1,6 +1,7 @@
 import { createNoise2D } from 'simplex-noise';
-import type { TileData, TerrainType, SpawnPointData } from '../../types/game';
+import type { TileData, TerrainType, SpawnPointData, ResourceDeposit } from '../../types/game';
 import { getPresetSpawnPoints } from '../../constants/world';
+import { isRoadOverlappingDeposit } from '../buildings/buildingValidation';
 
 function mulberry32(a: number) {
   return function() {
@@ -16,6 +17,9 @@ export class GridMap {
   public readonly height: number;
   public tiles: TileData[][];
   public foliageCoords: number[] = [];
+  public roadCoords: Set<number> = new Set<number>();
+  public dirtyTerrainCoords: number[] = [];
+  public isFullTerrainDirty: boolean = true;
 
   public static getHighwayX(z: number): number {
     return 127.5 + Math.sin((z - 128) * 0.042) * 7.5 + Math.sin((z - 128) * 0.095) * 3.5;
@@ -43,7 +47,10 @@ export class GridMap {
     const lakeNoise = createNoise2D(prng1);
     const foliageNoise = createNoise2D(prng2);
 
+    this.isFullTerrainDirty = true;
+    this.dirtyTerrainCoords = [];
     this.tiles = [];
+    this.roadCoords.clear();
 
     const lake1X = 72;
     const lake1Z = 70;
@@ -128,6 +135,7 @@ export class GridMap {
           foliageType = undefined;
         } else if (isTradeHighway) {
           terrain = 'road';
+          this.roadCoords.add(x * this.width + z);
           fertility = 0.1;
           movementCost = 0.55;
           tileHeight = 0.05;
@@ -241,7 +249,7 @@ export class GridMap {
     for (let dx = 0; dx < width; dx++) {
       for (let dz = 0; dz < height; dz++) {
         const tile = this.getTile(x + dx, z + dz);
-        if (!tile || !tile.isPassable || tile.buildingId || tile.terrain === 'water') {
+        if (!tile || !tile.isPassable || tile.buildingId || tile.terrain === 'water' || tile.terrain === 'road') {
           return false;
         }
       }
@@ -310,12 +318,81 @@ export class GridMap {
           tile.buildingId = buildingId;
           tile.isPassable = false;
           tile.movementCost = Infinity;
+          if (tile.terrain === 'road') {
+            tile.terrain = 'grass';
+            this.roadCoords.delete(tx * this.width + tz);
+            this.dirtyTerrainCoords.push(tx, tz);
+          }
         }
       }
     }
 
     this.removeFoliageFromCoords(x - clearPad, x + width + clearPad - 1, z - clearPad, z + height + clearPad - 1);
     return maxH;
+  }
+
+  public occupyTilesForBuilding(tiles: [number, number][], buildingId: string): number {
+    let maxH = -Infinity;
+    for (const [tx, tz] of tiles) {
+      const t = this.getTile(tx, tz);
+      if (t) {
+        maxH = Math.max(maxH, t.height);
+      }
+    }
+    if (maxH === -Infinity) maxH = 0.05;
+
+    const clearPad = 1;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const [tx, tz] of tiles) {
+      minX = Math.min(minX, tx);
+      maxX = Math.max(maxX, tx);
+      minZ = Math.min(minZ, tz);
+      maxZ = Math.max(maxZ, tz);
+
+      for (let dx = -clearPad; dx <= clearPad; dx++) {
+        for (let dz = -clearPad; dz <= clearPad; dz++) {
+          const nx = tx + dx;
+          const nz = tz + dz;
+          const tile = this.getTile(nx, nz);
+          if (tile) {
+            tile.foliageType = undefined;
+            tile.foliageAngle = undefined;
+            tile.foliageTreeType = undefined;
+          }
+        }
+      }
+    }
+
+    for (const [tx, tz] of tiles) {
+      const tile = this.getTile(tx, tz);
+      if (tile) {
+        tile.buildingId = buildingId;
+        tile.isPassable = false;
+        tile.movementCost = Infinity;
+        tile.height = maxH;
+        if (tile.terrain === 'road') {
+          tile.terrain = 'grass';
+          this.roadCoords.delete(tx * this.width + tz);
+          this.dirtyTerrainCoords.push(tx, tz);
+        }
+      }
+    }
+
+    if (minX !== Infinity) {
+      this.removeFoliageFromCoords(minX - clearPad, maxX + clearPad, minZ - clearPad, maxZ + clearPad);
+    }
+    return maxH;
+  }
+
+  public clearOccupiedTiles(tiles: [number, number][]): void {
+    for (const [tx, tz] of tiles) {
+      const tile = this.getTile(tx, tz);
+      if (tile) {
+        tile.buildingId = undefined;
+        tile.isPassable = tile.terrain !== 'water';
+        tile.movementCost = tile.terrain === 'water' ? Infinity : 1.0;
+      }
+    }
   }
 
   public clearBuilding(x: number, z: number, width: number, height: number): void {
@@ -370,10 +447,16 @@ export class GridMap {
     }
   }
 
-  public paveRoad(x: number, z: number): boolean {
+  public paveRoad(x: number, z: number, resourceDeposits?: ResourceDeposit[]): boolean {
     const tile = this.getTile(x, z);
     if (!tile || tile.terrain === 'water' || tile.buildingId) return false;
     if (tile.terrain === 'road') return false;
+
+    if (resourceDeposits && resourceDeposits.length > 0) {
+      if (isRoadOverlappingDeposit(x, z, resourceDeposits)) {
+        return false;
+      }
+    }
 
     if (tile.foliageType) {
       tile.foliageType = undefined;
@@ -383,8 +466,10 @@ export class GridMap {
     }
 
     tile.terrain = 'road';
+    this.roadCoords.add(x * this.width + z);
     tile.isPassable = true;
     tile.movementCost = 0.55;
+    this.dirtyTerrainCoords.push(x, z);
     return true;
   }
 
@@ -392,7 +477,9 @@ export class GridMap {
     const tile = this.getTile(x, z);
     if (!tile || tile.terrain !== 'road') return false;
     tile.terrain = 'grass';
+    this.roadCoords.delete(x * this.width + z);
     tile.movementCost = 1.0;
+    this.dirtyTerrainCoords.push(x, z);
     return true;
   }
 
@@ -408,6 +495,29 @@ export class GridMap {
       if (tile) neighbors.push(tile);
     }
     return neighbors;
+  }
+
+  public syncToDataTexture(texture: { image?: { data?: any } | null; needsUpdate?: boolean }): void {
+    const data = texture.image?.data;
+    if (!data) return;
+    const w = this.width;
+    const h = this.height;
+    for (let z = 0; z < h; z++) {
+      for (let x = 0; x < w; x++) {
+        const tile = this.tiles[x]?.[z];
+        const t = tile?.terrain || 'grass';
+        const idx = (z * w + x) * 4;
+        data[idx] = (t === 'fertile_soil' || t === 'mud') ? 255 : 0;
+        data[idx + 1] = (t === 'water') ? 255 : 0;
+        data[idx + 2] = (t === 'stone') ? 255 : 0;
+        data[idx + 3] = (t === 'road') ? 255 : 0;
+      }
+    }
+    this.isFullTerrainDirty = false;
+    this.dirtyTerrainCoords.length = 0;
+    if (texture.needsUpdate !== undefined) {
+      texture.needsUpdate = true;
+    }
   }
 }
 

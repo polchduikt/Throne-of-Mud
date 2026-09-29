@@ -1,4 +1,4 @@
-import { useRef, useState, memo } from 'react';
+import { useRef, memo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -120,12 +120,11 @@ export function ResourceDepositsRenderer({ grid }: { grid?: GridMap }) {
   const setSelectedEntityId = useGameStore((state) => state.setSelectedEntityId);
   const isStrategicView = useGameStore((state) => state.isStrategicView);
 
-  if (isStrategicView) return null;
   if (!resourceDeposits || resourceDeposits.length === 0) return null;
 
   return (
-    <group dispose={null}>
-      {resourceDeposits.map((dep) => (
+    <group dispose={null} visible={!isStrategicView}>
+      {!isStrategicView && resourceDeposits.map((dep) => (
         <DepositNodeMemo
           key={dep.id}
           deposit={dep}
@@ -158,8 +157,9 @@ function DepositNode({
   const stagHeadRef = useRef<THREE.Group>(null);
   const doe1HeadRef = useRef<THREE.Group>(null);
   const doe2HeadRef = useRef<THREE.Group>(null);
+  const htmlRef = useRef<HTMLDivElement>(null);
 
-  const [inView, setInView] = useState(true);
+  const inViewRef = useRef(true);
   const frameCount = useRef(0);
 
   const [x, , z] = deposit.position;
@@ -171,7 +171,7 @@ function DepositNode({
   useFrame(({ camera, clock }) => {
     frameCount.current++;
 
-    if (frameCount.current % 10 === 0) {
+    if (frameCount.current % 12 === 0) {
       const orthoCam = camera as THREE.OrthographicCamera;
       const zoom = orthoCam.zoom || 38;
 
@@ -185,12 +185,19 @@ function DepositNode({
       }
 
       const distSq = (x - targetX) * (x - targetX) + (z - targetZ) * (z - targetZ);
-
-      const shouldBeInView = zoom >= 16 && distSq < 70 * 70;
-      if (shouldBeInView !== inView) {
-        setInView(shouldBeInView);
+      const shouldBeInView = zoom >= 16 && distSq < 36 * 36;
+      if (shouldBeInView !== inViewRef.current) {
+        inViewRef.current = shouldBeInView;
+        if (htmlRef.current) {
+          htmlRef.current.style.display = shouldBeInView ? 'flex' : 'none';
+        }
+      }
+      if (nodeRef.current) {
+        nodeRef.current.visible = shouldBeInView;
       }
     }
+
+    if (!inViewRef.current) return;
 
     const t = clock.getElapsedTime();
 
@@ -233,13 +240,9 @@ function DepositNode({
       ref={nodeRef}
       position={[x, y, z]}
       dispose={null}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
     >
-
-      {deposit.type === 'fish' && (
+      <group raycast={() => null}>
+        {deposit.type === 'fish' && (
         <group>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} material={DEPOSIT_MATS.waterRipple}>
             <ringGeometry args={[0.9, 1.4, 24]} />
@@ -256,7 +259,7 @@ function DepositNode({
                 </mesh>
               ))
             )}
-            <mesh position={[0, 0.28, 0]} material={DEPOSIT_MATS.pierPlank} castShadow>
+            <mesh position={[0, 0.28, 0]} material={DEPOSIT_MATS.pierPlank}>
               <boxGeometry args={[0.95, 0.08, 1.7]} />
             </mesh>
             <mesh position={[0.38, 0.42, 0.75]} material={DEPOSIT_MATS.pierWood}>
@@ -369,7 +372,7 @@ function DepositNode({
 
       {deposit.type === 'stone' && (
         <group>
-          <mesh position={[-0.5, 0.75, -0.55]} rotation={[0.05, 0.2, -0.05]} material={DEPOSIT_MATS.stoneRockFace} castShadow>
+          <mesh position={[-0.5, 0.75, -0.55]} rotation={[0.05, 0.2, -0.05]} material={DEPOSIT_MATS.stoneRockFace}>
             <boxGeometry args={[2.8, 1.5, 1.5]} />
           </mesh>
           <mesh position={[0.7, 0.42, -0.35]} rotation={[-0.05, -0.15, 0.05]} material={DEPOSIT_MATS.stoneLimestone}>
@@ -412,56 +415,56 @@ function DepositNode({
       {deposit.type === 'iron' && (
         <group>
 
-          <mesh position={[0, 1.10, -1.85]} material={DEPOSIT_MATS.quarryCliff} receiveShadow castShadow>
+          <mesh position={[0, 1.10, -1.85]} material={DEPOSIT_MATS.quarryCliff} receiveShadow>
             <boxGeometry args={[4.2, 2.10, 1.3]} />
           </mesh>
           <mesh position={[0, 2.18, -2.05]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
             <boxGeometry args={[4.3, 0.35, 0.9]} />
           </mesh>
 
-          <mesh position={[-2.05, 0.95, -0.45]} rotation={[0, 0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow castShadow>
+          <mesh position={[-2.05, 0.95, -0.45]} rotation={[0, 0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow>
             <boxGeometry args={[1.3, 1.90, 3.1]} />
           </mesh>
           <mesh position={[-2.35, 1.88, -0.45]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
             <boxGeometry args={[0.9, 0.30, 3.2]} />
           </mesh>
 
-          <mesh position={[2.05, 0.95, -0.45]} rotation={[0, -0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow castShadow>
+          <mesh position={[2.05, 0.95, -0.45]} rotation={[0, -0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow>
             <boxGeometry args={[1.3, 1.90, 3.1]} />
           </mesh>
           <mesh position={[2.35, 1.88, -0.45]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
             <boxGeometry args={[0.9, 0.30, 3.2]} />
           </mesh>
 
-          <mesh position={[-1.85, 0.45, 1.35]} rotation={[0, 0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+          <mesh position={[-1.85, 0.45, 1.35]} rotation={[0, 0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
             <boxGeometry args={[1.2, 0.85, 1.3]} />
           </mesh>
-          <mesh position={[1.85, 0.45, 1.35]} rotation={[0, -0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+          <mesh position={[1.85, 0.45, 1.35]} rotation={[0, -0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
             <boxGeometry args={[1.2, 0.85, 1.3]} />
           </mesh>
 
-          <mesh position={[0, 0.45, -1.25]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+          <mesh position={[0, 0.45, -1.25]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
             <boxGeometry args={[3.2, 0.75, 0.65]} />
           </mesh>
-          <mesh position={[-1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+          <mesh position={[-1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
             <boxGeometry args={[0.65, 0.75, 2.0]} />
           </mesh>
-          <mesh position={[1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow castShadow>
+          <mesh position={[1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
             <boxGeometry args={[0.65, 0.75, 2.0]} />
           </mesh>
 
-          <mesh position={[0, 0.85, -1.50]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+          <mesh position={[0, 0.85, -1.50]} material={DEPOSIT_MATS.quarryTimberLogs}>
             <boxGeometry args={[3.5, 0.18, 0.18]} />
           </mesh>
-          <mesh position={[-1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+          <mesh position={[-1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs}>
             <boxGeometry args={[0.18, 0.18, 2.4]} />
           </mesh>
-          <mesh position={[1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+          <mesh position={[1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs}>
             <boxGeometry args={[0.18, 0.18, 2.4]} />
           </mesh>
 
           {[-1.55, -0.8, 0.8, 1.55].map((px, idx) => (
-            <mesh key={`v-post-${idx}`} position={[px, 0.95, -1.45]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <mesh key={`v-post-${idx}`} position={[px, 0.95, -1.45]} material={DEPOSIT_MATS.quarryTimberLogs}>
               <cylinderGeometry args={[0.075, 0.085, 1.85, 6]} />
             </mesh>
           ))}
@@ -474,16 +477,16 @@ function DepositNode({
           </mesh>
 
           <group position={[0, 0.14, 0]}>
-            <mesh position={[-0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <mesh position={[-0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs}>
               <boxGeometry args={[0.16, 0.16, 1.7]} />
             </mesh>
-            <mesh position={[0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <mesh position={[0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs}>
               <boxGeometry args={[0.16, 0.16, 1.7]} />
             </mesh>
-            <mesh position={[0, 0.08, -0.85]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <mesh position={[0, 0.08, -0.85]} material={DEPOSIT_MATS.quarryTimberLogs}>
               <boxGeometry args={[1.7, 0.16, 0.16]} />
             </mesh>
-            <mesh position={[0, 0.08, 0.85]} material={DEPOSIT_MATS.quarryTimberLogs} castShadow>
+            <mesh position={[0, 0.08, 0.85]} material={DEPOSIT_MATS.quarryTimberLogs}>
               <boxGeometry args={[1.7, 0.16, 0.16]} />
             </mesh>
 
@@ -525,7 +528,6 @@ function DepositNode({
             <mesh material={DEPOSIT_MATS.lanternGlow}>
               <sphereGeometry args={[0.06, 6, 6]} />
             </mesh>
-            <pointLight color="#f59e0b" intensity={2.0} distance={5.0} />
           </group>
           <group position={[-0.95, 0.55, 0.85]}>
             <mesh material={DEPOSIT_MATS.ironTool} position={[0, 0.12, 0]}>
@@ -534,40 +536,39 @@ function DepositNode({
             <mesh material={DEPOSIT_MATS.lanternGlow}>
               <sphereGeometry args={[0.06, 6, 6]} />
             </mesh>
-            <pointLight color="#f59e0b" intensity={1.5} distance={3.8} />
           </group>
 
-          <mesh position={[-1.45, 1.75, -1.65]} rotation={[0.2, 0.4, -0.1]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+          <mesh position={[-1.45, 1.75, -1.65]} rotation={[0.2, 0.4, -0.1]} material={DEPOSIT_MATS.quarryHematite}>
             <dodecahedronGeometry args={[0.92, 0]} />
           </mesh>
-          <mesh position={[-1.85, 1.45, -1.15]} rotation={[-0.1, 0.2, 0.3]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+          <mesh position={[-1.85, 1.45, -1.15]} rotation={[-0.1, 0.2, 0.3]} material={DEPOSIT_MATS.quarryOreDark}>
             <dodecahedronGeometry args={[0.70, 0]} />
           </mesh>
 
-          <mesh position={[1.45, 1.80, -1.55]} rotation={[-0.15, -0.3, 0.2]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+          <mesh position={[1.45, 1.80, -1.55]} rotation={[-0.15, -0.3, 0.2]} material={DEPOSIT_MATS.quarryOreDark}>
             <dodecahedronGeometry args={[0.95, 0]} />
           </mesh>
-          <mesh position={[1.85, 1.45, -1.05]} rotation={[0.2, 0.1, -0.2]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+          <mesh position={[1.85, 1.45, -1.05]} rotation={[0.2, 0.1, -0.2]} material={DEPOSIT_MATS.quarryHematite}>
             <dodecahedronGeometry args={[0.68, 0]} />
           </mesh>
 
-          <mesh position={[-1.95, 0.85, 0.45]} rotation={[0.3, -0.2, 0.1]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+          <mesh position={[-1.95, 0.85, 0.45]} rotation={[0.3, -0.2, 0.1]} material={DEPOSIT_MATS.quarryHematite}>
             <dodecahedronGeometry args={[0.72, 0]} />
           </mesh>
-          <mesh position={[1.95, 0.85, 0.45]} rotation={[-0.2, 0.3, 0.15]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+          <mesh position={[1.95, 0.85, 0.45]} rotation={[-0.2, 0.3, 0.15]} material={DEPOSIT_MATS.quarryHematite}>
             <dodecahedronGeometry args={[0.72, 0]} />
           </mesh>
 
-          <mesh position={[0.45, 0.28, -0.45]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+          <mesh position={[0.45, 0.28, -0.45]} material={DEPOSIT_MATS.quarryOreDark}>
             <dodecahedronGeometry args={[0.35, 0]} />
           </mesh>
-          <mesh position={[-0.45, 0.26, -0.25]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+          <mesh position={[-0.45, 0.26, -0.25]} material={DEPOSIT_MATS.quarryHematite}>
             <dodecahedronGeometry args={[0.32, 0]} />
           </mesh>
-          <mesh position={[0.35, 0.24, 0.65]} material={DEPOSIT_MATS.quarryOreDark} castShadow>
+          <mesh position={[0.35, 0.24, 0.65]} material={DEPOSIT_MATS.quarryOreDark}>
             <dodecahedronGeometry args={[0.26, 0]} />
           </mesh>
-          <mesh position={[-0.45, 0.22, 0.75]} material={DEPOSIT_MATS.quarryHematite} castShadow>
+          <mesh position={[-0.45, 0.22, 0.75]} material={DEPOSIT_MATS.quarryHematite}>
             <dodecahedronGeometry args={[0.24, 0]} />
           </mesh>
 
@@ -596,7 +597,7 @@ function DepositNode({
 
       {deposit.type === 'clay' && (
         <group>
-          <mesh position={[0, 0.14, 0]} material={DEPOSIT_MATS.clayTerracotta} castShadow>
+          <mesh position={[0, 0.14, 0]} material={DEPOSIT_MATS.clayTerracotta}>
             <cylinderGeometry args={[2.2, 2.6, 0.28, 9]} />
           </mesh>
           <mesh position={[0.12, 0.24, -0.12]} material={DEPOSIT_MATS.clayWet}>
@@ -626,7 +627,7 @@ function DepositNode({
 
       {deposit.type === 'salt' && (
         <group>
-          <mesh position={[0, 0.1, 0]} material={DEPOSIT_MATS.saltWhite} castShadow>
+          <mesh position={[0, 0.1, 0]} material={DEPOSIT_MATS.saltWhite}>
             <cylinderGeometry args={[1.8, 2.2, 0.2, 9]} />
           </mesh>
           <mesh position={[0, 0.21, 0]} rotation={[-Math.PI / 2, 0, 0]} material={DEPOSIT_MATS.brineWater}>
@@ -657,7 +658,7 @@ function DepositNode({
         <group>
 
           <group position={[0.1, 0.14, -0.5]} rotation={[0, 0.35, 0]}>
-            <mesh rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.mossyLog} castShadow>
+            <mesh rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.mossyLog}>
               <cylinderGeometry args={[0.18, 0.22, 2.4, 6]} />
             </mesh>
             <mesh position={[0.4, 0.16, 0]} material={DEPOSIT_MATS.mossGreen}>
@@ -670,7 +671,7 @@ function DepositNode({
 
           <group position={[0.8, 0, 0.4]} rotation={[0, -0.8, 0]}>
 
-            <mesh position={[0, 0.48, 0]} material={DEPOSIT_MATS.stagFur} castShadow>
+            <mesh position={[0, 0.48, 0]} material={DEPOSIT_MATS.stagFur}>
               <boxGeometry args={[0.44, 0.36, 0.78]} />
             </mesh>
 
@@ -866,6 +867,18 @@ function DepositNode({
           </group>
         </group>
       )}
+    </group>
+
+      <mesh
+        position={[0, 0.75, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
+      >
+        <cylinderGeometry args={[2.0, 2.0, 1.5, 8]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
 
       {isSelected && (
         <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -874,66 +887,65 @@ function DepositNode({
         </mesh>
       )}
 
-      {inView && (
-        <Html
-          position={[0, badgeY, 0]}
-          center
-          zIndexRange={[10, 0]}
-          style={{
-            pointerEvents: 'none',
-            userSelect: 'none',
+      <Html
+        position={[0, badgeY, 0]}
+        center
+        zIndexRange={[10, 0]}
+        style={{
+          pointerEvents: 'none',
+          userSelect: 'none',
+        }}
+      >
+        <div
+          ref={htmlRef}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
           }}
+          className={`group flex flex-col items-center select-none pointer-events-auto cursor-pointer ${
+            isSelected ? 'scale-110 -translate-y-1' : 'opacity-95'
+          }`}
         >
           <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect();
-            }}
-            className={`group flex flex-col items-center select-none transition-all duration-200 transform hover:scale-110 active:scale-95 pointer-events-auto cursor-pointer ${
-              isSelected ? 'scale-110 -translate-y-1' : 'opacity-95'
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full shadow-lg ${
+              deposit.isRich
+                ? 'bg-amber-950 border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                : 'bg-stone-950 border border-amber-600/70 shadow-[0_2px_8px_rgba(0,0,0,0.8)]'
             }`}
           >
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full shadow-2xl backdrop-blur-md transition-all ${
-                deposit.isRich
-                  ? 'bg-gradient-to-r from-amber-950/95 via-stone-950/95 to-amber-950/95 border-2 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.45)]'
-                  : 'bg-stone-950/90 border border-amber-600/60 shadow-[0_4px_12px_rgba(0,0,0,0.8)]'
-              }`}
-            >
-              {deposit.isRich && (
-                <span className="text-amber-400 text-xs font-bold -ml-0.5 animate-pulse" title="Багате родовище">
-                  👑
-                </span>
-              )}
-
-              <span className="text-sm leading-none drop-shadow">{deposit.icon}</span>
-
-              <div className="flex items-baseline gap-0.5 text-xs font-bold tracking-tight">
-                <span className={deposit.currentAmount > 0 ? (deposit.isRich ? 'text-amber-300' : 'text-stone-100') : 'text-red-400'}>
-                  {deposit.currentAmount}
-                </span>
-                <span className="text-[10px] text-stone-400 font-normal">/</span>
-                <span className="text-[10px] text-stone-400 font-normal">{deposit.maxAmount}</span>
-              </div>
-            </div>
-
-            <div className="w-10 h-1 bg-stone-900/90 rounded-full mt-0.5 overflow-hidden border border-stone-800/80">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  deposit.isRich ? 'bg-gradient-to-r from-amber-500 to-yellow-300' : 'bg-amber-500'
-                }`}
-                style={{ width: `${fillPercent}%` }}
-              />
-            </div>
-
-            {isSelected && (
-              <div className="mt-1 px-2 py-0.5 bg-stone-950/95 border border-amber-500/70 rounded text-[10px] font-medium text-amber-200 shadow-xl whitespace-nowrap animate-fadeIn">
-                {deposit.name}
-              </div>
+            {deposit.isRich && (
+              <span className="text-amber-400 text-xs font-bold -ml-0.5" title="Багате родовище">
+                👑
+              </span>
             )}
+
+            <span className="text-sm leading-none drop-shadow">{deposit.icon}</span>
+
+            <div className="flex items-baseline gap-0.5 text-xs font-bold tracking-tight">
+              <span className={deposit.currentAmount > 0 ? (deposit.isRich ? 'text-amber-300' : 'text-stone-100') : 'text-red-400'}>
+                {deposit.currentAmount}
+              </span>
+              <span className="text-[10px] text-stone-400 font-normal">/</span>
+              <span className="text-[10px] text-stone-400 font-normal">{deposit.maxAmount}</span>
+            </div>
           </div>
-        </Html>
-      )}
+
+          <div className="w-10 h-1 bg-stone-900 rounded-full mt-0.5 overflow-hidden border border-stone-800">
+            <div
+              className={`h-full ${
+                deposit.isRich ? 'bg-gradient-to-r from-amber-500 to-yellow-300' : 'bg-amber-500'
+              }`}
+              style={{ width: `${fillPercent}%` }}
+            />
+          </div>
+
+          {isSelected && (
+            <div className="mt-1 px-2 py-0.5 bg-stone-950 border border-amber-500/70 rounded text-[10px] font-medium text-amber-200 shadow-xl whitespace-nowrap">
+              {deposit.name}
+            </div>
+          )}
+        </div>
+      </Html>
     </group>
   );
 }

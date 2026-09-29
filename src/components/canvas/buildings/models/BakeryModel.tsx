@@ -11,9 +11,11 @@ import {
 
 export function BakeryModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -161,7 +163,6 @@ export function BakeryModel({
         <mesh material={mats.fireOrange} position={[0, 0.36, 0.50]}>
           <boxGeometry args={[0.32, 0.24, 0.04]} />
         </mesh>
-        <pointLight color="#f97316" intensity={1.6} distance={3.8} position={[0, 0.44, 0.62]} />
       </group>
 
       <group ref={roofRef}>
@@ -213,6 +214,7 @@ export function BakeryModel({
           width={0.44}
           depth={0.44}
           height={1.05}
+          hasSmoke={isWorking}
         />
       </group>
     </group>

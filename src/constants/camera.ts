@@ -1,7 +1,7 @@
 export const DEFAULT_CAMERA_ZOOM = 38.0;
 export const MIN_CAMERA_ZOOM = 4.0;
 export const MAX_CAMERA_ZOOM = 85.0;
-export const STRATEGIC_ZOOM_THRESHOLD = 14.0;
+export const STRATEGIC_ZOOM_THRESHOLD = 17.0;
 export const STRATEGIC_VIEW_ZOOM = 5.0;
 
 export const CAMERA_DISTANCE = 339.408;

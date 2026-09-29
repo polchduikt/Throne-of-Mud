@@ -47,14 +47,15 @@ export class GatheringJobHandler {
     const fishCount = inv.fish || 0;
 
     if (fishCount >= maxStorage) {
-      if (currentTick % 40 === 0) {
+      if (currentTick % 120 === 0 && Math.random() < 0.3) {
         unit.speechBubble = {
           text: `Склад риби повний (${fishCount}/${maxStorage})! Відпочиваю`,
           expiresAtTick: currentTick + 25,
           type: 'work',
         };
       }
-      return true;
+      unit.currentJob = { id: `idle-full-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
+      return false;
     }
 
     const assignedList = building.assignedWorkers || [];
@@ -161,14 +162,15 @@ export class GatheringJobHandler {
     const berryCount = inv.berries || 0;
 
     if (berryCount >= maxStorage) {
-      if (currentTick % 40 === 0) {
+      if (currentTick % 120 === 0 && Math.random() < 0.3) {
         unit.speechBubble = {
           text: `Кошики ягід повні (${berryCount}/${maxStorage})! Відпочиваю`,
           expiresAtTick: currentTick + 25,
           type: 'work',
         };
       }
-      return true;
+      unit.currentJob = { id: `idle-full-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
+      return false;
     }
 
     const deposits = useGameStore.getState().resourceDeposits || [];
@@ -303,14 +305,15 @@ export class GatheringJobHandler {
     const meatCount = inv.meat || 0;
 
     if (meatCount >= maxStorage) {
-      if (currentTick % 40 === 0) {
+      if (currentTick % 120 === 0 && Math.random() < 0.3) {
         unit.speechBubble = {
           text: `Сховище дичини повне (${meatCount}/${maxStorage})! Відпочиваю`,
           expiresAtTick: currentTick + 25,
           type: 'work',
         };
       }
-      return true;
+      unit.currentJob = { id: `idle-full-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
+      return false;
     }
 
     const deposits = useGameStore.getState().resourceDeposits || [];

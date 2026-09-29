@@ -10,6 +10,7 @@ export function CampfireModel() {
   const fireLightRef = useRef<THREE.PointLight>(null);
 
   useFrame(({ clock }) => {
+    if (!fireFlameRef.current || !fireFlameRef.current.parent?.visible) return;
     const t = clock.getElapsedTime();
 
     if (fireFlameRef.current) {

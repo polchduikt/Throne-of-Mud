@@ -11,9 +11,11 @@ import {
 
 export function TavernModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -154,7 +156,6 @@ export function TavernModel({
         <mesh material={mats.fireYellow} position={[-0.03, 0.24, 0]}>
           <coneGeometry args={[0.065, 0.18, 5]} />
         </mesh>
-        <pointLight color="#f97316" intensity={1.5} distance={3.8} position={[-0.15, 0.28, 0]} />
 
         <mesh material={mats.stoneMed} position={[0.05, 2.05, 0]} castShadow receiveShadow>
           <boxGeometry args={[0.38, 2.45, 0.44]} />
@@ -171,7 +172,7 @@ export function TavernModel({
         <mesh material={mats.charredWood} position={[0.05, 3.48, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[0.14, 10]} />
         </mesh>
-        <ChimneySmoke position={[0.05, 3.60, 0]} />
+        {isWorking && <ChimneySmoke position={[0.05, 3.60, 0]} />}
 
         <mesh material={mats.ironHardware} position={[-0.10, 0.88, 0.26]} castShadow>
           <cylinderGeometry args={[0.04, 0.06, 0.08, 6]} />
@@ -307,10 +308,6 @@ export function TavernModel({
           <cylinderGeometry args={[0.012, 0.016, 0.05, 5]} />
         </mesh>
       </group>
-
-      {isLightOn && (
-        <pointLight color="#fde047" intensity={1.1} distance={4.5} position={[0, 1.05, 0]} />
-      )}
 
       <group ref={roofRef}>
 

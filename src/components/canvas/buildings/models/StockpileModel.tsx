@@ -126,9 +126,6 @@ export function StockpileModel({
         <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0, 0]}>
           <cylinderGeometry args={[0.03, 0.04, 0.1, 5]} />
         </mesh>
-        {isLightOn && (
-          <pointLight color="#fde047" intensity={0.7} distance={2.8} position={[0, 0, 0.1]} />
-        )}
       </group>
 
       <group ref={roofRef}>

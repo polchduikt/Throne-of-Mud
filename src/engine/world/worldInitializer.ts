@@ -3,7 +3,7 @@ import { GridMap } from '../grid/GridMap';
 import { world } from '../ecs/world';
 import { DEFAULT_REGIONS, PRESET_BOT_LORDS } from '../../constants/world';
 import { initResourceDeposits } from '../resources/ResourceDeposits';
-import { getSmartRoadPath } from '../grid/roadGeneration';
+import { getSmartRoadPath, isRoadPathValid } from '../grid/roadGeneration';
 
 export interface WorldInitResult {
   playerRegionId: number;
@@ -19,7 +19,7 @@ export function initializeWorldEntities(
   grid: GridMap,
   config?: WorldSetupConfig,
   currentRegionId: number = 0,
-  currentBotCount: number = 2
+  currentBotCount: number = 3
 ): WorldInitResult {
   for (const entity of [...world.entities]) {
     world.remove(entity);
@@ -267,14 +267,18 @@ export function initializeWorldEntities(
         targetZ = 128;
       }
 
-      const botHighwayRoad = getSmartRoadPath(grid, targetX, targetZ, bx + 1, bz + 1);
-      for (const [px, pz] of botHighwayRoad) {
-        grid.paveRoad(px, pz);
+      const botHighwayRoad = getSmartRoadPath(grid, targetX, targetZ, bx + 2, bz);
+      if (isRoadPathValid(grid, botHighwayRoad)) {
+        for (const [px, pz] of botHighwayRoad) {
+          grid.paveRoad(px, pz);
+        }
       }
 
-      const botCampInternalRoad = getSmartRoadPath(grid, bx, bz, bx - 2, bz);
-      for (const [px, pz] of botCampInternalRoad) {
-        grid.paveRoad(px, pz);
+      const botCampInternalRoad = getSmartRoadPath(grid, bx + 2, bz, bx - 1, bz);
+      if (isRoadPathValid(grid, botCampInternalRoad)) {
+        for (const [px, pz] of botCampInternalRoad) {
+          grid.paveRoad(px, pz);
+        }
       }
 
       world.add({

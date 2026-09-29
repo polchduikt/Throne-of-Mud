@@ -1,11 +1,12 @@
 import { GridMap } from '../../grid/GridMap';
-import { world } from '../world';
+import { world, characterEntities, buildingEntities, type GameEntity } from '../world';
 import { useGameStore } from '../../../store/useGameStore';
 import { AStar } from '../../pathfinding/AStar';
-import { getSmartRoadPath } from '../../grid/roadGeneration';
+import { getSmartRoadPath, isRoadPathValid } from '../../grid/roadGeneration';
 import { BUILDING_BLUEPRINTS } from '../../buildings/blueprints';
-import { getSnappedPlacementCoords } from '../../grid/buildingSnap';
-import type { BuildingType, ResourceDeposit } from '../../../types/game';
+import { validateBuildingPlacement } from '../../buildings/buildingValidation';
+import { getBuildingDoorInfo } from '../../buildings/buildingNavigation';
+import type { BuildingType, ResourceDeposit, ResourceType, RegionData } from '../../../types/game';
 import {
   BOT_AI_TICK_INTERVAL,
   BOT_AI_WORKER_ASSIGN_INTERVAL,
@@ -80,17 +81,245 @@ const PROFESSION_TITLES: Partial<Record<BuildingType, string>> = {
   stockpile: 'Носій',
 };
 
+function consumeResourcesFromBotSettlement(
+  buildings: GameEntity[],
+  woodNeeded: number,
+  stoneNeeded: number
+): void {
+  let remWood = woodNeeded;
+  let remStone = stoneNeeded;
+
+  const storageBuildings = buildings.filter(
+    (b) =>
+      b.isCompleted &&
+      b.localInventory &&
+      (b.buildingType === 'stockpile' ||
+        b.buildingType === 'sawmill' ||
+        b.buildingType === 'lumberjack_hut' ||
+        b.buildingType === 'foresters_hut' ||
+        b.buildingType === 'stone_quarry' ||
+        b.buildingType === 'stonecutter')
+  );
+
+  storageBuildings.sort((a, b) => (a.buildingType === 'stockpile' ? -1 : b.buildingType === 'stockpile' ? 1 : 0));
+
+  for (const b of storageBuildings) {
+    if (!b.localInventory) continue;
+
+    if (remWood > 0) {
+      if ((b.localInventory.planks || 0) > 0) {
+        const take = Math.min(remWood, b.localInventory.planks || 0);
+        b.localInventory.planks = (b.localInventory.planks || 0) - take;
+        if (b.localInventory.planks <= 0) delete b.localInventory.planks;
+        remWood -= take;
+      }
+      if (remWood > 0 && (b.localInventory.wood || 0) > 0) {
+        const take = Math.min(remWood, b.localInventory.wood || 0);
+        b.localInventory.wood = (b.localInventory.wood || 0) - take;
+        if (b.localInventory.wood <= 0) delete b.localInventory.wood;
+        remWood -= take;
+      }
+    }
+
+    if (remStone > 0) {
+      if ((b.localInventory.cut_stone || 0) > 0) {
+        const take = Math.min(remStone, b.localInventory.cut_stone || 0);
+        b.localInventory.cut_stone = (b.localInventory.cut_stone || 0) - take;
+        if (b.localInventory.cut_stone <= 0) delete b.localInventory.cut_stone;
+        remStone -= take;
+      }
+      if (remStone > 0 && (b.localInventory.stone || 0) > 0) {
+        const take = Math.min(remStone, b.localInventory.stone || 0);
+        b.localInventory.stone = (b.localInventory.stone || 0) - take;
+        if (b.localInventory.stone <= 0) delete b.localInventory.stone;
+        remStone -= take;
+      }
+    }
+
+    if (remWood <= 0 && remStone <= 0) break;
+  }
+}
+
 export class BotAISystem {
   private static botMemories: Map<string, BotRealmMemory> = new Map();
+  public static failedGoals: Map<string, number> = new Map();
 
   public static reset() {
     this.botMemories.clear();
+    this.failedGoals.clear();
+    this.failedRoadConnections.clear();
+  }
+
+  public static addResource(factionId: string, resType: ResourceType, amount: number): void {
+    let memory = this.botMemories.get(factionId);
+    if (!memory) {
+      const regionId = parseInt(factionId.replace('bot-', ''), 10);
+      if (!isNaN(regionId)) {
+        memory = {
+          wood: BOT_AI_STARTING_WOOD,
+          stone: BOT_AI_STARTING_STONE,
+          gold: BOT_AI_STARTING_GOLD,
+          food: BOT_AI_STARTING_FOOD,
+          iron: BOT_AI_STARTING_IRON,
+          buildStage: 0,
+          lastActionTick: 0,
+          lastWorkerAssignTick: 0,
+          lastImmigrationTick: 0,
+        };
+        this.botMemories.set(factionId, memory);
+      }
+    }
+    if (!memory) return;
+    if (resType === 'wood' || resType === 'planks') memory.wood += amount;
+    else if (resType === 'stone' || resType === 'cut_stone') memory.stone += amount;
+    else if (resType === 'iron' || resType === 'iron_ore') memory.iron += amount;
+    else if (
+      resType === 'bread' ||
+      resType === 'wheat' ||
+      resType === 'fish' ||
+      resType === 'berries' ||
+      resType === 'meat' ||
+      resType === 'flour'
+    )
+      memory.food += amount;
+    else if (resType === 'gold') memory.gold += amount;
+  }
+
+  private static failedRoadConnections = new Map<string, number>();
+
+  private static connectBuildingToRoadNetwork(
+    building: GameEntity,
+    grid: GridMap,
+    region: RegionData,
+    resourceDeposits: ResourceDeposit[],
+    currentTick: number = 0
+  ): boolean {
+    const failedAt = BotAISystem.failedRoadConnections.get(building.id);
+    if (failedAt !== undefined && currentTick - failedAt < 180) {
+      return false;
+    }
+
+    const bPos = building.gridPosition || (building.position ? [Math.floor(building.position[0]), Math.floor(building.position[2])] : null);
+    if (!bPos) return false;
+
+    const bWidth = building.buildingWidth || 2;
+    const bHeight = building.buildingHeight || 2;
+    const bx = bPos[0];
+    const bz = bPos[1];
+
+    for (let x = bx - 1; x <= bx + bWidth; x++) {
+      for (let z = bz - 1; z <= bz + bHeight; z++) {
+        if (x >= bx && x < bx + bWidth && z >= bz && z < bz + bHeight) continue;
+        const t = grid.getTile(x, z);
+        if (t && t.terrain === 'road' && !t.buildingId) {
+          return false;
+        }
+      }
+    }
+
+    let approachPos: [number, number] | null = null;
+    try {
+      const doorInfo = getBuildingDoorInfo(building);
+      if (doorInfo && doorInfo.doorApproachPos) {
+        const [ax, az] = doorInfo.doorApproachPos;
+        const t = grid.getTile(ax, az);
+        if (t && t.terrain !== 'water' && !t.buildingId) {
+          approachPos = [ax, az];
+        }
+      }
+    } catch (_) {}
+
+    if (!approachPos) {
+      const candidates: [number, number][] = [];
+      for (let x = bx; x < bx + bWidth; x++) {
+        candidates.push([x, bz - 1], [x, bz + bHeight]);
+      }
+      for (let z = bz; z < bz + bHeight; z++) {
+        candidates.push([bx - 1, z], [bx + bWidth, z]);
+      }
+      for (let x = bx; x < bx + bWidth; x++) {
+        candidates.push([x, bz - 2], [x, bz + bHeight + 1]);
+      }
+      for (let z = bz; z < bz + bHeight; z++) {
+        candidates.push([bx - 2, z], [bx + bWidth + 1, z]);
+      }
+
+      for (const [cx, cz] of candidates) {
+        const t = grid.getTile(cx, cz);
+        if (t && t.terrain !== 'water' && !t.buildingId) {
+          approachPos = [cx, cz];
+          break;
+        }
+      }
+    }
+
+    if (!approachPos) {
+      BotAISystem.failedRoadConnections.set(building.id, currentTick);
+      return false;
+    }
+
+    let nearestRoad: [number, number] | null = null;
+    let minDistSq = Infinity;
+
+    const minRX = region.bounds.minX - 10;
+    const maxRX = region.bounds.maxX + 10;
+    const minRZ = region.bounds.minZ - 10;
+    const maxRZ = region.bounds.maxZ + 10;
+
+    for (const coord of grid.roadCoords) {
+      const rx = Math.floor(coord / grid.width);
+      const rz = coord % grid.width;
+      if (rx >= minRX && rx <= maxRX && rz >= minRZ && rz <= maxRZ) {
+        const t = grid.getTile(rx, rz);
+        if (t && t.terrain === 'road' && !t.buildingId) {
+          const dSq = (rx - approachPos[0]) ** 2 + (rz - approachPos[1]) ** 2;
+          if (dSq < minDistSq) {
+            minDistSq = dSq;
+            nearestRoad = [rx, rz];
+          }
+        }
+      }
+    }
+
+    if (!nearestRoad) {
+      const camp = region.campPosition || region.center;
+      nearestRoad = [camp[0] + 2, camp[1]];
+    }
+
+    const bRoadPath = getSmartRoadPath(
+      grid,
+      approachPos[0],
+      approachPos[1],
+      nearestRoad[0],
+      nearestRoad[1],
+      region.bounds,
+      resourceDeposits
+    );
+
+    let pavedAny = false;
+    if (bRoadPath.length > 0) {
+      for (const [px, pz] of bRoadPath) {
+        const t = grid.getTile(px, pz);
+        if (t && t.terrain !== 'water' && !t.buildingId) {
+          if (grid.paveRoad(px, pz, resourceDeposits)) {
+            pavedAny = true;
+          }
+        }
+      }
+    }
+
+    if (pavedAny) {
+      BotAISystem.failedRoadConnections.delete(building.id);
+    } else {
+      BotAISystem.failedRoadConnections.set(building.id, currentTick);
+    }
+
+    return pavedAny;
   }
 
   public static update(grid: GridMap, currentTick: number): void {
-    if (currentTick % BOT_AI_TICK_INTERVAL !== 0) return;
-
     const {
+      time,
       regions,
       resourceDeposits = [],
       incrementBuildingVersion,
@@ -99,9 +328,18 @@ export class BotAISystem {
       updateRegionStats,
     } = useGameStore.getState();
 
+    const isNightTime = time ? (time.hour >= 20 || time.hour < 6) : false;
+
     const botRegions = regions.filter((r) => r.owner === 'bot');
 
+    const camTarget = (typeof window !== 'undefined' ? (window as any).__lastCameraTarget : null) as [number, number] | null;
+
     for (const region of botRegions) {
+      const regCenter = region.campPosition || region.center;
+      const isRegionOffscreen = camTarget ? ((regCenter[0] - camTarget[0]) ** 2 + (regCenter[1] - camTarget[1]) ** 2 > 55 * 55) : false;
+      const tickInterval = isRegionOffscreen ? BOT_AI_TICK_INTERVAL * 2 : BOT_AI_TICK_INTERVAL;
+      if ((currentTick + region.id * 3) % tickInterval !== 0) continue;
+
       const botFactionId = `bot-${region.id}`;
       let memory = this.botMemories.get(botFactionId);
       if (!memory) {
@@ -138,15 +376,22 @@ export class BotAISystem {
           targetZ = 128;
         }
 
-        const hPath = getSmartRoadPath(grid, targetX, targetZ, camp[0] + 1, camp[1] + 1);
+        const campRoadEntrance: [number, number] = [camp[0] + 2, camp[1]];
+        const campRoadCourtyard: [number, number] = [camp[0] - 1, camp[1]];
+
+        const hPath = getSmartRoadPath(grid, targetX, targetZ, campRoadEntrance[0], campRoadEntrance[1], region.bounds, resourceDeposits);
         let anyPaved = false;
-        for (const [px, pz] of hPath) {
-          if (grid.paveRoad(px, pz)) anyPaved = true;
+        if (isRoadPathValid(grid, hPath, resourceDeposits)) {
+          for (const [px, pz] of hPath) {
+            if (grid.paveRoad(px, pz, resourceDeposits)) anyPaved = true;
+          }
         }
 
-        const campInternal = getSmartRoadPath(grid, camp[0], camp[1], camp[0] - 2, camp[1]);
-        for (const [px, pz] of campInternal) {
-          if (grid.paveRoad(px, pz)) anyPaved = true;
+        const campInternal = getSmartRoadPath(grid, campRoadEntrance[0], campRoadEntrance[1], campRoadCourtyard[0], campRoadCourtyard[1], region.bounds, resourceDeposits);
+        if (isRoadPathValid(grid, campInternal, resourceDeposits)) {
+          for (const [px, pz] of campInternal) {
+            if (grid.paveRoad(px, pz, resourceDeposits)) anyPaved = true;
+          }
         }
 
         if (anyPaved) {
@@ -155,33 +400,165 @@ export class BotAISystem {
         }
       }
 
-      const botUnits = Array.from(world.entities).filter(
-        (e) => e.isCharacter && (e.factionId === botFactionId || (e.regionId === region.id && e.factionId !== 'player'))
-      );
+      const botUnits: GameEntity[] = [];
+      for (const e of characterEntities) {
+        if (e.factionId === botFactionId || (e.regionId === region.id && e.factionId !== 'player')) {
+          botUnits.push(e);
+        }
+      }
 
-      const botBuildings = Array.from(world.entities).filter(
-        (e) => e.isBuilding && (e.regionId === region.id || e.factionId === botFactionId)
-      );
+      const botBuildings: GameEntity[] = [];
+      for (const e of buildingEntities) {
+        if (e.regionId === region.id || e.factionId === botFactionId) {
+          botBuildings.push(e);
+        }
+      }
+
+      if (currentTick % 30 === (region.id * 7) % 30) {
+        let anyConnected = false;
+        let attempts = 0;
+        for (const b of botBuildings) {
+          if (BotAISystem.failedRoadConnections.has(b.id) && currentTick - (BotAISystem.failedRoadConnections.get(b.id) || 0) < 180) {
+            continue;
+          }
+          attempts++;
+          if (BotAISystem.connectBuildingToRoadNetwork(b, grid, region, resourceDeposits, currentTick)) {
+            anyConnected = true;
+            break;
+          }
+          if (attempts >= 1) break;
+        }
+        if (anyConnected) {
+          incrementBuildingVersion();
+          incrementFoliageVersion(true);
+        }
+      }
 
       const completedBuildings = botBuildings.filter((b) => b.isCompleted);
       const incompleteBuildings = botBuildings.filter((b) => !b.isCompleted);
       const peasants = botUnits.filter((u) => u.characterClass === 'peasant');
 
+      const foodHolders = completedBuildings.filter(
+        (b) =>
+          b.localInventory &&
+          (b.buildingType === 'stockpile' ||
+            b.buildingType === 'bakery' ||
+            b.buildingType === 'wheat_farm' ||
+            b.buildingType === 'fishermans_hut' ||
+            b.buildingType === 'foragers_hut' ||
+            b.buildingType === 'hunters_hut')
+      );
+      foodHolders.sort((a, b) => (a.buildingType === 'stockpile' ? -1 : b.buildingType === 'stockpile' ? 1 : 0));
+      const edibleTypes: ResourceType[] = ['bread', 'fish', 'meat', 'berries', 'flour', 'wheat'];
+
+      const completedBuildingMap = new Map<string, typeof completedBuildings[0]>();
+      for (const b of completedBuildings) {
+        completedBuildingMap.set(b.id, b);
+      }
+
       for (const p of peasants) {
         if (p.needs) {
-          if (p.needs.hunger < 45) p.needs.hunger = 95;
+          if (p.needs.hunger < 45) {
+            let consumedFood = false;
+            for (const fh of foodHolders) {
+              if (!fh.localInventory) continue;
+              for (const ft of edibleTypes) {
+                if ((fh.localInventory[ft] || 0) > 0) {
+                  fh.localInventory[ft] = (fh.localInventory[ft] || 0) - 1;
+                  if (fh.localInventory[ft]! <= 0) {
+                    delete fh.localInventory[ft];
+                  }
+                  consumedFood = true;
+                  break;
+                }
+              }
+              if (consumedFood) break;
+            }
+
+            p.needs.hunger = 95;
+            if (consumedFood) {
+              p.needs.mood = Math.min(100, (p.needs.mood || 80) + 5);
+            }
+          }
+
+          if (p.needs.ale !== undefined && p.needs.ale < 40) {
+            for (const b of completedBuildings) {
+              if (b.localInventory && (b.localInventory.ale || 0) > 0) {
+                b.localInventory.ale = (b.localInventory.ale || 0) - 1;
+                if (b.localInventory.ale <= 0) delete b.localInventory.ale;
+                p.needs.ale = 90;
+                p.needs.mood = Math.min(100, (p.needs.mood || 80) + 10);
+                break;
+              }
+            }
+          }
+
           if (p.needs.energy < 45) p.needs.energy = 95;
           if (p.needs.mood < 50) p.needs.mood = 80;
         }
 
         if (p.workBuildingId) {
-          const b = completedBuildings.find((cb) => cb.id === p.workBuildingId);
-          if (b && Math.random() < BOT_AI_RESOURCE_GEN_CHANCE) {
-            if (b.buildingType === 'lumberjack_hut') memory.wood += 2;
-            else if (b.buildingType === 'stone_quarry' || b.buildingType === 'stonecutter') memory.stone += 2;
-            else if (b.buildingType === 'wheat_farm' || b.buildingType === 'bakery' || b.buildingType === 'fishermans_hut' || b.buildingType === 'foragers_hut' || b.buildingType === 'hunters_hut') memory.food += 2;
-            else if (b.buildingType === 'iron_mine' || b.buildingType === 'iron_smelter') memory.iron += 1;
-            else if (b.buildingType === 'market' || b.buildingType === 'tavern') memory.gold += 1;
+          const b = completedBuildingMap.get(p.workBuildingId);
+          if (b && b.buildingType && Math.random() < BOT_AI_RESOURCE_GEN_CHANCE) {
+            const isGatheringOrHauling =
+              b.buildingType === 'lumberjack_hut' ||
+              b.buildingType === 'fishermans_hut' ||
+              b.buildingType === 'foragers_hut' ||
+              b.buildingType === 'hunters_hut' ||
+              b.buildingType === 'stockpile';
+
+            if (!isGatheringOrHauling) {
+              const blueprint = BUILDING_BLUEPRINTS[b.buildingType];
+              const maxCap = blueprint?.maxStorage || 30;
+              b.localInventory = b.localInventory || {};
+              const curStored = Object.values(b.localInventory).reduce((acc, v) => acc + (v || 0), 0);
+
+              if (curStored < maxCap) {
+                if (b.buildingType === 'sawmill') {
+                  b.localInventory.planks = (b.localInventory.planks || 0) + 2;
+                  memory.wood += 2;
+                } else if (b.buildingType === 'stone_quarry') {
+                  b.localInventory.stone = (b.localInventory.stone || 0) + 2;
+                  memory.stone += 2;
+                } else if (b.buildingType === 'stonecutter') {
+                  b.localInventory.cut_stone = (b.localInventory.cut_stone || 0) + 2;
+                  memory.stone += 2;
+                } else if (b.buildingType === 'wheat_farm') {
+                  b.localInventory.wheat = (b.localInventory.wheat || 0) + 2;
+                  memory.food += 2;
+                } else if (b.buildingType === 'windmill') {
+                  b.localInventory.flour = (b.localInventory.flour || 0) + 2;
+                  memory.food += 2;
+                } else if (b.buildingType === 'bakery') {
+                  b.localInventory.bread = (b.localInventory.bread || 0) + 2;
+                  memory.food += 2;
+                } else if (b.buildingType === 'brewery') {
+                  b.localInventory.ale = (b.localInventory.ale || 0) + 2;
+                  memory.food += 1;
+                } else if (b.buildingType === 'iron_mine') {
+                  b.localInventory.iron_ore = (b.localInventory.iron_ore || 0) + 2;
+                  memory.iron += 1;
+                } else if (b.buildingType === 'iron_smelter') {
+                  b.localInventory.iron = (b.localInventory.iron || 0) + 1;
+                  memory.iron += 1;
+                } else if (b.buildingType === 'clay_pit') {
+                  b.localInventory.clay = (b.localInventory.clay || 0) + 2;
+                } else if (b.buildingType === 'brickworks') {
+                  b.localInventory.clay_bricks = (b.localInventory.clay_bricks || 0) + 2;
+                } else if (b.buildingType === 'salt_works') {
+                  b.localInventory.salt = (b.localInventory.salt || 0) + 2;
+                } else if (b.buildingType === 'charcoal_kiln') {
+                  b.localInventory.coal = (b.localInventory.coal || 0) + 2;
+                } else if (b.buildingType === 'weavers_workshop') {
+                  b.localInventory.clothes = (b.localInventory.clothes || 0) + 1;
+                } else if (b.buildingType === 'foresters_hut') {
+                  b.localInventory.wood = (b.localInventory.wood || 0) + 2;
+                  memory.wood += 2;
+                } else if (b.buildingType === 'market' || b.buildingType === 'tavern') {
+                  memory.gold += 1;
+                }
+              }
+            }
           }
         } else {
           if (Math.random() < BOT_AI_GATHER_CHANCE) {
@@ -217,25 +594,28 @@ export class BotAISystem {
             b.assignedWorkers.push(availablePeasant.id);
             const prof = PROFESSION_TITLES[b.buildingType] || 'Робітник';
             availablePeasant.title = prof;
-            availablePeasant.speechBubble = {
-              text: `Працюю у ${b.name || def.name}! (${prof})`,
-              expiresAtTick: currentTick + DEFAULT_SPEECH_BUBBLE_TICKS,
-              type: 'work',
-            };
+            if (!isRegionOffscreen) {
+              availablePeasant.speechBubble = {
+                text: `Працюю у ${b.name || def.name}! (${prof})`,
+                expiresAtTick: currentTick + DEFAULT_SPEECH_BUBBLE_TICKS,
+                type: 'work',
+              };
+            }
           }
         }
       }
 
+      let wanderTriggered = false;
       for (const p of peasants) {
         const isIdleOrWandering = !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander';
 
         if (isIdleOrWandering && incompleteBuildings.length > 0 && p.gridPosition) {
           const targetB = incompleteBuildings[0];
-          const isSomeoneBuilding = peasants.some((other) => other.currentJob?.targetBuildingId === targetB.id);
-          if (!isSomeoneBuilding && targetB.gridPosition) {
+          const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === targetB.id).length;
+          if (buildersCount < 3 && targetB.gridPosition) {
             const bW = targetB.buildingWidth || 2;
             const bH = targetB.buildingHeight || 2;
-            const buildPath = AStar.findPathToArea(grid, p.gridPosition, targetB.gridPosition[0], targetB.gridPosition[1], bW, bH, region.bounds);
+            const buildPath = isRegionOffscreen ? null : AStar.findPathToArea(grid, p.gridPosition, targetB.gridPosition[0], targetB.gridPosition[1], bW, bH, region.bounds);
             p.currentJob = {
               id: `bot-build-${targetB.id}-${Date.now()}`,
               type: 'build_structure',
@@ -246,25 +626,77 @@ export class BotAISystem {
             };
             if (buildPath && buildPath.length > 0) {
               p.path = buildPath;
+            } else if (isRegionOffscreen) {
+              p.gridPosition = [targetB.gridPosition[0], targetB.gridPosition[1]];
+              p.position = [targetB.gridPosition[0] + 0.5, 0.05, targetB.gridPosition[1] + 0.5];
             }
-            p.speechBubble = {
-              text: `Зводжу ${targetB.name || 'споруду'}!`,
-              expiresAtTick: currentTick + 30,
-              type: 'work',
-            };
+            if (!isRegionOffscreen) {
+              p.speechBubble = {
+                text: `Зводжу ${targetB.name || 'споруду'}!`,
+                expiresAtTick: currentTick + 30,
+                type: 'work',
+              };
+            }
           }
         }
 
-        if (isIdleOrWandering && (!p.path || p.path.length === 0) && Math.random() < 0.25) {
+        if (!isRegionOffscreen && !isNightTime && !wanderTriggered && isIdleOrWandering && (!p.path || p.path.length === 0) && Math.random() < 0.05) {
+          wanderTriggered = true;
           const camp = region.campPosition || region.center;
-          const rx = Math.round(camp[0] + (Math.random() * 10 - 5));
-          const rz = Math.round(camp[1] + (Math.random() * 10 - 5));
+          const rx = Math.round(camp[0] + (Math.random() * 8 - 4));
+          const rz = Math.round(camp[1] + (Math.random() * 8 - 4));
           const tile = grid.getTile(rx, rz);
           if (tile && tile.isPassable && !tile.buildingId && p.gridPosition) {
             const path = AStar.findPath(grid, p.gridPosition, [rx, rz], false, region.bounds);
             if (path && path.length > 0) {
               p.path = path;
             }
+          }
+        }
+      }
+
+      if (incompleteBuildings.length > 0) {
+        const targetB = incompleteBuildings[0];
+        const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === targetB.id).length;
+        if (buildersCount === 0 && targetB.gridPosition) {
+          const fallbackBuilder =
+            peasants.find((p) => !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander' || p.currentJob.type === 'work_at_building') ||
+            peasants[0];
+          if (fallbackBuilder && fallbackBuilder.gridPosition) {
+            const bW = targetB.buildingWidth || 2;
+            const bH = targetB.buildingHeight || 2;
+            const buildPath = isRegionOffscreen ? null : AStar.findPathToArea(grid, fallbackBuilder.gridPosition, targetB.gridPosition[0], targetB.gridPosition[1], bW, bH, region.bounds);
+            fallbackBuilder.currentJob = {
+              id: `bot-build-${targetB.id}-${Date.now()}`,
+              type: 'build_structure',
+              targetBuildingId: targetB.id,
+              targetPosition: targetB.gridPosition,
+              progress: Math.floor(((targetB.constructionProgress || 0) / 100) * 100),
+              totalWork: 100,
+            };
+            if (buildPath && buildPath.length > 0) {
+              fallbackBuilder.path = buildPath;
+            } else if (isRegionOffscreen) {
+              fallbackBuilder.gridPosition = [targetB.gridPosition[0], targetB.gridPosition[1]];
+              fallbackBuilder.position = [targetB.gridPosition[0] + 0.5, 0.05, targetB.gridPosition[1] + 0.5];
+            }
+            if (!isRegionOffscreen) {
+              fallbackBuilder.speechBubble = {
+                text: `Зводжу ${targetB.name || 'споруду'}!`,
+                expiresAtTick: currentTick + 30,
+                type: 'work',
+              };
+            }
+          }
+        }
+
+        if (currentTick % 20 === 0) {
+          targetB.constructionProgress = Math.min(100, (targetB.constructionProgress || 0) + 10);
+          if (targetB.constructionProgress >= 100) {
+            targetB.constructionProgress = 100;
+            targetB.isCompleted = true;
+            targetB.buildingHealth = targetB.maxBuildingHealth || 150;
+            incrementBuildingVersion();
           }
         }
       }
@@ -347,7 +779,8 @@ export class BotAISystem {
         }
       }
 
-      if (incompleteBuildings.length === 0 && currentTick - memory.lastActionTick >= BOT_AI_BUILD_DECISION_INTERVAL) {
+      const botDecisionInterval = BOT_AI_BUILD_DECISION_INTERVAL + (region.id * 17);
+      if (incompleteBuildings.length < 2 && currentTick - memory.lastActionTick >= botDecisionInterval) {
         memory.lastActionTick = currentTick;
 
         const bCounts: Partial<Record<BuildingType, number>> = {};
@@ -358,6 +791,7 @@ export class BotAISystem {
         }
 
         const count = (t: BuildingType) => bCounts[t] || 0;
+        const canAttempt = (t: BuildingType) => (BotAISystem.failedGoals.get(`${botFactionId}-${t}`) || 0) <= currentTick;
 
         const regionalDeposits = resourceDeposits.filter((d) => {
           const [dx, , dz] = d.position || [d.gridPosition[0] + 0.5, 0, d.gridPosition[1] + 0.5];
@@ -377,165 +811,410 @@ export class BotAISystem {
         const hasGameDeposit = regionalDeposits.some((d) => d.type === 'wild_game');
         const hasFishDeposit = regionalDeposits.some((d) => d.type === 'fish');
 
+        const botStockpiles = completedBuildings.filter((b) => b.buildingType === 'stockpile');
+        let totalStockpileCapacity = 0;
+        let totalStockpileStored = 0;
+        for (const sp of botStockpiles) {
+          const cap = sp.maxStorage || 200;
+          totalStockpileCapacity += cap;
+          if (sp.localInventory) {
+            totalStockpileStored += Object.values(sp.localInventory).reduce((acc, v) => acc + (v || 0), 0);
+          }
+        }
+        const areStockpilesNearFull =
+          botStockpiles.length > 0 &&
+          (totalStockpileStored >= totalStockpileCapacity * 0.7 ||
+            botStockpiles.some((sp) => {
+              const cur = Object.values(sp.localInventory || {}).reduce((acc, v) => acc + (v || 0), 0);
+              return cur >= (sp.maxStorage || 200) * 0.85;
+            }));
+
+        const freeBeds = totalBeds - peasants.length;
+        const needsHousing = freeBeds <= 2 && peasants.length < BOT_AI_MAX_PEASANTS && count('peasant_house') < 22;
+
         let candidateGoal: { type: BuildingType; targetDeposit?: ResourceDeposit } | null = null;
 
-        if (count('lumberjack_hut') === 0) {
-          candidateGoal = { type: 'lumberjack_hut' };
-        } else if (count('peasant_house') === 0) {
-          candidateGoal = { type: 'peasant_house' };
-        } else if (count('stockpile') === 0) {
+        if (canAttempt('stockpile') && areStockpilesNearFull && count('stockpile') < 8) {
           candidateGoal = { type: 'stockpile' };
-        } else if (hasBerryDeposit && count('foragers_hut') === 0) {
-          candidateGoal = { type: 'foragers_hut', targetDeposit: regionalDeposits.find((d) => d.type === 'berries') };
-        } else if (hasFishDeposit && count('fishermans_hut') === 0) {
-          candidateGoal = { type: 'fishermans_hut', targetDeposit: regionalDeposits.find((d) => d.type === 'fish') };
-        } else if (hasGameDeposit && count('hunters_hut') === 0) {
-          candidateGoal = { type: 'hunters_hut', targetDeposit: regionalDeposits.find((d) => d.type === 'wild_game') };
-        } else if (count('wheat_farm') === 0) {
-          candidateGoal = { type: 'wheat_farm' };
-        } else if (count('peasant_house') < 2) {
+        } else if (canAttempt('peasant_house') && needsHousing) {
           candidateGoal = { type: 'peasant_house' };
-        } else if (hasStoneDeposit && count('stone_quarry') === 0) {
-          candidateGoal = { type: 'stone_quarry', targetDeposit: regionalDeposits.find((d) => d.type === 'stone') };
-        } else if (hasIronDeposit && count('iron_mine') === 0) {
-          candidateGoal = { type: 'iron_mine', targetDeposit: regionalDeposits.find((d) => d.type === 'iron') };
-        } else if (hasClayDeposit && count('clay_pit') === 0) {
-          candidateGoal = { type: 'clay_pit', targetDeposit: regionalDeposits.find((d) => d.type === 'clay') };
-        } else if (hasSaltDeposit && count('salt_works') === 0) {
-          candidateGoal = { type: 'salt_works', targetDeposit: regionalDeposits.find((d) => d.type === 'salt') };
-        } else if (count('wheat_farm') >= 1 && count('windmill') === 0) {
-          candidateGoal = { type: 'windmill' };
-        } else if (count('windmill') >= 1 && count('bakery') === 0) {
-          candidateGoal = { type: 'bakery' };
-        } else if (count('stone_quarry') >= 1 && count('stonecutter') === 0) {
-          candidateGoal = { type: 'stonecutter' };
-        } else if (count('sawmill') === 0) {
-          candidateGoal = { type: 'sawmill' };
-        } else if (count('peasant_house') < 3) {
-          candidateGoal = { type: 'peasant_house' };
-        } else if (count('wheat_farm') >= 1 && count('brewery') === 0) {
-          candidateGoal = { type: 'brewery' };
-        } else if (count('brewery') >= 1 && count('tavern') === 0) {
-          candidateGoal = { type: 'tavern' };
-        } else if (count('wooden_church') === 0) {
-          candidateGoal = { type: 'wooden_church' };
-        } else if (count('iron_mine') >= 1 && count('charcoal_kiln') === 0) {
-          candidateGoal = { type: 'charcoal_kiln' };
-        } else if (count('charcoal_kiln') >= 1 && count('iron_smelter') === 0) {
-          candidateGoal = { type: 'iron_smelter' };
-        } else if (count('market') === 0) {
-          candidateGoal = { type: 'market' };
-        } else if (count('barracks') === 0) {
-          candidateGoal = { type: 'barracks' };
-        } else if (count('manor') === 0 && peasants.length >= 6) {
-          candidateGoal = { type: 'manor' };
-        } else if (count('peasant_house') < 6) {
-          candidateGoal = { type: 'peasant_house' };
-        } else if (count('lumberjack_hut') < 2) {
+        } else if (canAttempt('lumberjack_hut') && count('lumberjack_hut') === 0) {
           candidateGoal = { type: 'lumberjack_hut' };
-        } else if (count('wheat_farm') < 2) {
+        } else if (canAttempt('peasant_house') && count('peasant_house') === 0) {
+          candidateGoal = { type: 'peasant_house' };
+        } else if (canAttempt('stockpile') && count('stockpile') === 0) {
+          candidateGoal = { type: 'stockpile' };
+        } else if (canAttempt('foragers_hut') && hasBerryDeposit && count('foragers_hut') === 0) {
+          candidateGoal = { type: 'foragers_hut', targetDeposit: regionalDeposits.find((d) => d.type === 'berries') };
+        } else if (canAttempt('fishermans_hut') && hasFishDeposit && count('fishermans_hut') === 0) {
+          candidateGoal = { type: 'fishermans_hut', targetDeposit: regionalDeposits.find((d) => d.type === 'fish') };
+        } else if (canAttempt('hunters_hut') && hasGameDeposit && count('hunters_hut') === 0) {
+          candidateGoal = { type: 'hunters_hut', targetDeposit: regionalDeposits.find((d) => d.type === 'wild_game') };
+        } else if (canAttempt('wheat_farm') && count('wheat_farm') === 0) {
           candidateGoal = { type: 'wheat_farm' };
+        } else if (canAttempt('peasant_house') && count('peasant_house') < 2) {
+          candidateGoal = { type: 'peasant_house' };
+        } else if (canAttempt('stone_quarry') && hasStoneDeposit && count('stone_quarry') === 0) {
+          candidateGoal = { type: 'stone_quarry', targetDeposit: regionalDeposits.find((d) => d.type === 'stone') };
+        } else if (canAttempt('iron_mine') && hasIronDeposit && count('iron_mine') === 0) {
+          candidateGoal = { type: 'iron_mine', targetDeposit: regionalDeposits.find((d) => d.type === 'iron') };
+        } else if (canAttempt('clay_pit') && hasClayDeposit && count('clay_pit') === 0) {
+          candidateGoal = { type: 'clay_pit', targetDeposit: regionalDeposits.find((d) => d.type === 'clay') };
+        } else if (canAttempt('salt_works') && hasSaltDeposit && count('salt_works') === 0) {
+          candidateGoal = { type: 'salt_works', targetDeposit: regionalDeposits.find((d) => d.type === 'salt') };
+        } else if (canAttempt('windmill') && count('wheat_farm') >= 1 && count('windmill') === 0) {
+          candidateGoal = { type: 'windmill' };
+        } else if (canAttempt('bakery') && count('windmill') >= 1 && count('bakery') === 0) {
+          candidateGoal = { type: 'bakery' };
+        } else if (canAttempt('stonecutter') && count('stone_quarry') >= 1 && count('stonecutter') === 0) {
+          candidateGoal = { type: 'stonecutter' };
+        } else if (canAttempt('sawmill') && count('sawmill') === 0) {
+          candidateGoal = { type: 'sawmill' };
+        } else if (canAttempt('peasant_house') && count('peasant_house') < 4) {
+          candidateGoal = { type: 'peasant_house' };
+        } else if (canAttempt('brewery') && count('wheat_farm') >= 1 && count('brewery') === 0) {
+          candidateGoal = { type: 'brewery' };
+        } else if (canAttempt('tavern') && count('brewery') >= 1 && count('tavern') === 0) {
+          candidateGoal = { type: 'tavern' };
+        } else if (canAttempt('wooden_church') && count('wooden_church') === 0) {
+          candidateGoal = { type: 'wooden_church' };
+        } else if (canAttempt('charcoal_kiln') && count('iron_mine') >= 1 && count('charcoal_kiln') === 0) {
+          candidateGoal = { type: 'charcoal_kiln' };
+        } else if (canAttempt('iron_smelter') && count('charcoal_kiln') >= 1 && count('iron_smelter') === 0) {
+          candidateGoal = { type: 'iron_smelter' };
+        } else if (canAttempt('market') && count('market') === 0) {
+          candidateGoal = { type: 'market' };
+        } else if (canAttempt('barracks') && count('barracks') === 0) {
+          candidateGoal = { type: 'barracks' };
+        } else if (canAttempt('manor') && count('manor') === 0 && peasants.length >= 6) {
+          candidateGoal = { type: 'manor' };
+        } else if (canAttempt('stockpile') && count('stockpile') < 2 && count('peasant_house') >= 3) {
+          candidateGoal = { type: 'stockpile' };
+        } else if (canAttempt('peasant_house') && count('peasant_house') < 6) {
+          candidateGoal = { type: 'peasant_house' };
+        } else if (canAttempt('lumberjack_hut') && count('lumberjack_hut') < 2) {
+          candidateGoal = { type: 'lumberjack_hut' };
+        } else if (canAttempt('wheat_farm') && count('wheat_farm') < 2) {
+          candidateGoal = { type: 'wheat_farm' };
+        } else if (canAttempt('foresters_hut') && count('foresters_hut') === 0 && count('lumberjack_hut') >= 1) {
+          candidateGoal = { type: 'foresters_hut' };
+        } else if (canAttempt('wheat_farm') && peasants.length >= 12 && count('wheat_farm') < 3) {
+          candidateGoal = { type: 'wheat_farm' };
+        } else if (canAttempt('windmill') && count('wheat_farm') >= 2 && count('windmill') < 2) {
+          candidateGoal = { type: 'windmill' };
+        } else if (canAttempt('bakery') && count('windmill') >= 2 && count('bakery') < 2) {
+          candidateGoal = { type: 'bakery' };
+        } else if (canAttempt('brickworks') && count('clay_pit') >= 1 && count('brickworks') === 0) {
+          candidateGoal = { type: 'brickworks' };
+        } else if (canAttempt('weavers_workshop') && count('weavers_workshop') === 0) {
+          candidateGoal = { type: 'weavers_workshop' };
+        } else if (canAttempt('sawmill') && peasants.length >= 12 && count('sawmill') < 2) {
+          candidateGoal = { type: 'sawmill' };
+        } else if (canAttempt('stonecutter') && hasStoneDeposit && count('stonecutter') < 2 && peasants.length >= 14) {
+          candidateGoal = { type: 'stonecutter', targetDeposit: regionalDeposits.find((d) => d.type === 'stone') };
+        } else if (canAttempt('lumberjack_hut') && peasants.length >= 16 && count('lumberjack_hut') < 3) {
+          candidateGoal = { type: 'lumberjack_hut' };
+        } else if (canAttempt('market') && peasants.length >= 14 && count('market') < 2) {
+          candidateGoal = { type: 'market' };
+        } else if (canAttempt('tavern') && peasants.length >= 16 && count('tavern') < 2) {
+          candidateGoal = { type: 'tavern' };
+        } else if (canAttempt('barracks') && peasants.length >= 18 && count('barracks') < 2) {
+          candidateGoal = { type: 'barracks' };
+        } else if (canAttempt('wooden_church') && peasants.length >= 20 && count('wooden_church') < 2) {
+          candidateGoal = { type: 'wooden_church' };
+        } else if (canAttempt('wheat_farm') && peasants.length >= 22 && count('wheat_farm') < 4) {
+          candidateGoal = { type: 'wheat_farm' };
+        } else if (canAttempt('windmill') && count('wheat_farm') >= 4 && count('windmill') < 3) {
+          candidateGoal = { type: 'windmill' };
+        } else if (canAttempt('bakery') && count('windmill') >= 3 && count('bakery') < 3) {
+          candidateGoal = { type: 'bakery' };
+        } else if (canAttempt('brewery') && peasants.length >= 22 && count('brewery') < 2) {
+          candidateGoal = { type: 'brewery' };
+        } else if (canAttempt('foresters_hut') && peasants.length >= 24 && count('foresters_hut') < 2) {
+          candidateGoal = { type: 'foresters_hut' };
+        } else if (canAttempt('charcoal_kiln') && peasants.length >= 24 && count('charcoal_kiln') < 2) {
+          candidateGoal = { type: 'charcoal_kiln' };
+        } else if (canAttempt('iron_smelter') && peasants.length >= 26 && count('iron_smelter') < 2) {
+          candidateGoal = { type: 'iron_smelter' };
+        } else if (canAttempt('lumberjack_hut') && peasants.length >= 26 && count('lumberjack_hut') < 4) {
+          candidateGoal = { type: 'lumberjack_hut' };
+        } else if (canAttempt('wheat_farm') && peasants.length >= 30 && count('wheat_farm') < 5) {
+          candidateGoal = { type: 'wheat_farm' };
+        } else if (canAttempt('stockpile') && count('stockpile') < Math.min(8, Math.max(2, Math.ceil(peasants.length / 5)))) {
+          candidateGoal = { type: 'stockpile' };
+        } else if (canAttempt('peasant_house') && count('peasant_house') < 22 && peasants.length < BOT_AI_MAX_PEASANTS) {
+          candidateGoal = { type: 'peasant_house' };
         }
 
         if (candidateGoal) {
           const bType = candidateGoal.type;
           const bBlueprint = BUILDING_BLUEPRINTS[bType];
           if (bBlueprint) {
-            const bWidth = bBlueprint.width || 3;
-            const bHeight = bBlueprint.height || 2;
+            const baseW = bBlueprint.width || 3;
+            const baseH = bBlueprint.height || 2;
             const woodCost = bBlueprint.cost?.wood || 15;
             const stoneCost = bBlueprint.cost?.stone || 0;
+
+            let settlementWood = 0;
+            let settlementStone = 0;
+            for (const b of botBuildings) {
+              if (b.isCompleted && b.localInventory) {
+                settlementWood += (b.localInventory.wood || 0) + (b.localInventory.planks || 0);
+                settlementStone += (b.localInventory.stone || 0) + (b.localInventory.cut_stone || 0);
+              }
+            }
+            memory.wood = Math.max(memory.wood, settlementWood);
+            memory.stone = Math.max(memory.stone, settlementStone);
 
             if (memory.wood < woodCost) memory.wood += woodCost;
             if (memory.stone < stoneCost) memory.stone += stoneCost;
 
-            let placedCoords: [number, number] | null = null;
+            interface PlacementCandidate {
+              bx: number;
+              bz: number;
+              w: number;
+              h: number;
+              rotation: number;
+            }
+            let placedResult: PlacementCandidate | null = null;
+
+            const checkPlacementValid = (bx: number, bz: number, w: number, h: number): boolean => {
+              if (
+                bx < region.bounds.minX + 3 ||
+                bx + w > region.bounds.maxX - 3 ||
+                bz < region.bounds.minZ + 3 ||
+                bz + h > region.bounds.maxZ - 3
+              ) {
+                return false;
+              }
+
+              const validation = validateBuildingPlacement(
+                bType,
+                bx,
+                bz,
+                w,
+                h,
+                grid,
+                resourceDeposits
+              );
+              if (!validation.allowed) return false;
+
+              const isWall = bType === 'wooden_wall' || bType === 'stone_wall' || bType === 'wooden_gate';
+              const minSpacing = isWall ? 0 : (bType === 'windmill' ? 2 : 1);
+
+              for (const b of botBuildings) {
+                if (!b.isBuilding || !b.gridPosition) continue;
+                const [otherX, otherZ] = b.gridPosition;
+                const otherType = b.buildingType;
+                const otherDef = otherType ? BUILDING_BLUEPRINTS[otherType] : null;
+                const otherW = b.buildingWidth || otherDef?.width || 1;
+                const otherH = b.buildingHeight || otherDef?.height || 1;
+                const isOtherWall = otherType === 'wooden_wall' || otherType === 'stone_wall' || otherType === 'wooden_gate';
+
+                const reqSpacing = (isWall && isOtherWall) ? 0 : Math.max(minSpacing, otherType === 'windmill' ? 2 : 1);
+
+                const overlapX = !(bx + w + reqSpacing <= otherX || bx >= otherX + otherW + reqSpacing);
+                const overlapZ = !(bz + h + reqSpacing <= otherZ || bz >= otherZ + otherH + reqSpacing);
+                if (overlapX && overlapZ) {
+                  return false;
+                }
+              }
+
+              let minH = Infinity;
+              let maxH = -Infinity;
+              for (let tx = bx; tx < bx + w; tx++) {
+                for (let tz = bz; tz < bz + h; tz++) {
+                  const t = grid.getTile(tx, tz);
+                  if (!t) return false;
+                  const th = t.height || 0.05;
+                  if (th < minH) minH = th;
+                  if (th > maxH) maxH = th;
+                }
+              }
+              if (maxH - minH > BOT_AI_TERRAIN_MAX_HEIGHT_DIFF) return false;
+
+              return true;
+            };
+
+            const testPositionRotations = (candCenterX: number, candCenterZ: number, campCenter?: [number, number]): PlacementCandidate | null => {
+              let preferredRot = 0;
+              if (campCenter) {
+                const cdx = candCenterX - campCenter[0];
+                const cdz = candCenterZ - campCenter[1];
+                if (Math.abs(cdz) >= Math.abs(cdx)) {
+                  preferredRot = cdz > 0 ? Math.PI : 0;
+                } else {
+                  preferredRot = cdx > 0 ? (3 * Math.PI) / 2 : Math.PI / 2;
+                }
+              }
+
+              const rotCandidates = [
+                preferredRot,
+                (preferredRot + Math.PI / 2) % (2 * Math.PI),
+                (preferredRot + Math.PI) % (2 * Math.PI),
+                (preferredRot + (3 * Math.PI) / 2) % (2 * Math.PI),
+              ];
+
+              for (const rot of rotCandidates) {
+                const isRot90 = Math.abs(Math.sin(rot)) > 0.5;
+                const candW = isRot90 ? baseH : baseW;
+                const candH = isRot90 ? baseW : baseH;
+                const bx = Math.round(candCenterX - candW / 2);
+                const bz = Math.round(candCenterZ - candH / 2);
+
+                if (checkPlacementValid(bx, bz, candW, candH)) {
+                  let hasPerimeterOpen = false;
+                  for (let px = bx - 1; px <= bx + candW; px++) {
+                    for (let pz = bz - 1; pz <= bz + candH; pz++) {
+                      if (px >= bx && px < bx + candW && pz >= bz && pz < bz + candH) continue;
+                      const pt = grid.getTile(px, pz);
+                      if (pt && pt.terrain !== 'water' && !pt.buildingId && pt.isPassable) {
+                        hasPerimeterOpen = true;
+                        break;
+                      }
+                    }
+                    if (hasPerimeterOpen) break;
+                  }
+                  if (hasPerimeterOpen) {
+                    return { bx, bz, w: candW, h: candH, rotation: rot };
+                  }
+                }
+              }
+              return null;
+            };
 
             if (candidateGoal.targetDeposit) {
               const d = candidateGoal.targetDeposit;
               const [dx, , dz] = d.position || [d.gridPosition[0] + 0.5, 0, d.gridPosition[1] + 0.5];
-              const snapped = getSnappedPlacementCoords(
-                dx - bWidth / 2,
-                dz - bHeight / 2,
-                bWidth,
-                bHeight,
-                bType,
-                grid,
-                resourceDeposits
-              );
+              const camp = region.campPosition || region.center;
 
-              let canPlaceDep = true;
-              for (let tx = snapped[0]; tx < snapped[0] + bWidth; tx++) {
-                for (let tz = snapped[1]; tz < snapped[1] + bHeight; tz++) {
-                  const t = grid.getTile(tx, tz);
-                  if (!t || (t.terrain === 'water' && bType !== 'fishermans_hut') || (t.buildingId && !t.buildingId.includes('deposit'))) {
-                    canPlaceDep = false;
+              if (bType === 'fishermans_hut') {
+                const lakeRadii = [3.0, 4.0, 5.0, 6.0, 7.5, 9.0, 11.0, 13.0];
+                for (const r of lakeRadii) {
+                  for (let deg = 0; deg < 360; deg += 15) {
+                    const rad = (deg * Math.PI) / 180;
+                    const cx = dx + r * Math.cos(rad);
+                    const cz = dz + r * Math.sin(rad);
+                    const res = testPositionRotations(cx, cz, camp);
+                    if (res) {
+                      placedResult = res;
+                      break;
+                    }
+                  }
+                  if (placedResult) break;
+                }
+              } else {
+                const depRadii = [3.0, 4.0, 5.0, 6.0, 7.5, 9.0];
+                for (const r of depRadii) {
+                  for (let deg = 0; deg < 360; deg += 15) {
+                    const rad = (deg * Math.PI) / 180;
+                    const cx = dx + r * Math.cos(rad);
+                    const cz = dz + r * Math.sin(rad);
+                    const res = testPositionRotations(cx, cz, camp);
+                    if (res) {
+                      placedResult = res;
+                      break;
+                    }
+                  }
+                  if (placedResult) break;
+                }
+              }
+            }
+
+            const camp = region.campPosition || region.center;
+
+            if (!placedResult && !candidateGoal.targetDeposit) {
+              const roadCoords = grid.roadCoords;
+              if (roadCoords && roadCoords.size > 0) {
+                const b = region.bounds;
+                let checkedCount = 0;
+                const maxRoadChecks = 80;
+                const roadStep = Math.max(1, Math.floor(roadCoords.size / maxRoadChecks));
+                let stepCounter = 0;
+
+                for (const key of roadCoords) {
+                  stepCounter++;
+                  if (stepCounter % roadStep !== 0) continue;
+
+                  const rx = Math.floor(key / grid.width);
+                  const rz = key % grid.width;
+                  if (rx < b.minX + 4 || rx > b.maxX - 4 || rz < b.minZ + 4 || rz > b.maxZ - 4) {
+                    continue;
+                  }
+                  const distToCamp = Math.hypot(rx - camp[0], rz - camp[1]);
+                  if (distToCamp > 50) continue;
+
+                  const offsets = [
+                    [rx + baseW / 2 + 1.2, rz + 0.5],
+                    [rx - baseW / 2 - 1.2, rz + 0.5],
+                    [rx + 0.5, rz + baseH / 2 + 1.2],
+                    [rx + 0.5, rz - baseH / 2 - 1.2],
+                    [rx + baseW / 2 + 1.8, rz + baseH / 2 + 1.8],
+                    [rx - baseW / 2 - 1.8, rz - baseH / 2 - 1.8],
+                  ];
+                  for (const [cx, cz] of offsets) {
+                    const res = testPositionRotations(cx, cz, camp);
+                    if (res) {
+                      placedResult = res;
+                      break;
+                    }
+                  }
+                  checkedCount++;
+                  if (placedResult || checkedCount >= maxRoadChecks) break;
+                }
+              }
+            }
+
+            if (!placedResult && !candidateGoal.targetDeposit) {
+              for (const eb of completedBuildings) {
+                if (!eb.gridPosition) continue;
+                const [ebx, ebz] = eb.gridPosition;
+                const ebW = eb.buildingWidth || 2;
+                const ebH = eb.buildingHeight || 2;
+                const offsets = [
+                  [ebx + ebW + baseW / 2 + 1.2, ebz + ebH / 2],
+                  [ebx - baseW / 2 - 1.2, ebz + ebH / 2],
+                  [ebx + ebW / 2, ebz + ebH + baseH / 2 + 1.2],
+                  [ebx + ebW / 2, ebz - baseH / 2 - 1.2],
+                  [ebx + ebW + baseW / 2 + 1.5, ebz + ebH + baseH / 2 + 1.5],
+                  [ebx - baseW / 2 - 1.5, ebz + ebH + baseH / 2 + 1.5],
+                ];
+                for (const [cx, cz] of offsets) {
+                  const res = testPositionRotations(cx, cz, camp);
+                  if (res) {
+                    placedResult = res;
                     break;
                   }
                 }
-                if (!canPlaceDep) break;
-              }
-
-              if (canPlaceDep) {
-                placedCoords = snapped;
+                if (placedResult) break;
               }
             }
 
-            if (!placedCoords) {
-              const camp = region.campPosition || region.center;
-              const ringOffsets: [number, number][] = [
-                [5, 0], [-6, 0], [0, 5], [0, -6],
-                [6, 5], [-6, 5], [6, -6], [-6, -6],
-                [11, 0], [-11, 0], [0, 11], [0, -11],
-                [11, 6], [-11, 6], [11, -6], [-11, -6],
-                [6, 11], [-6, 11], [6, -11], [-6, -11],
-                [12, 12], [-12, 12], [12, -12], [-12, -12],
-              ];
-
-              for (const [ox, oz] of ringOffsets) {
-                const bx = Math.round(camp[0] + ox);
-                const bz = Math.round(camp[1] + oz);
-
-                if (
-                  bx < region.bounds.minX + 3 ||
-                  bx + bWidth >= region.bounds.maxX - 3 ||
-                  bz < region.bounds.minZ + 3 ||
-                  bz + bHeight >= region.bounds.maxZ - 3
-                ) {
-                  continue;
-                }
-
-                let canPlace = true;
-                let minH = Infinity;
-                let maxH = -Infinity;
-
-                for (let tx = bx; tx < bx + bWidth; tx++) {
-                  for (let tz = bz; tz < bz + bHeight; tz++) {
-                    const t = grid.getTile(tx, tz);
-                    if (!t || t.terrain === 'water' || t.buildingId) {
-                      canPlace = false;
-                      break;
-                    }
-                    const th = t.height || 0.05;
-                    if (th < minH) minH = th;
-                    if (th > maxH) maxH = th;
+            if (!placedResult) {
+              const campRadii = [6, 10, 14, 18, 22, 26, 30, 35, 40, 46, 52];
+              for (const r of campRadii) {
+                const angleStep = Math.max(12, Math.floor(360 / (r * 1.8)));
+                for (let deg = 0; deg < 360; deg += angleStep) {
+                  const rad = (deg * Math.PI) / 180;
+                  const cx = camp[0] + r * Math.cos(rad);
+                  const cz = camp[1] + r * Math.sin(rad);
+                  const res = testPositionRotations(cx, cz, camp);
+                  if (res) {
+                    placedResult = res;
+                    break;
                   }
-                  if (!canPlace) break;
                 }
-
-                if (canPlace && maxH - minH <= BOT_AI_TERRAIN_MAX_HEIGHT_DIFF) {
-                  placedCoords = [bx, bz];
-                  break;
-                }
+                if (placedResult) break;
               }
             }
 
-            if (placedCoords) {
-              const [bx, bz] = placedCoords;
+            if (placedResult) {
+              BotAISystem.failedGoals.delete(`${botFactionId}-${bType}`);
+              const { bx, bz, w: bWidth, h: bHeight, rotation: chosenRotation } = placedResult;
               const bId = `building-bot-${region.id}-${bType}-${memory.buildStage}-${Date.now()}`;
               const buildingH = grid.occupyForBuilding(bx, bz, bWidth, bHeight, bId);
 
-              world.add({
+              const botBuilding: GameEntity = {
                 id: bId,
                 name: `${bBlueprint.name} (${region.lordName})`,
                 isBuilding: true,
@@ -544,6 +1223,7 @@ export class BotAISystem {
                 maxBuildingHealth: bBlueprint.health || 200,
                 buildingWidth: bWidth,
                 buildingHeight: bHeight,
+                rotationAngle: chosenRotation,
                 isCompleted: false,
                 constructionProgress: 0,
                 gridPosition: [bx, bz],
@@ -552,57 +1232,17 @@ export class BotAISystem {
                 regionId: region.id,
                 wage: bBlueprint.defaultWage || DEFAULT_WAGE,
                 assignedWorkers: [],
-              });
+              };
+              world.add(botBuilding);
 
+              consumeResourcesFromBotSettlement(botBuildings, woodCost, stoneCost);
               memory.wood = Math.max(0, memory.wood - woodCost);
               memory.stone = Math.max(0, memory.stone - stoneCost);
               memory.buildStage++;
 
-              const approachCandidates: [number, number][] = [
-                [bx + Math.floor(bWidth / 2), bz + bHeight],
-                [bx + Math.floor(bWidth / 2), bz - 1],
-                [bx - 1, bz + Math.floor(bHeight / 2)],
-                [bx + bWidth, bz + Math.floor(bHeight / 2)],
-              ];
-
-              let approachPos: [number, number] | null = null;
-              for (const [ax, az] of approachCandidates) {
-                const t = grid.getTile(ax, az);
-                if (t && t.terrain !== 'water' && !t.buildingId) {
-                  approachPos = [ax, az];
-                  break;
-                }
-              }
-
-              if (approachPos) {
-                let nearestRoad: [number, number] | null = null;
-                let minDist = Infinity;
-                for (let rx = region.bounds.minX; rx <= region.bounds.maxX; rx++) {
-                  for (let rz = region.bounds.minZ; rz <= region.bounds.maxZ; rz++) {
-                    const t = grid.getTile(rx, rz);
-                    if (t && t.terrain === 'road') {
-                      const d = Math.hypot(rx - approachPos[0], rz - approachPos[1]);
-                      if (d < minDist) {
-                        minDist = d;
-                        nearestRoad = [rx, rz];
-                      }
-                    }
-                  }
-                }
-
-                if (nearestRoad) {
-                  const bRoadPath = getSmartRoadPath(
-                    grid,
-                    approachPos[0],
-                    approachPos[1],
-                    nearestRoad[0],
-                    nearestRoad[1],
-                    region.bounds
-                  );
-                  for (const [px, pz] of bRoadPath) {
-                    grid.paveRoad(px, pz);
-                  }
-                }
+              if (BotAISystem.connectBuildingToRoadNetwork(botBuilding, grid, region, resourceDeposits, currentTick)) {
+                incrementBuildingVersion();
+                incrementFoliageVersion(true);
               }
 
               const builderPeasant =
@@ -637,12 +1277,14 @@ export class BotAISystem {
 
               incrementBuildingVersion();
               incrementFoliageVersion();
+            } else {
+              BotAISystem.failedGoals.set(`${botFactionId}-${bType}`, currentTick + 50);
             }
           }
         }
       }
 
-      if (updateRegionStats) {
+      if (updateRegionStats && currentTick % 120 === 0) {
         const activePop = peasants.length + 1;
         const activeBuildings = completedBuildings.length;
         const estWealth = Math.min(600, Math.round(memory.gold + memory.wood * 0.4 + memory.stone * 0.7 + memory.iron * 1.5));

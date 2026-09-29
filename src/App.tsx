@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import { GridMap } from './engine/grid/GridMap';
-import { GameLoop } from './engine/time/GameLoop';
 import { useGameStore } from './store/useGameStore';
 import { GameCanvas } from './components/canvas/GameCanvas';
 import { TopHUD } from './components/ui/TopHUD';
@@ -13,6 +12,8 @@ import { StrategicMapModal } from './components/ui/StrategicMapModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AudioController } from './components/audio/AudioController';
 import RoadToolPanel from './components/ui/RoadToolPanel';
+import BuildingToolPanel from './components/ui/BuildingToolPanel';
+import { FpsMonitor } from './components/ui/FpsMonitor';
 import { CrownIcon } from './components/ui/MedievalIcons';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useAutoSave } from './hooks/useAutoSave';
@@ -31,7 +32,6 @@ export default function App() {
   const initWorld = useGameStore((s) => s.initWorld);
 
   const grid = useMemo(() => new GridMap(MAP_SIZE, MAP_SIZE, DEFAULT_MAP_SEED), []);
-  const gameLoopRef = useRef<GameLoop | null>(null);
 
   const { focusTownCenter } = useTownCenterFocus();
 
@@ -74,21 +74,6 @@ export default function App() {
     };
   }, [grid, initWorld]);
 
-  useEffect(() => {
-    const loop = new GameLoop(grid);
-    gameLoopRef.current = loop;
-
-    if (gameMode === 'playing') {
-      loop.start();
-    } else {
-      loop.stop();
-    }
-
-    return () => {
-      loop.stop();
-    };
-  }, [grid, gameMode]);
-
   if (!isInitialized) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-[#080c10] text-amber-300 font-cinzel">
@@ -125,16 +110,22 @@ export default function App() {
 
           {gameMode === 'menu' ? (
             <MainMenu grid={grid} />
-          ) : isStrategicView ? null : (
-            <>
+          ) : (
+            <div
+              className={`w-full h-full pointer-events-none transition-opacity duration-200 ${
+                isStrategicView ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
+            >
               <TopHUD />
               {isLordsBarOpen && <LordsBar />}
               <RoadToolPanel />
+              <BuildingToolPanel />
               <BottomActionBar grid={grid} />
               <InspectorPanel />
               <EventLog />
               <StrategicMapModal grid={grid} />
-            </>
+              <FpsMonitor />
+            </div>
           )}
         </div>
       </main>

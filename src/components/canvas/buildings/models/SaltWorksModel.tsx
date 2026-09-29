@@ -5,9 +5,11 @@ import { ChimneySmoke } from '../common/BuildingPrimitives';
 
 export function SaltWorksModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -35,7 +37,6 @@ export function SaltWorksModel({
         <mesh material={mats.fireOrange} position={[0, 0.20, 1.02]}>
           <boxGeometry args={[0.42, 0.30, 0.04]} />
         </mesh>
-        <pointLight color="#ea580c" intensity={1.6} distance={3.8} position={[0, 0.30, 1.15]} />
 
         <mesh material={mats.ironSteel} position={[0, 0.68, 0]} castShadow>
           <boxGeometry args={[1.65, 0.08, 1.90]} />
@@ -61,7 +62,7 @@ export function SaltWorksModel({
         <mesh material={mats.charcoalBlack} position={[-0.60, 2.29, -0.75]}>
           <cylinderGeometry args={[0.085, 0.085, 0.04, 8]} />
         </mesh>
-        <ChimneySmoke position={[-0.60, 2.34, -0.75]} />
+        {isWorking && <ChimneySmoke position={[-0.60, 2.34, -0.75]} />}
       </group>
 
       <group position={[0.95, 0.11, -0.55]}>

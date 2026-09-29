@@ -1,15 +1,5 @@
 import { GridMap } from '../grid/GridMap';
 
-interface Node {
-  x: number;
-  z: number;
-  g: number;
-  h: number;
-  f: number;
-  parent?: Node;
-  heapIndex?: number;
-}
-
 export interface RegionBounds {
   minX: number;
   maxX: number;
@@ -17,80 +7,109 @@ export interface RegionBounds {
   maxZ: number;
 }
 
-class MinHeap {
-  private heap: Node[] = [];
+const MAX_GRID_CELLS = 256 * 256;
+const visitedRun = new Int32Array(MAX_GRID_CELLS);
+const closedRun = new Int32Array(MAX_GRID_CELLS);
+const gScores = new Float32Array(MAX_GRID_CELLS);
+const fScores = new Float32Array(MAX_GRID_CELLS);
+const parentIndices = new Int32Array(MAX_GRID_CELLS);
+const heapPositions = new Int32Array(MAX_GRID_CELLS);
 
-  public get size(): number {
-    return this.heap.length;
+let currentRunId = 1;
+
+class FastIndexMinHeap {
+  private heap = new Int32Array(2048);
+  public size = 0;
+
+  public clear(): void {
+    this.size = 0;
   }
 
-  public push(node: Node): void {
-    node.heapIndex = this.heap.length;
-    this.heap.push(node);
-    this.bubbleUp(node.heapIndex);
+  public push(cellIndex: number): void {
+    if (this.size >= this.heap.length) {
+      const next = new Int32Array(this.heap.length * 2);
+      next.set(this.heap);
+      this.heap = next;
+    }
+    const idx = this.size++;
+    this.heap[idx] = cellIndex;
+    heapPositions[cellIndex] = idx;
+    this.bubbleUp(idx);
   }
 
-  public pop(): Node | undefined {
-    if (this.heap.length === 0) return undefined;
+  public pop(): number {
+    if (this.size === 0) return -1;
     const top = this.heap[0];
-    const bottom = this.heap.pop()!;
-    if (this.heap.length > 0) {
-      this.heap[0] = bottom;
-      bottom.heapIndex = 0;
+    heapPositions[top] = -1;
+    const last = this.heap[--this.size];
+    if (this.size > 0) {
+      this.heap[0] = last;
+      heapPositions[last] = 0;
       this.sinkDown(0);
     }
-    top.heapIndex = -1;
     return top;
   }
 
-  public update(node: Node): void {
-    if (node.heapIndex !== undefined && node.heapIndex >= 0) {
-      this.bubbleUp(node.heapIndex);
+  public update(cellIndex: number): void {
+    const idx = heapPositions[cellIndex];
+    if (idx >= 0 && idx < this.size) {
+      this.bubbleUp(idx);
     }
   }
 
   private bubbleUp(idx: number): void {
-    const node = this.heap[idx];
+    const item = this.heap[idx];
+    const itemF = fScores[item];
     while (idx > 0) {
       const parentIdx = (idx - 1) >> 1;
-      const parent = this.heap[parentIdx];
-      if (node.f >= parent.f) break;
-      this.heap[idx] = parent;
-      parent.heapIndex = idx;
+      const parentItem = this.heap[parentIdx];
+      if (itemF >= fScores[parentItem]) break;
+      this.heap[idx] = parentItem;
+      heapPositions[parentItem] = idx;
       idx = parentIdx;
     }
-    this.heap[idx] = node;
-    node.heapIndex = idx;
+    this.heap[idx] = item;
+    heapPositions[item] = idx;
   }
 
   private sinkDown(idx: number): void {
-    const length = this.heap.length;
-    const node = this.heap[idx];
+    const length = this.size;
+    const item = this.heap[idx];
+    const itemF = fScores[item];
     while (true) {
       const leftIdx = (idx << 1) + 1;
       const rightIdx = leftIdx + 1;
       let swapIdx = -1;
-      let minF = node.f;
+      let minF = itemF;
 
-      if (leftIdx < length && this.heap[leftIdx].f < minF) {
+      if (leftIdx < length && fScores[this.heap[leftIdx]] < minF) {
         swapIdx = leftIdx;
-        minF = this.heap[leftIdx].f;
+        minF = fScores[this.heap[leftIdx]];
       }
-      if (rightIdx < length && this.heap[rightIdx].f < minF) {
+      if (rightIdx < length && fScores[this.heap[rightIdx]] < minF) {
         swapIdx = rightIdx;
       }
       if (swapIdx === -1) break;
 
-      this.heap[idx] = this.heap[swapIdx];
-      this.heap[idx].heapIndex = idx;
+      const swapItem = this.heap[swapIdx];
+      this.heap[idx] = swapItem;
+      heapPositions[swapItem] = idx;
       idx = swapIdx;
     }
-    this.heap[idx] = node;
-    node.heapIndex = idx;
+    this.heap[idx] = item;
+    heapPositions[item] = idx;
   }
 }
 
+const sharedHeap = new FastIndexMinHeap();
+
+const unreachableCache = new Map<number, number>();
+
 export class AStar {
+  public static clearUnreachableCache(): void {
+    unreachableCache.clear();
+  }
+
   public static findPathToArea(
     grid: GridMap,
     start: [number, number],
@@ -136,7 +155,7 @@ export class AStar {
 
     perimeter.sort((a, b) => a.dist - b.dist);
 
-    const candidates = perimeter.slice(0, 8);
+    const candidates = perimeter.slice(0, 3);
     for (const p of candidates) {
       const path = AStar.findPath(grid, [sx, sz], [p.x, p.z], false, regionBounds);
       if (path && path.length > 0) {
@@ -154,8 +173,10 @@ export class AStar {
     allowAdjacentTarget = false,
     regionBounds?: RegionBounds
   ): [number, number][] | null {
-    const [sx, sz] = [Math.floor(start[0]), Math.floor(start[1])];
-    let [tx, tz] = [Math.floor(target[0]), Math.floor(target[1])];
+    let sx = Math.floor(start[0]);
+    let sz = Math.floor(start[1]);
+    const tx = Math.floor(target[0]);
+    const tz = Math.floor(target[1]);
 
     if (regionBounds) {
       if (tx < regionBounds.minX || tx > regionBounds.maxX || tz < regionBounds.minZ || tz > regionBounds.maxZ) {
@@ -163,11 +184,29 @@ export class AStar {
       }
     }
 
+    const targetKey = (tz << 16) | tx;
+    const now = performance.now();
+    const unreachableExpiry = unreachableCache.get(targetKey);
+    if (unreachableExpiry && unreachableExpiry > now) {
+      return null;
+    }
+
+    if (!grid.isWalkable(sx, sz)) {
+      const startNeighbors = grid.getNeighbors(sx, sz).filter((n) => grid.isWalkable(n.x, n.z));
+      if (startNeighbors.length > 0) {
+        startNeighbors.sort((a, b) => Math.hypot(a.x - tx, a.z - tz) - Math.hypot(b.x - tx, b.z - tz));
+        sx = startNeighbors[0].x;
+        sz = startNeighbors[0].z;
+      }
+    }
+
+    const gridW = grid.width;
+
     if (!grid.isWalkable(tx, tz)) {
       if (!allowAdjacentTarget) {
         return null;
       }
-      const neighbors = grid.getNeighbors(tx, tz).filter(n => grid.isWalkable(n.x, n.z));
+      const neighbors = grid.getNeighbors(tx, tz).filter((n) => grid.isWalkable(n.x, n.z));
       if (neighbors.length === 0) return null;
 
       neighbors.sort((a, b) => {
@@ -176,12 +215,14 @@ export class AStar {
         return distA - distB;
       });
 
-      for (const n of neighbors) {
+      const topNeighbors = neighbors.slice(0, 2);
+      for (const n of topNeighbors) {
         const subPath = AStar.findPath(grid, [sx, sz], [n.x, n.z], false, regionBounds);
         if (subPath && subPath.length > 0) {
           return subPath;
         }
       }
+      unreachableCache.set(targetKey, now + 3500);
       return null;
     }
 
@@ -189,50 +230,51 @@ export class AStar {
       return [[sx, sz]];
     }
 
-    const openHeap = new MinHeap();
-    const closedSet = new Set<number>();
-    const nodeMap = new Map<number, Node>();
+    currentRunId++;
+    if (currentRunId >= 2147483640) {
+      currentRunId = 1;
+      visitedRun.fill(0);
+      closedRun.fill(0);
+    }
+    const runId = currentRunId;
 
-    const startKey = (sz << 16) | sx;
-    const startNode: Node = {
-      x: sx,
-      z: sz,
-      g: 0,
-      h: AStar.heuristic(sx, sz, tx, tz),
-      f: AStar.heuristic(sx, sz, tx, tz),
-    };
+    sharedHeap.clear();
 
-    openHeap.push(startNode);
-    nodeMap.set(startKey, startNode);
+    const startIdx = sz * gridW + sx;
+    const targetIdx = tz * gridW + tx;
 
-    const maxIterations = 3500;
+    const startH = AStar.heuristic(sx, sz, tx, tz);
+    gScores[startIdx] = 0;
+    fScores[startIdx] = startH;
+    parentIndices[startIdx] = -1;
+    visitedRun[startIdx] = runId;
+
+    sharedHeap.push(startIdx);
+
+    const maxIterations = regionBounds ? 500 : 800;
     let iterations = 0;
 
-    while (openHeap.size > 0 && iterations++ < maxIterations) {
-      const current = openHeap.pop();
-      if (!current) break;
+    const dirDx = [1, -1, 0, 0, 1, -1, 1, -1];
+    const dirDz = [0, 0, 1, -1, 1, 1, -1, -1];
+    const dirCost = [1.0, 1.0, 1.0, 1.0, 1.414, 1.414, 1.414, 1.414];
 
-      if (current.x === tx && current.z === tz) {
-        return AStar.reconstructPath(current);
+    while (sharedHeap.size > 0 && iterations++ < maxIterations) {
+      const currentIdx = sharedHeap.pop();
+      if (currentIdx === -1) break;
+
+      if (currentIdx === targetIdx) {
+        return AStar.reconstructFastPath(currentIdx, gridW);
       }
 
-      const currentKey = (current.z << 16) | current.x;
-      closedSet.add(currentKey);
+      closedRun[currentIdx] = runId;
 
-      const directions = [
-        { dx: 1, dz: 0, cost: 1.0 },
-        { dx: -1, dz: 0, cost: 1.0 },
-        { dx: 0, dz: 1, cost: 1.0 },
-        { dx: 0, dz: -1, cost: 1.0 },
-        { dx: 1, dz: 1, cost: 1.414 },
-        { dx: -1, dz: 1, cost: 1.414 },
-        { dx: 1, dz: -1, cost: 1.414 },
-        { dx: -1, dz: -1, cost: 1.414 },
-      ];
+      const cx = currentIdx % gridW;
+      const cz = (currentIdx / gridW) | 0;
+      const currentG = gScores[currentIdx];
 
-      for (const dir of directions) {
-        const nx = current.x + dir.dx;
-        const nz = current.z + dir.dz;
+      for (let i = 0; i < 8; i++) {
+        const nx = cx + dirDx[i];
+        const nz = cz + dirDz[i];
 
         if (regionBounds) {
           if (nx < regionBounds.minX || nx > regionBounds.maxX || nz < regionBounds.minZ || nz > regionBounds.maxZ) {
@@ -240,44 +282,39 @@ export class AStar {
           }
         }
 
-        const neighborKey = (nz << 16) | nx;
-
-        if (closedSet.has(neighborKey)) continue;
+        const neighborIdx = nz * gridW + nx;
+        if (closedRun[neighborIdx] === runId) continue;
 
         const tile = grid.getTile(nx, nz);
         if (!tile || !grid.isWalkable(nx, nz)) continue;
 
-        if (dir.dx !== 0 && dir.dz !== 0) {
-          if (!grid.isWalkable(current.x + dir.dx, current.z) || !grid.isWalkable(current.x, current.z + dir.dz)) {
+        if (dirDx[i] !== 0 && dirDz[i] !== 0) {
+          if (!grid.isWalkable(cx + dirDx[i], cz) || !grid.isWalkable(cx, cz + dirDz[i])) {
             continue;
           }
         }
 
-        const moveCost = (tile.movementCost || 1.0) * dir.cost;
-        const tentativeG = current.g + moveCost;
+        const moveCost = (tile.movementCost || 1.0) * dirCost[i];
+        const tentativeG = currentG + moveCost;
 
-        let neighbor = nodeMap.get(neighborKey);
-
-        if (!neighbor) {
-          neighbor = {
-            x: nx,
-            z: nz,
-            g: tentativeG,
-            h: AStar.heuristic(nx, nz, tx, tz),
-            f: tentativeG + AStar.heuristic(nx, nz, tx, tz),
-            parent: current,
-          };
-          nodeMap.set(neighborKey, neighbor);
-          openHeap.push(neighbor);
-        } else if (tentativeG < neighbor.g) {
-          neighbor.g = tentativeG;
-          neighbor.f = tentativeG + neighbor.h;
-          neighbor.parent = current;
-          openHeap.update(neighbor);
+        if (visitedRun[neighborIdx] !== runId) {
+          visitedRun[neighborIdx] = runId;
+          const h = AStar.heuristic(nx, nz, tx, tz);
+          gScores[neighborIdx] = tentativeG;
+          fScores[neighborIdx] = tentativeG + h;
+          parentIndices[neighborIdx] = currentIdx;
+          sharedHeap.push(neighborIdx);
+        } else if (tentativeG < gScores[neighborIdx]) {
+          const h = fScores[neighborIdx] - gScores[neighborIdx];
+          gScores[neighborIdx] = tentativeG;
+          fScores[neighborIdx] = tentativeG + h;
+          parentIndices[neighborIdx] = currentIdx;
+          sharedHeap.update(neighborIdx);
         }
       }
     }
 
+    unreachableCache.set(targetKey, performance.now() + 3500);
     return null;
   }
 
@@ -287,14 +324,16 @@ export class AStar {
     return (dx + dz) + (Math.SQRT2 - 2) * Math.min(dx, dz);
   }
 
-  private static reconstructPath(endNode: Node): [number, number][] {
+  private static reconstructFastPath(endIdx: number, gridW: number): [number, number][] {
     const path: [number, number][] = [];
-    let curr: Node | undefined = endNode;
-    while (curr) {
-      path.unshift([curr.x, curr.z]);
-      curr = curr.parent;
+    let curr = endIdx;
+    while (curr !== -1) {
+      const px = curr % gridW;
+      const pz = (curr / gridW) | 0;
+      path.push([px, pz]);
+      curr = parentIndices[curr];
     }
+    path.reverse();
     return path;
   }
 }
-

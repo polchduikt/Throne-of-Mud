@@ -27,7 +27,7 @@ export function NewGameSetupModal({ isOpen, onClose, onConfirm, grid }: Props) {
   const { dict, language } = useTranslation();
   const [selectedRegionId, setSelectedRegionId] = useState<number>(0);
   const [selectedSpawnPointId, setSelectedSpawnPointId] = useState<string>('sp-0-1');
-  const [botCount, setBotCount] = useState<number>(2);
+  const [botCount, setBotCount] = useState<number>(3);
 
   if (!isOpen) return null;
 

@@ -9,11 +9,14 @@ import { BUILDING_BLUEPRINTS } from '../../engine/buildings/blueprints';
 import { world, buildingEntities } from '../../engine/ecs/world';
 import { AssetLoader } from '../../engine/assets/AssetLoader';
 import { audioManager } from '../../engine/audio/AudioManager';
-import { getSnappedPlacementCoords } from '../../engine/grid/buildingSnap';
 import { RoadPlacementPreview, type RoadSnapTarget } from './RoadPlacementPreview';
 import { getSmartRoadPath, isRoadPathValid } from '../../engine/grid/roadGeneration';
 import { getBuildingDoorInfo } from '../../engine/buildings/buildingNavigation';
-import { validateBuildingPlacement } from '../../engine/buildings/buildingValidation';
+import {
+  getRotatedBuildingFootprint,
+  validateRotatedBuildingPlacement,
+} from '../../engine/buildings/buildingValidation';
+import { BuildingPlacementGhost } from './buildings/BuildingPlacementGhost';
 
 interface Props {
   grid: GridMap;
@@ -31,13 +34,16 @@ export function TerrainRenderer({ grid }: Props) {
   const activeTool = useGameStore((s) => s.activeTool);
   const activeBuildType = useGameStore((s) => s.activeBuildType);
   const buildingVersion = useGameStore((s) => s.buildingVersion);
-  const hoveredTile = useGameStore((s) => s.hoveredTile);
+  const terrainVersion = useGameStore((s) => s.terrainVersion);
+  const hoveredTile = useGameStore((s) => (s.activeTool === 'build' || s.activeTool === 'road') ? s.hoveredTile : null);
   const isStrategicView = useGameStore((s) => s.isStrategicView);
 
   const season = useGameStore((s) => s.time.season);
+  const resourceDeposits = useGameStore((s) => s.resourceDeposits);
 
   const roadEraseMode = useGameStore((s) => s.roadEraseMode);
   const setRoadEraseMode = useGameStore((s) => s.setRoadEraseMode);
+  const buildRotation = useGameStore((s) => s.buildRotation);
 
   const [roadStartPoint, setRoadStartPoint] = useState<[number, number] | null>(null);
   const [roadPreviewPath, setRoadPreviewPath] = useState<[number, number][]>([]);
@@ -71,6 +77,7 @@ export function TerrainRenderer({ grid }: Props) {
     tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearFilter;
     tex.needsUpdate = true;
+    grid.isFullTerrainDirty = false;
     return tex;
   }, [grid]);
 
@@ -115,8 +122,17 @@ export function TerrainRenderer({ grid }: Props) {
   }, []);
 
   const customShaderRef = useRef<{ uniforms: Record<string, THREE.IUniform> } | null>(null);
+  const keysRef = useRef<{ [key: string]: boolean }>({});
+  const keyHoldDurationRef = useRef<{ [key: string]: number }>({});
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
+    if (grid.isFullTerrainDirty && gridTexture.image?.data) {
+      grid.syncToDataTexture(gridTexture);
+      setRoadStartPoint(null);
+      setRoadPreviewPath([]);
+      setCurrentSnapTarget(null);
+    }
+
     if (customShaderRef.current) {
       customShaderRef.current.uniforms.uTime.value = state.clock.elapsedTime;
       const { rainIntensity = 0, stormIntensity = 0, snowAccumulation = 0 } = useGameStore.getState().time;
@@ -133,6 +149,30 @@ export function TerrainRenderer({ grid }: Props) {
       const targetSnow = snowAccumulation;
       const curSnow = (customShaderRef.current.uniforms.uSnowAmount?.value as number) || 0;
       customShaderRef.current.uniforms.uSnowAmount.value = THREE.MathUtils.lerp(curSnow, targetSnow, 0.05);
+    }
+
+    const isBuild = activeTool === 'build' || Boolean(activeBuildType);
+    if (isBuild) {
+      const qDown = Boolean(keysRef.current['keyq']);
+      const eDown = Boolean(keysRef.current['keye'] || keysRef.current['keyr']);
+      if (qDown) {
+        keyHoldDurationRef.current['keyq'] = (keyHoldDurationRef.current['keyq'] || 0) + delta;
+        if (keyHoldDurationRef.current['keyq'] > 0.20) {
+          useGameStore.getState().setBuildRotation((prev) => {
+            const next = prev - 2.2 * delta;
+            return ((next % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          });
+        }
+      }
+      if (eDown) {
+        keyHoldDurationRef.current['keye'] = (keyHoldDurationRef.current['keye'] || 0) + delta;
+        if (keyHoldDurationRef.current['keye'] > 0.20) {
+          useGameStore.getState().setBuildRotation((prev) => {
+            const next = prev + 2.2 * delta;
+            return ((next % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          });
+        }
+      }
     }
   });
 
@@ -437,25 +477,32 @@ export function TerrainRenderer({ grid }: Props) {
 
   useEffect(() => {
     if (!gridTexture.image?.data) return;
-    const data = gridTexture.image.data;
-    const w = grid.width;
-    const h = grid.height;
-    let anyChanged = false;
-    for (let z = 0; z < h; z++) {
-      for (let x = 0; x < w; x++) {
+
+    if (grid.isFullTerrainDirty) {
+      grid.syncToDataTexture(gridTexture);
+      setRoadStartPoint(null);
+      setRoadPreviewPath([]);
+      setCurrentSnapTarget(null);
+      return;
+    }
+
+    if (grid.dirtyTerrainCoords && grid.dirtyTerrainCoords.length > 0) {
+      const data = gridTexture.image.data;
+      const w = grid.width;
+      const coords = grid.dirtyTerrainCoords;
+      for (let i = 0; i < coords.length; i += 2) {
+        const x = coords[i];
+        const z = coords[i + 1];
         const tile = grid.tiles[x]?.[z];
         const isRoad = tile?.terrain === 'road' ? 255 : 0;
         const idx = (z * w + x) * 4 + 3;
-        if (data[idx] !== isRoad) {
-          data[idx] = isRoad;
-          anyChanged = true;
-        }
+        data[idx] = isRoad;
       }
-    }
-    if (anyChanged) {
+      grid.dirtyTerrainCoords.length = 0;
       gridTexture.needsUpdate = true;
+      return;
     }
-  }, [buildingVersion, grid, gridTexture]);
+  }, [terrainVersion, buildingVersion, grid, gridTexture]);
 
   const allBuildingSnapNodes = useMemo(() => {
     if (activeTool !== 'road') return [];
@@ -516,6 +563,45 @@ export function TerrainRenderer({ grid }: Props) {
     );
   }, [allBuildingSnapNodes, hoveredTile]);
 
+  const buildPreviewData = useMemo(() => {
+    if (activeTool !== 'build' || !activeBuildType || !hoveredTile) return null;
+    const blueprint = BUILDING_BLUEPRINTS[activeBuildType];
+    if (!blueprint) return null;
+
+    const baseW = blueprint.width;
+    const baseH = blueprint.height;
+    const offsetX = (baseW % 2 === 0) ? 0.0 : 0.5;
+    const offsetZ = (baseH % 2 === 0) ? 0.0 : 0.5;
+    const cx = hoveredTile[0] + offsetX;
+    const cz = hoveredTile[1] + offsetZ;
+
+    const footprint = getRotatedBuildingFootprint(cx, cz, baseW, baseH, buildRotation);
+
+    const { playerRegionId = 0, regions } = useGameStore.getState();
+    const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
+
+    const validation = validateRotatedBuildingPlacement(
+      activeBuildType,
+      footprint,
+      grid,
+      resourceDeposits,
+      pRegion?.bounds
+    );
+
+    const allowed = validation.allowed;
+    const baseTileH = grid.getTile(hoveredTile[0], hoveredTile[1])?.height || 0.05;
+
+    return {
+      cx,
+      cz,
+      baseH: baseTileH,
+      blueprint,
+      footprint,
+      allowed,
+      reason: validation.reason,
+    };
+  }, [activeTool, activeBuildType, hoveredTile, buildRotation, grid, resourceDeposits, buildingVersion]);
+
   useEffect(() => {
     if (activeTool !== 'road') {
       setRoadStartPoint(null);
@@ -526,15 +612,52 @@ export function TerrainRenderer({ grid }: Props) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && activeTool === 'road') {
-        setRoadStartPoint(null);
-        setRoadPreviewPath([]);
-        setCurrentSnapTarget(null);
+      const code = e.code.toLowerCase();
+      keysRef.current[code] = true;
+
+      if (e.key === 'Escape') {
+        if (activeTool === 'road') {
+          setRoadStartPoint(null);
+          setRoadPreviewPath([]);
+          setCurrentSnapTarget(null);
+        } else if (activeTool === 'build') {
+          useGameStore.getState().setActiveTool('select');
+        }
+      }
+
+      const isBuildMode = activeTool === 'build' || Boolean(activeBuildType);
+      if (isBuildMode) {
+        if (code === 'keyq' || e.key === 'q' || e.key === 'Q' || e.key === 'й' || e.key === 'Й') {
+          e.preventDefault();
+          audioManager.playUIClick();
+          useGameStore.getState().rotateBuilding('ccw', Math.PI / 12);
+          return;
+        }
+        if (
+          code === 'keye' || e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У' ||
+          code === 'keyr' || e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К'
+        ) {
+          e.preventDefault();
+          audioManager.playUIClick();
+          useGameStore.getState().rotateBuilding('cw', Math.PI / 12);
+          return;
+        }
       }
     };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const code = e.code.toLowerCase();
+      keysRef.current[code] = false;
+      keyHoldDurationRef.current[code] = 0;
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [activeTool, activeBuildType]);
 
   const isRoadPlacementAllowed = (x: number, z: number): boolean => {
     const { playerRegionId, regions } = useGameStore.getState();
@@ -719,13 +842,20 @@ export function TerrainRenderer({ grid }: Props) {
     const rawZ = Math.floor(e.point.z);
 
     if (rawX >= 0 && rawX < grid.width && rawZ >= 0 && rawZ < grid.height) {
-      const { coords, snapTarget } = getEffectiveTile(rawX, rawZ, e.shiftKey);
-      const [gx, gz] = coords;
-      setCurrentSnapTarget(snapTarget);
+      const isRoadOrBuild = activeTool === 'road' || activeTool === 'build';
+      let gx = rawX;
+      let gz = rawZ;
 
-      const curHover = useGameStore.getState().hoveredTile;
-      if (!curHover || curHover[0] !== gx || curHover[1] !== gz) {
-        useGameStore.getState().setHoveredTile([gx, gz]);
+      if (isRoadOrBuild) {
+        const { coords, snapTarget } = getEffectiveTile(rawX, rawZ, e.shiftKey);
+        gx = coords[0];
+        gz = coords[1];
+        setCurrentSnapTarget(snapTarget);
+
+        const curHover = useGameStore.getState().hoveredTile;
+        if (!curHover || curHover[0] !== gx || curHover[1] !== gz) {
+          useGameStore.getState().setHoveredTile([gx, gz]);
+        }
       }
 
       if (
@@ -756,7 +886,8 @@ export function TerrainRenderer({ grid }: Props) {
             roadStartPoint[1],
             gx,
             gz,
-            isRoadPlacementAllowed
+            isRoadPlacementAllowed,
+            resourceDeposits
           );
           setRoadPreviewPath(linePath);
         }
@@ -856,11 +987,11 @@ export function TerrainRenderer({ grid }: Props) {
           }
         } else {
           if (roadPreviewPath.length > 0) {
-            if (!isRoadPathValid(grid, roadPreviewPath)) {
+            if (!isRoadPathValid(grid, roadPreviewPath, resourceDeposits)) {
               audioManager.playUIError();
               addChronicleEvent({
                 title: 'Неможливо прокласти дорогу!',
-                description: 'Шлях перетинає воду або вже зведену споруду.',
+                description: 'Шлях перетинає воду, споруду або поклади ресурсів.',
                 type: 'warning',
               });
               return;
@@ -868,7 +999,7 @@ export function TerrainRenderer({ grid }: Props) {
 
             let pavedCount = 0;
             for (const [px, pz] of roadPreviewPath) {
-              if (grid.paveRoad(px, pz)) {
+              if (grid.paveRoad(px, pz, resourceDeposits)) {
                 updateTileInTexture(px, pz);
                 pavedCount++;
               }
@@ -898,34 +1029,37 @@ export function TerrainRenderer({ grid }: Props) {
       return;
     }
 
+    if (activeTool === 'build' && e.button === 2) {
+      audioManager.playUIPanelClose();
+      useGameStore.getState().setActiveTool('select');
+      return;
+    }
+
     if (e.button !== 0) return;
 
     if (activeTool === 'build' && activeBuildType) {
       const blueprint = BUILDING_BLUEPRINTS[activeBuildType];
       if (!blueprint) return;
 
-      const { resourceDeposits } = useGameStore.getState();
-      const [targetGx, targetGz] = getSnappedPlacementCoords(gx, gz, blueprint.width, blueprint.height, activeBuildType, grid, resourceDeposits);
+      const { resourceDeposits, buildRotation = 0, playerRegionId = 0, regions } = useGameStore.getState();
+      const baseW = blueprint.width;
+      const baseH = blueprint.height;
+      const offsetX = (baseW % 2 === 0) ? 0.0 : 0.5;
+      const offsetZ = (baseH % 2 === 0) ? 0.0 : 0.5;
+      const cx = gx + offsetX;
+      const cz = gz + offsetZ;
 
+      const footprint = getRotatedBuildingFootprint(cx, cz, baseW, baseH, buildRotation);
       const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
-      if (pRegion?.bounds) {
-        const b = pRegion.bounds;
-        const minX = targetGx;
-        const maxX = targetGx + blueprint.width - 1;
-        const minZ = targetGz;
-        const maxZ = targetGz + blueprint.height - 1;
-        if (minX < b.minX || maxX > b.maxX || minZ < b.minZ || maxZ > b.maxZ) {
-          audioManager.playUIError();
-          addChronicleEvent({
-            title: 'Чужі володіння!',
-            description: 'Ви не маєте права зводити будівлі за межами свого регіону без дозволу сусідніх володарів.',
-            type: 'warning',
-          });
-          return;
-        }
-      }
 
-      const validation = validateBuildingPlacement(activeBuildType, targetGx, targetGz, blueprint.width, blueprint.height, grid, resourceDeposits);
+      const validation = validateRotatedBuildingPlacement(
+        activeBuildType,
+        footprint,
+        grid,
+        resourceDeposits,
+        pRegion?.bounds
+      );
+
       if (!validation.allowed) {
         audioManager.playUIError();
         addChronicleEvent({
@@ -958,10 +1092,10 @@ export function TerrainRenderer({ grid }: Props) {
         consumeResource(res as any, cost || 0);
       }
 
-      audioManager.playBuildingPlace(targetGx, targetGz);
+      audioManager.playBuildingPlace(Math.floor(cx), Math.floor(cz));
 
       const buildingId = `building-${activeBuildType}-${Date.now()}`;
-      const buildingH = grid.occupyForBuilding(targetGx, targetGz, blueprint.width, blueprint.height, buildingId);
+      const buildingH = grid.occupyTilesForBuilding(footprint.coveredTiles, buildingId);
 
       world.add({
         id: buildingId,
@@ -970,12 +1104,13 @@ export function TerrainRenderer({ grid }: Props) {
         buildingType: activeBuildType,
         buildingHealth: blueprint.health,
         maxBuildingHealth: blueprint.health,
-        buildingWidth: blueprint.width,
-        buildingHeight: blueprint.height,
+        buildingWidth: footprint.boundingBoxWidth,
+        buildingHeight: footprint.boundingBoxHeight,
+        rotationAngle: buildRotation,
         isCompleted: false,
         constructionProgress: 0,
-        gridPosition: [targetGx, targetGz],
-        position: [targetGx + blueprint.width / 2, buildingH, targetGz + blueprint.height / 2],
+        gridPosition: [footprint.minGridX, footprint.minGridZ],
+        position: [cx, buildingH, cz],
         localInventory: { wood: 0 },
         factionId: 'player',
         regionId: playerRegionId ?? 0,
@@ -987,10 +1122,10 @@ export function TerrainRenderer({ grid }: Props) {
       addPendingJob({
         id: `job-build-${buildingId}`,
         type: 'build_structure',
-        targetPosition: [targetGx, targetGz],
+        targetPosition: [footprint.minGridX, footprint.minGridZ],
         targetBuildingId: buildingId,
         progress: 0,
-        totalWork: 30 + blueprint.width * blueprint.height * 10,
+        totalWork: 30 + footprint.coveredTiles.length * 8,
       });
 
       addChronicleEvent({
@@ -1050,21 +1185,13 @@ export function TerrainRenderer({ grid }: Props) {
   };
 
   return (
-    <group
-      visible={!isStrategicView}
-      onPointerMove={handlePointerMove}
-      onPointerDown={handlePointerDown}
-      onContextMenu={(e) => {
-        if (activeTool === 'road') {
-          e.nativeEvent?.preventDefault?.();
-        }
-      }}
-    >
+    <group visible={!isStrategicView}>
       <mesh
         geometry={dioramaBaseGeometry}
         material={dioramaBaseMaterial}
         position={[grid.width / 2, -0.95, grid.height / 2]}
         receiveShadow
+        raycast={() => null}
       />
 
       <mesh
@@ -1073,10 +1200,26 @@ export function TerrainRenderer({ grid }: Props) {
         position={[grid.width / 2, 0, grid.height / 2]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
+        raycast={() => null}
       />
 
+      <mesh
+        position={[grid.width / 2, 0, grid.height / 2]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        onPointerMove={handlePointerMove}
+        onPointerDown={handlePointerDown}
+        onContextMenu={(e) => {
+          if (activeTool === 'road') {
+            e.nativeEvent?.preventDefault?.();
+          }
+        }}
+      >
+        <planeGeometry args={[grid.width, grid.height]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+
       {(activeTool === 'build' || activeTool === 'road') && (
-        <lineSegments geometry={buildGridLines}>
+        <lineSegments geometry={buildGridLines} raycast={() => null}>
           <lineBasicMaterial
             color={activeTool === 'road' ? (roadEraseMode ? '#ef4444' : '#fbbf24') : '#ffffff'}
             transparent
@@ -1085,28 +1228,68 @@ export function TerrainRenderer({ grid }: Props) {
         </lineSegments>
       )}
 
-      {hoveredTile && (
-        <mesh
-          position={[hoveredTile[0] + 0.5, 0.008, hoveredTile[1] + 0.5]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[0.96, 0.96]} />
-          <meshBasicMaterial
-            color={
-              activeTool === 'road' && roadEraseMode
-                ? '#ef4444'
-                : activeTool === 'road'
-                ? (currentSnapTarget ? '#38bdf8' : '#f59e0b')
-                : '#fbbf24'
-            }
-            transparent
-            opacity={activeTool === 'road' && roadEraseMode ? 0.65 : activeTool === 'road' ? 0.40 : 0.22}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
+      <HoveredTileCursor roadEraseMode={roadEraseMode} currentSnapTarget={currentSnapTarget} />
+
+      {buildPreviewData && (
+        <group>
+          {buildPreviewData.footprint.coveredTiles.map(([tx, tz]) => {
+            const tileH = grid.getTile(tx, tz)?.height || 0.05;
+            return (
+              <mesh
+                key={`cov-${tx}-${tz}`}
+                position={[tx + 0.5, tileH + 0.015, tz + 0.5]}
+                rotation={[-Math.PI / 2, 0, 0]}
+              >
+                <planeGeometry args={[0.94, 0.94]} />
+                <meshBasicMaterial
+                  color={buildPreviewData.allowed ? '#22c55e' : '#ef4444'}
+                  transparent
+                  opacity={0.32}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+            );
+          })}
+
+          <group
+            position={[buildPreviewData.cx, buildPreviewData.baseH, buildPreviewData.cz]}
+            rotation={[0, buildRotation, 0]}
+          >
+            <BuildingPlacementGhost
+              type={activeBuildType!}
+              allowed={buildPreviewData.allowed}
+              width={buildPreviewData.blueprint.width}
+              height={buildPreviewData.blueprint.height}
+            />
+
+            <Html
+              position={[0, Math.max(1.8, buildPreviewData.blueprint.height * 0.6 + 1.2), 0]}
+              center
+              zIndexRange={[25, 0]}
+              style={{ pointerEvents: 'none', userSelect: 'none' }}
+            >
+              <div
+                className={`px-3 py-1.5 rounded-xl border backdrop-blur-md shadow-2xl flex items-center gap-2 whitespace-nowrap text-xs font-cinzel font-bold transition-all duration-150 ${
+                  buildPreviewData.allowed
+                    ? 'bg-[#121418]/95 border-emerald-500/80 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                    : 'bg-[#181212]/95 border-red-500/80 text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                }`}
+              >
+                <span>{buildPreviewData.allowed ? '🔨' : '⚠️'}</span>
+                <span>{buildPreviewData.blueprint.name}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/60 border border-amber-500/40 text-amber-300 font-mono">
+                  {buildPreviewData.blueprint.width}x{buildPreviewData.blueprint.height}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-600/70 text-amber-200 font-sans">
+                  [Q / E] {Math.round((((buildRotation * 180) / Math.PI) % 360 + 360) % 360)}°
+                </span>
+              </div>
+            </Html>
+          </group>
+        </group>
       )}
 
-      {activeTool === 'road' && roadEraseMode && hoveredTile && (
+      {!isStrategicView && activeTool === 'road' && roadEraseMode && hoveredTile && (
         <Html
           position={[hoveredTile[0] + 0.5, 0.55, hoveredTile[1] + 0.5]}
           center
@@ -1122,7 +1305,7 @@ export function TerrainRenderer({ grid }: Props) {
         </Html>
       )}
 
-      {activeTool === 'road' && !roadEraseMode && visibleBuildingSnapNodes.map((node) => {
+      {!isStrategicView && activeTool === 'road' && !roadEraseMode && visibleBuildingSnapNodes.map((node) => {
         const isStart = roadStartPoint && roadStartPoint[0] === node.x && roadStartPoint[1] === node.z;
         const isHovered = hoveredTile && hoveredTile[0] === node.x && hoveredTile[1] === node.z;
         const isTarget = currentSnapTarget && currentSnapTarget.x === node.x && currentSnapTarget.z === node.z;
@@ -1159,7 +1342,7 @@ export function TerrainRenderer({ grid }: Props) {
         );
       })}
 
-      {activeTool === 'road' && !roadEraseMode && currentSnapTarget && currentSnapTarget.type !== 'building' && (
+      {!isStrategicView && activeTool === 'road' && !roadEraseMode && currentSnapTarget && currentSnapTarget.type !== 'building' && (
         <group position={[currentSnapTarget.x + 0.5, (grid.getTile(currentSnapTarget.x, currentSnapTarget.z)?.height || 0.05) + 0.028, currentSnapTarget.z + 0.5]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.34, 0.46, 24]} />
@@ -1178,7 +1361,7 @@ export function TerrainRenderer({ grid }: Props) {
         </group>
       )}
 
-      {activeTool === 'road' && (
+      {!isStrategicView && activeTool === 'road' && (
         <RoadPlacementPreview
           grid={grid}
           startPoint={roadStartPoint}
@@ -1188,6 +1371,34 @@ export function TerrainRenderer({ grid }: Props) {
         />
       )}
     </group>
+  );
+}
+
+function HoveredTileCursor({ roadEraseMode, currentSnapTarget }: { roadEraseMode: boolean; currentSnapTarget: any }) {
+  const activeTool = useGameStore((s) => s.activeTool);
+  const hoveredTile = useGameStore((s) => s.activeTool === 'road' ? s.hoveredTile : null);
+  if (!hoveredTile || activeTool !== 'road') return null;
+
+  return (
+    <mesh
+      position={[hoveredTile[0] + 0.5, 0.008, hoveredTile[1] + 0.5]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      raycast={() => null}
+    >
+      <planeGeometry args={[0.96, 0.96]} />
+      <meshBasicMaterial
+        color={
+          activeTool === 'road' && roadEraseMode
+            ? '#ef4444'
+            : activeTool === 'road'
+            ? (currentSnapTarget ? '#38bdf8' : '#f59e0b')
+            : '#fbbf24'
+        }
+        transparent
+        opacity={activeTool === 'road' && roadEraseMode ? 0.65 : activeTool === 'road' ? 0.40 : 0.22}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   );
 }
 

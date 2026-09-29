@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { characterEntities } from '../../../../engine/ecs/world';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
+import { useGameStore } from '../../../../store/useGameStore';
 
 export function TriangularGable({
   baseWidth,
@@ -44,23 +45,23 @@ export function TriangularGable({
       </mesh>
       {hasTimberFrame && (
         <>
-          <mesh material={mats.timberDark} position={[0, height / 2, thickness + 0.01]} castShadow>
+          <mesh material={mats.timberDark} position={[0, height / 2, thickness + 0.01]}>
             <boxGeometry args={[0.08, height, 0.04]} />
           </mesh>
           <group position={[-half / 2, height / 2, thickness + 0.01]} rotation={[0, 0, slopeAngle - Math.PI / 2]}>
-            <mesh material={mats.timberDark} castShadow>
+            <mesh material={mats.timberDark}>
               <boxGeometry args={[0.07, hypotenuse, 0.05]} />
             </mesh>
           </group>
           <group position={[half / 2, height / 2, thickness + 0.01]} rotation={[0, 0, -(slopeAngle - Math.PI / 2)]}>
-            <mesh material={mats.timberDark} castShadow>
+            <mesh material={mats.timberDark}>
               <boxGeometry args={[0.07, hypotenuse, 0.05]} />
             </mesh>
           </group>
         </>
       )}
       {hasVent && (
-        <mesh material={mats.windowUnlit} position={[0, height * 0.45, thickness + 0.02]} castShadow>
+        <mesh material={mats.windowUnlit} position={[0, height * 0.45, thickness + 0.02]}>
           <cylinderGeometry args={[0.12, 0.12, 0.04, 6]} />
         </mesh>
       )}
@@ -89,36 +90,56 @@ export function MedievalDoor({
   const leftHingeRef = useRef<THREE.Group>(null);
   const rightHingeRef = useRef<THREE.Group>(null);
   const worldPos = useMemo(() => new THREE.Vector3(), []);
+  const frameCount = useRef(0);
+  const isNearRef = useRef(false);
 
   useFrame((_, delta) => {
     if (!rootRef.current || !leftHingeRef.current) return;
-    rootRef.current.getWorldPosition(worldPos);
-    const dx = worldPos.x;
-    const dz = worldPos.z;
+    if (rootRef.current.parent && !rootRef.current.parent.visible) return;
+    const currentZoom = (window as any).__lastCameraZoom ?? 38;
+    if (currentZoom < 42) {
+      if (leftHingeRef.current.rotation.y !== 0) leftHingeRef.current.rotation.y = 0;
+      if (rightHingeRef.current && rightHingeRef.current.rotation.y !== 0) rightHingeRef.current.rotation.y = 0;
+      isNearRef.current = false;
+      return;
+    }
 
-    let isNear = false;
-    for (const char of characterEntities) {
-      if (!char.position || !char.path || char.path.length === 0) continue;
-      const dist = Math.hypot(char.position[0] - dx, char.position[2] - dz);
-      if (dist > 1.35) continue;
+    frameCount.current++;
+    if (frameCount.current % 60 === 0) {
+      const camTarget = (window as any).__lastCameraTarget;
+      rootRef.current.getWorldPosition(worldPos);
+      const dx = worldPos.x;
+      const dz = worldPos.z;
 
-      let pathPassesDoor = false;
-      const checkSteps = Math.min(3, char.path.length);
-      for (let i = 0; i < checkSteps; i++) {
-        const wp = char.path[i];
-        if (Math.hypot(wp[0] + 0.5 - dx, wp[1] + 0.5 - dz) < 0.95) {
-          pathPassesDoor = true;
-          break;
+      if (camTarget && (dx - camTarget[0]) ** 2 + (dz - camTarget[1]) ** 2 > 40 * 40) {
+        isNearRef.current = false;
+      } else {
+        let isNear = false;
+        for (const char of characterEntities) {
+          if (!char.position || !char.path || char.path.length === 0) continue;
+          const dist = Math.hypot(char.position[0] - dx, char.position[2] - dz);
+          if (dist > 1.35) continue;
+
+          let pathPassesDoor = false;
+          const checkSteps = Math.min(3, char.path.length);
+          for (let i = 0; i < checkSteps; i++) {
+            const wp = char.path[i];
+            if (Math.hypot(wp[0] + 0.5 - dx, wp[1] + 0.5 - dz) < 0.95) {
+              pathPassesDoor = true;
+              break;
+            }
+          }
+
+          if (pathPassesDoor || dist < 0.45) {
+            isNear = true;
+            break;
+          }
         }
-      }
-
-      if (pathPassesDoor || dist < 0.45) {
-        isNear = true;
-        break;
+        isNearRef.current = isNear;
       }
     }
 
-    const openAngle = isNear ? -1.45 : 0;
+    const openAngle = isNearRef.current ? -1.45 : 0;
     leftHingeRef.current.rotation.y = THREE.MathUtils.lerp(
       leftHingeRef.current.rotation.y,
       openAngle,
@@ -128,7 +149,7 @@ export function MedievalDoor({
     if (rightHingeRef.current) {
       rightHingeRef.current.rotation.y = THREE.MathUtils.lerp(
         rightHingeRef.current.rotation.y,
-        isNear ? 1.45 : 0,
+        isNearRef.current ? 1.45 : 0,
         Math.min(1.0, (delta || 0.016) * 7.0)
       );
     }
@@ -139,20 +160,20 @@ export function MedievalDoor({
       <mesh material={mats.stoneDark} position={[0, -0.04, 0.08]} receiveShadow>
         <boxGeometry args={[width + 0.32, 0.08, 0.28]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[-width / 2 - jambWidth / 2, height / 2, 0.04]} castShadow>
+      <mesh material={mats.timberDark} position={[-width / 2 - jambWidth / 2, height / 2, 0.04]}>
         <boxGeometry args={[jambWidth, height + 0.14, 0.14]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[width / 2 + jambWidth / 2, height / 2, 0.04]} castShadow>
+      <mesh material={mats.timberDark} position={[width / 2 + jambWidth / 2, height / 2, 0.04]}>
         <boxGeometry args={[jambWidth, height + 0.14, 0.14]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0, height + 0.05, 0.04]} castShadow>
+      <mesh material={mats.timberDark} position={[0, height + 0.05, 0.04]}>
         <boxGeometry args={[width + jambWidth * 2 + 0.08, 0.12, 0.16]} />
       </mesh>
 
       {isDouble ? (
         <group>
           <group ref={leftHingeRef} position={[-width / 2, 0, 0.04]}>
-            <mesh material={mats.floorPlanks} position={[width / 4, height / 2, 0]} castShadow receiveShadow>
+            <mesh material={mats.floorPlanks} position={[width / 4, height / 2, 0]} receiveShadow>
               <boxGeometry args={[width / 2, height, 0.04]} />
             </mesh>
             <mesh material={mats.ironHardware} position={[width / 4, height * 0.75, 0.025]}>
@@ -166,7 +187,7 @@ export function MedievalDoor({
             </mesh>
           </group>
           <group ref={rightHingeRef} position={[width / 2, 0, 0.04]}>
-            <mesh material={mats.floorPlanks} position={[-width / 4, height / 2, 0]} castShadow receiveShadow>
+            <mesh material={mats.floorPlanks} position={[-width / 4, height / 2, 0]} receiveShadow>
               <boxGeometry args={[width / 2, height, 0.04]} />
             </mesh>
             <mesh material={mats.ironHardware} position={[-width / 4, height * 0.75, 0.025]}>
@@ -182,7 +203,7 @@ export function MedievalDoor({
         </group>
       ) : (
         <group ref={leftHingeRef} position={[-width / 2, 0, 0.04]}>
-          <mesh material={mats.floorPlanks} position={[width / 2, height / 2, 0]} castShadow receiveShadow>
+          <mesh material={mats.floorPlanks} position={[width / 2, height / 2, 0]} receiveShadow>
             <boxGeometry args={[width, height, 0.045]} />
           </mesh>
           <mesh material={mats.ironHardware} position={[width * 0.35, height * 0.75, 0.028]}>
@@ -199,13 +220,13 @@ export function MedievalDoor({
 
       {hasCanopy && (
         <group position={[0, height + 0.14, 0.14]}>
-          <mesh material={mats.timberDark} position={[-width * 0.5 - 0.02, -0.1, 0]} rotation={[0.4, 0, 0]} castShadow>
+          <mesh material={mats.timberDark} position={[-width * 0.5 - 0.02, -0.1, 0]} rotation={[0.4, 0, 0]}>
             <boxGeometry args={[0.06, 0.28, 0.06]} />
           </mesh>
-          <mesh material={mats.timberDark} position={[width * 0.5 + 0.02, -0.1, 0]} rotation={[0.4, 0, 0]} castShadow>
+          <mesh material={mats.timberDark} position={[width * 0.5 + 0.02, -0.1, 0]} rotation={[0.4, 0, 0]}>
             <boxGeometry args={[0.06, 0.28, 0.06]} />
           </mesh>
-          <mesh material={mats.thatchRoof} position={[0, 0.04, 0.1]} rotation={[0.4, 0, 0]} castShadow>
+          <mesh material={mats.thatchRoof} position={[0, 0.04, 0.1]} rotation={[0.4, 0, 0]}>
             <boxGeometry args={[width + 0.38, 0.08, 0.42]} />
           </mesh>
         </group>
@@ -232,7 +253,7 @@ export function MedievalWindow({
   const mats = SHARED_BUILDING_MATS;
   return (
     <group position={position} rotation={rotation}>
-      <mesh material={mats.timberDark} position={[0, 0, 0.02]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 0, 0.02]}>
         <boxGeometry args={[width + 0.18, height + 0.18, 0.14]} />
       </mesh>
       <mesh material={isLightOn ? mats.windowLit : mats.windowUnlit} position={[0, 0, 0.08]}>
@@ -251,7 +272,7 @@ export function MedievalWindow({
         <boxGeometry args={[width + 0.24, 0.06, 0.14]} />
       </mesh>
       <group position={[-width / 2 - 0.12, 0, 0.1]} rotation={[0, -0.75, 0]}>
-        <mesh material={mats.timberPlanks} castShadow>
+        <mesh material={mats.timberPlanks}>
           <boxGeometry args={[width * 0.48, height * 0.96, 0.03]} />
         </mesh>
         <mesh material={mats.ironHardware} position={[0, height * 0.3, 0.02]}>
@@ -262,7 +283,7 @@ export function MedievalWindow({
         </mesh>
       </group>
       <group position={[width / 2 + 0.12, 0, 0.1]} rotation={[0, 0.75, 0]}>
-        <mesh material={mats.timberPlanks} castShadow>
+        <mesh material={mats.timberPlanks}>
           <boxGeometry args={[width * 0.48, height * 0.96, 0.03]} />
         </mesh>
         <mesh material={mats.ironHardware} position={[0, height * 0.3, 0.02]}>
@@ -274,7 +295,7 @@ export function MedievalWindow({
       </group>
       {hasFlowerBox && (
         <group position={[0, -height / 2 - 0.12, 0.18]}>
-          <mesh material={mats.timberPlanks} castShadow>
+          <mesh material={mats.timberPlanks}>
             <boxGeometry args={[width * 0.95, 0.12, 0.14]} />
           </mesh>
           <mesh material={mats.leafGreen} position={[0, 0.06, 0]}>
@@ -305,24 +326,24 @@ export function FirewoodStack({
   const mats = SHARED_BUILDING_MATS;
   return (
     <group position={position} rotation={rotation}>
-      <mesh material={mats.timberDark} position={[-0.32, 0.18, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[-0.32, 0.18, 0]}>
         <boxGeometry args={[0.04, 0.36, 0.4]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0.32, 0.18, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[0.32, 0.18, 0]}>
         <boxGeometry args={[0.04, 0.36, 0.4]} />
       </mesh>
       {[-0.2, -0.07, 0.07, 0.2].map((x, i) => (
-        <mesh key={`log-b-${i}`} material={mats.timberLight} position={[x, 0.07, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh key={`log-b-${i}`} material={mats.timberLight} position={[x, 0.07, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.065, 0.065, 0.36, 6]} />
         </mesh>
       ))}
       {[-0.14, 0, 0.14].map((x, i) => (
-        <mesh key={`log-m-${i}`} material={mats.timberLight} position={[x, 0.19, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh key={`log-m-${i}`} material={mats.timberLight} position={[x, 0.19, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.06, 0.06, 0.36, 6]} />
         </mesh>
       ))}
       {[-0.07, 0.07].map((x, i) => (
-        <mesh key={`log-t-${i}`} material={mats.timberLight} position={[x, 0.3, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <mesh key={`log-t-${i}`} material={mats.timberLight} position={[x, 0.3, 0]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[0.055, 0.055, 0.36, 6]} />
         </mesh>
       ))}
@@ -342,7 +363,7 @@ export function TimberBarrel({
   const mats = SHARED_BUILDING_MATS;
   return (
     <group position={position} rotation={rotation} scale={[scale, scale, scale]}>
-      <mesh material={mats.barrelWood} position={[0, 0.24, 0]} castShadow receiveShadow>
+      <mesh material={mats.barrelWood} position={[0, 0.24, 0]} receiveShadow>
         <cylinderGeometry args={[0.2, 0.18, 0.48, 8]} />
       </mesh>
       <mesh material={mats.ironHardware} position={[0, 0.36, 0]}>
@@ -388,18 +409,44 @@ export function ChimneySmoke({
 }) {
   const mats = SHARED_BUILDING_MATS;
   const groupRef = useRef<THREE.Group>(null);
+  const frameCount = useRef(0);
+  const worldPos = useMemo(() => new THREE.Vector3(), []);
   const materials = useMemo(() => {
-    return Array.from({ length: 22 }, () => mats.smokeWhite.clone());
+    return Array.from({ length: 4 }, () => mats.smokeWhite.clone());
   }, [mats.smokeWhite]);
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
+    if (groupRef.current.parent && !groupRef.current.parent.visible) return;
+
+    const currentZoom = (window as any).__lastCameraZoom ?? 38;
+    const isStrat = useGameStore.getState().isStrategicView;
+    if (isStrat || currentZoom <= 18.5) {
+      if (groupRef.current.visible) groupRef.current.visible = false;
+      return;
+    }
+
+    frameCount.current++;
+
+    if (frameCount.current % 30 === 0) {
+      const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
+      if (camTarget) {
+        groupRef.current.getWorldPosition(worldPos);
+        const distSq = (worldPos.x - camTarget[0]) ** 2 + (worldPos.z - camTarget[1]) ** 2;
+        groupRef.current.visible = distSq < 32 * 32;
+      }
+    }
+
+    if (!groupRef.current.visible) return;
+
+    if (frameCount.current % 2 !== 0) return;
+
     const t = clock.getElapsedTime();
     const children = groupRef.current.children;
     const count = children.length;
     for (let i = 0; i < count; i++) {
       const puff = children[i] as THREE.Mesh;
-      const prog = (t * 0.20 + i / count) % 1.0;
+      const prog = (t * 0.22 + i / count) % 1.0;
       const y = 0.02 + Math.pow(prog, 0.85) * 2.85;
 
       const angle = i * 2.399963;
@@ -415,15 +462,15 @@ export function ChimneySmoke({
         windZ + Math.sin(angle) * dispersion + driftTurbulenceZ
       );
 
-      const s = 0.22 + Math.pow(prog, 0.7) * 0.92;
+      const s = 0.28 + Math.pow(prog, 0.7) * 1.1;
       puff.scale.set(s, s * 1.06, s);
       puff.rotation.set(t * 0.25 + i * 1.1, t * 0.2 + i * 0.9, t * 0.18 + i * 1.4);
 
       let opacity = 0.42;
-      if (prog < 0.1) {
-        opacity = (prog / 0.1) * 0.42;
-      } else if (prog > 0.28) {
-        opacity = 0.42 * Math.pow((1.0 - prog) / 0.72, 1.4);
+      if (prog < 0.12) {
+        opacity = (prog / 0.12) * 0.42;
+      } else if (prog > 0.35) {
+        opacity = 0.42 * Math.pow((1.0 - prog) / 0.65, 1.4);
       }
       if (puff.material && !Array.isArray(puff.material)) {
         (puff.material as THREE.MeshStandardMaterial).opacity = Math.max(0, opacity);
@@ -465,19 +512,19 @@ export function DetailedChimney({
       <mesh material={mats.stoneMed} position={[0, 0, 0]} castShadow receiveShadow>
         <boxGeometry args={[width, height, depth]} />
       </mesh>
-      <mesh material={mats.stoneLight} position={[0, capY, 0]} castShadow>
+      <mesh material={mats.stoneLight} position={[0, capY, 0]}>
         <boxGeometry args={[width + 0.08, 0.06, depth + 0.08]} />
       </mesh>
-      <mesh material={mats.stoneLight} position={[0, crownY, 0]} castShadow>
+      <mesh material={mats.stoneLight} position={[0, crownY, 0]}>
         <boxGeometry args={[width + 0.14, 0.05, depth + 0.14]} />
       </mesh>
       {potCount === 2 ? (
         <group>
 
-          <mesh material={mats.stoneMed} position={[-width * 0.22, potY, 0]} castShadow>
+          <mesh material={mats.stoneMed} position={[-width * 0.22, potY, 0]}>
             <cylinderGeometry args={[0.09, 0.11, 0.28, 8]} />
           </mesh>
-          <mesh material={mats.stoneLight} position={[-width * 0.22, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <mesh material={mats.stoneLight} position={[-width * 0.22, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.085, 0.025, 8, 16]} />
           </mesh>
 
@@ -485,10 +532,10 @@ export function DetailedChimney({
             <circleGeometry args={[0.08, 12]} />
           </mesh>
 
-          <mesh material={mats.stoneMed} position={[width * 0.22, potY, 0]} castShadow>
+          <mesh material={mats.stoneMed} position={[width * 0.22, potY, 0]}>
             <cylinderGeometry args={[0.09, 0.11, 0.28, 8]} />
           </mesh>
-          <mesh material={mats.stoneLight} position={[width * 0.22, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <mesh material={mats.stoneLight} position={[width * 0.22, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.085, 0.025, 8, 16]} />
           </mesh>
 
@@ -502,10 +549,10 @@ export function DetailedChimney({
       ) : (
         <group>
 
-          <mesh material={mats.stoneMed} position={[0, potY, 0]} castShadow>
+          <mesh material={mats.stoneMed} position={[0, potY, 0]}>
             <cylinderGeometry args={[0.11, 0.13, 0.28, 8]} />
           </mesh>
-          <mesh material={mats.stoneLight} position={[0, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <mesh material={mats.stoneLight} position={[0, potY + 0.13, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[0.10, 0.03, 8, 16]} />
           </mesh>
 
@@ -620,43 +667,58 @@ export function GothicPortal({
   const leftHingeRef = useRef<THREE.Group>(null);
   const rightHingeRef = useRef<THREE.Group>(null);
   const worldPos = useMemo(() => new THREE.Vector3(), []);
+  const frameCount = useRef(0);
+  const isNearRef = useRef(false);
 
   useFrame((_, delta) => {
     if (!rootRef.current || !leftHingeRef.current || !rightHingeRef.current) return;
-    rootRef.current.getWorldPosition(worldPos);
-    const dx = worldPos.x;
-    const dz = worldPos.z;
+    if (rootRef.current.parent && !rootRef.current.parent.visible) return;
+    const currentZoom = (window as any).__lastCameraZoom ?? 38;
+    if (currentZoom < 26) return;
 
-    let isNear = false;
-    for (const char of characterEntities) {
-      if (!char.position || !char.path || char.path.length === 0) continue;
-      const dist = Math.hypot(char.position[0] - dx, char.position[2] - dz);
-      if (dist > 1.6) continue;
+    frameCount.current++;
+    if (frameCount.current % 6 === 0) {
+      const camTarget = (window as any).__lastCameraTarget;
+      rootRef.current.getWorldPosition(worldPos);
+      const dx = worldPos.x;
+      const dz = worldPos.z;
 
-      let pathPassesDoor = false;
-      const checkSteps = Math.min(3, char.path.length);
-      for (let i = 0; i < checkSteps; i++) {
-        const wp = char.path[i];
-        if (Math.hypot(wp[0] + 0.5 - dx, wp[1] + 0.5 - dz) < 1.1) {
-          pathPassesDoor = true;
-          break;
+      if (camTarget && (dx - camTarget[0]) ** 2 + (dz - camTarget[1]) ** 2 > 60 * 60) {
+        isNearRef.current = false;
+      } else {
+        let isNear = false;
+        for (const char of characterEntities) {
+          if (!char.position || !char.path || char.path.length === 0) continue;
+          const dist = Math.hypot(char.position[0] - dx, char.position[2] - dz);
+          if (dist > 1.6) continue;
+
+          let pathPassesDoor = false;
+          const checkSteps = Math.min(3, char.path.length);
+          for (let i = 0; i < checkSteps; i++) {
+            const wp = char.path[i];
+            if (Math.hypot(wp[0] + 0.5 - dx, wp[1] + 0.5 - dz) < 1.1) {
+              pathPassesDoor = true;
+              break;
+            }
+          }
+
+          if (pathPassesDoor || dist < 0.55) {
+            isNear = true;
+            break;
+          }
         }
-      }
-
-      if (pathPassesDoor || dist < 0.55) {
-        isNear = true;
-        break;
+        isNearRef.current = isNear;
       }
     }
 
     leftHingeRef.current.rotation.y = THREE.MathUtils.lerp(
       leftHingeRef.current.rotation.y,
-      isNear ? -1.45 : 0,
+      isNearRef.current ? -1.45 : 0,
       Math.min(1.0, (delta || 0.016) * 6.0)
     );
     rightHingeRef.current.rotation.y = THREE.MathUtils.lerp(
       rightHingeRef.current.rotation.y,
-      isNear ? 1.45 : 0,
+      isNearRef.current ? 1.45 : 0,
       Math.min(1.0, (delta || 0.016) * 6.0)
     );
   });
@@ -730,53 +792,53 @@ export function WallBeams4x2() {
   const mats = SHARED_BUILDING_MATS;
   return (
     <group>
-      <mesh material={mats.timberDark} position={[0, 0.15, 0.89]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 0.15, 0.89]}>
         <boxGeometry args={[3.84, 0.08, 0.08]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0, 1.15, 0.89]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 1.15, 0.89]}>
         <boxGeometry args={[3.84, 0.08, 0.08]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0, 0.15, -0.89]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 0.15, -0.89]}>
         <boxGeometry args={[3.84, 0.08, 0.08]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0, 1.15, -0.89]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 1.15, -0.89]}>
         <boxGeometry args={[3.84, 0.08, 0.08]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[-1.89, 0.15, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[-1.89, 0.15, 0]}>
         <boxGeometry args={[0.08, 0.08, 1.84]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[-1.89, 1.15, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[-1.89, 1.15, 0]}>
         <boxGeometry args={[0.08, 0.08, 1.84]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[1.89, 0.15, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[1.89, 0.15, 0]}>
         <boxGeometry args={[0.08, 0.08, 1.84]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[1.89, 1.15, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[1.89, 1.15, 0]}>
         <boxGeometry args={[0.08, 0.08, 1.84]} />
       </mesh>
       {[-1.9, -0.65, 0.65, 1.9].map((bx) =>
         [-0.9, 0.9].map((bz) => (
-          <mesh key={`p-wb-${bx}-${bz}`} material={mats.timberDark} position={[bx, 0.65, bz]} castShadow>
+          <mesh key={`p-wb-${bx}-${bz}`} material={mats.timberDark} position={[bx, 0.65, bz]}>
             <boxGeometry args={[0.12, 1.05, 0.12]} />
           </mesh>
         ))
       )}
-      <mesh material={mats.timberDark} position={[-1.25, 0.65, 0.89]} rotation={[0, 0, 0.55]} castShadow>
+      <mesh material={mats.timberDark} position={[-1.25, 0.65, 0.89]} rotation={[0, 0, 0.55]}>
         <boxGeometry args={[0.06, 1.15, 0.06]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[1.25, 0.65, 0.89]} rotation={[0, 0, -0.55]} castShadow>
+      <mesh material={mats.timberDark} position={[1.25, 0.65, 0.89]} rotation={[0, 0, -0.55]}>
         <boxGeometry args={[0.06, 1.15, 0.06]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[-1.25, 0.65, -0.89]} rotation={[0, 0, -0.55]} castShadow>
+      <mesh material={mats.timberDark} position={[-1.25, 0.65, -0.89]} rotation={[0, 0, -0.55]}>
         <boxGeometry args={[0.06, 1.15, 0.06]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[1.25, 0.65, -0.89]} rotation={[0, 0, 0.55]} castShadow>
+      <mesh material={mats.timberDark} position={[1.25, 0.65, -0.89]} rotation={[0, 0, 0.55]}>
         <boxGeometry args={[0.06, 1.15, 0.06]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[-1.89, 0.65, 0]} rotation={[0.55, 0, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[-1.89, 0.65, 0]} rotation={[0.55, 0, 0]}>
         <boxGeometry args={[0.06, 1.15, 0.06]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[1.89, 0.65, 0]} rotation={[-0.55, 0, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[1.89, 0.65, 0]} rotation={[-0.55, 0, 0]}>
         <boxGeometry args={[0.06, 1.15, 0.06]} />
       </mesh>
     </group>
@@ -795,53 +857,53 @@ export function MedievalBed({
   const mats = SHARED_BUILDING_MATS;
   return (
     <group position={position} rotation={rotation}>
-      <mesh material={mats.timberDark} position={[-0.34, 0.24, -0.6]} castShadow>
+      <mesh material={mats.timberDark} position={[-0.34, 0.24, -0.6]}>
         <boxGeometry args={[0.07, 0.48, 0.07]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[-0.34, 0.5, -0.6]} castShadow>
+      <mesh material={mats.timberLight} position={[-0.34, 0.5, -0.6]}>
         <sphereGeometry args={[0.045, 6, 6]} />
       </mesh>
 
-      <mesh material={mats.timberDark} position={[0.34, 0.24, -0.6]} castShadow>
+      <mesh material={mats.timberDark} position={[0.34, 0.24, -0.6]}>
         <boxGeometry args={[0.07, 0.48, 0.07]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[0.34, 0.5, -0.6]} castShadow>
+      <mesh material={mats.timberLight} position={[0.34, 0.5, -0.6]}>
         <sphereGeometry args={[0.045, 6, 6]} />
       </mesh>
 
-      <mesh material={mats.timberDark} position={[-0.34, 0.17, 0.6]} castShadow>
+      <mesh material={mats.timberDark} position={[-0.34, 0.17, 0.6]}>
         <boxGeometry args={[0.07, 0.34, 0.07]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[-0.34, 0.36, 0.6]} castShadow>
+      <mesh material={mats.timberLight} position={[-0.34, 0.36, 0.6]}>
         <sphereGeometry args={[0.04, 6, 6]} />
       </mesh>
 
-      <mesh material={mats.timberDark} position={[0.34, 0.17, 0.6]} castShadow>
+      <mesh material={mats.timberDark} position={[0.34, 0.17, 0.6]}>
         <boxGeometry args={[0.07, 0.34, 0.07]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[0.34, 0.36, 0.6]} castShadow>
+      <mesh material={mats.timberLight} position={[0.34, 0.36, 0.6]}>
         <sphereGeometry args={[0.04, 6, 6]} />
       </mesh>
 
-      <mesh material={mats.timberPlanks} position={[-0.34, 0.17, 0]} castShadow>
+      <mesh material={mats.timberPlanks} position={[-0.34, 0.17, 0]}>
         <boxGeometry args={[0.04, 0.1, 1.14]} />
       </mesh>
-      <mesh material={mats.timberPlanks} position={[0.34, 0.17, 0]} castShadow>
+      <mesh material={mats.timberPlanks} position={[0.34, 0.17, 0]}>
         <boxGeometry args={[0.04, 0.1, 1.14]} />
       </mesh>
 
-      <mesh material={mats.timberDark} position={[0, 0.14, 0]} castShadow receiveShadow>
+      <mesh material={mats.timberDark} position={[0, 0.14, 0]} receiveShadow>
         <boxGeometry args={[0.64, 0.03, 1.14]} />
       </mesh>
 
-      <mesh material={mats.timberPlanks} position={[0, 0.31, -0.6]} castShadow>
+      <mesh material={mats.timberPlanks} position={[0, 0.31, -0.6]}>
         <boxGeometry args={[0.62, 0.26, 0.04]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[0, 0.45, -0.6]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 0.45, -0.6]}>
         <boxGeometry args={[0.42, 0.05, 0.05]} />
       </mesh>
 
-      <mesh material={mats.timberPlanks} position={[0, 0.22, 0.6]} castShadow>
+      <mesh material={mats.timberPlanks} position={[0, 0.22, 0.6]}>
         <boxGeometry args={[0.62, 0.14, 0.04]} />
       </mesh>
 
@@ -853,17 +915,17 @@ export function MedievalBed({
         <boxGeometry args={[0.62, 0.015, 0.16]} />
       </mesh>
 
-      <mesh material={mats.pillowWhite} position={[0, 0.27, -0.42]} castShadow>
+      <mesh material={mats.pillowWhite} position={[0, 0.27, -0.42]}>
         <boxGeometry args={[0.48, 0.07, 0.24]} />
       </mesh>
 
-      <mesh material={quiltMaterial} position={[0, 0.255, 0.2]} castShadow>
+      <mesh material={quiltMaterial} position={[0, 0.255, 0.2]}>
         <boxGeometry args={[0.63, 0.02, 0.74]} />
       </mesh>
-      <mesh material={quiltMaterial} position={[-0.32, 0.22, 0.2]} castShadow>
+      <mesh material={quiltMaterial} position={[-0.32, 0.22, 0.2]}>
         <boxGeometry args={[0.02, 0.07, 0.72]} />
       </mesh>
-      <mesh material={quiltMaterial} position={[0.32, 0.22, 0.2]} castShadow>
+      <mesh material={quiltMaterial} position={[0.32, 0.22, 0.2]}>
         <boxGeometry args={[0.02, 0.07, 0.72]} />
       </mesh>
       <mesh material={quiltMaterial} position={[0, 0.22, 0.57]} castShadow>
@@ -1244,7 +1306,6 @@ export function GothicManorFireplace({
           <mesh material={mats.fireOrange} position={[0.1, 0.1, -0.02]}>
             <coneGeometry args={[0.07, 0.18, 5]} />
           </mesh>
-          <pointLight color="#f97316" intensity={2.0} distance={5.0} position={[0, 0.22, 0.18]} />
         </group>
       ) : (
         <mesh material={mats.charredWood} position={[0, 0.1, -0.05]}>
@@ -1259,7 +1320,6 @@ export function GothicManorFireplace({
         <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.11, 0]}>
           <cylinderGeometry args={[0.012, 0.014, 0.08, 5]} />
         </mesh>
-        {isLightOn && <pointLight color="#fde047" intensity={0.4} distance={1.8} position={[0, 0.17, 0]} />}
       </group>
 
       <group position={[0.5, 1.11, 0.08]}>
@@ -1269,7 +1329,6 @@ export function GothicManorFireplace({
         <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.11, 0]}>
           <cylinderGeometry args={[0.012, 0.014, 0.08, 5]} />
         </mesh>
-        {isLightOn && <pointLight color="#fde047" intensity={0.4} distance={1.8} position={[0, 0.17, 0]} />}
       </group>
 
       <mesh material={mats.goldTrim} position={[0.18, 1.16, 0.08]} castShadow>
@@ -1386,7 +1445,6 @@ export function MedievalStoneHearth({
           <mesh material={mats.fireYellow} position={[0, 0.15, 0]}>
             <coneGeometry args={[0.06, 0.16, 5]} />
           </mesh>
-          <pointLight color="#f97316" intensity={1.8} distance={4.5} position={[0, 0.22, 0.15]} />
         </group>
       ) : (
         <mesh material={mats.charredWood} position={[0, 0.10, -0.04]}>
@@ -1603,25 +1661,22 @@ export function RusticWallShelf({
   const mats = SHARED_BUILDING_MATS;
   return (
     <group position={position} rotation={rotation}>
-
-      <mesh material={mats.timberPlanks} position={[0, 0, 0]} castShadow>
+      <mesh material={mats.timberPlanks} position={[0, 0, 0]}>
         <boxGeometry args={[width, 0.03, 0.18]} />
       </mesh>
-
-      <mesh material={mats.timberDark} position={[-width * 0.35, -0.07, -0.04]} castShadow>
+      <mesh material={mats.timberDark} position={[-width * 0.35, -0.07, -0.04]}>
         <boxGeometry args={[0.03, 0.12, 0.08]} />
       </mesh>
-      <mesh material={mats.timberDark} position={[width * 0.35, -0.07, -0.04]} castShadow>
+      <mesh material={mats.timberDark} position={[width * 0.35, -0.07, -0.04]}>
         <boxGeometry args={[0.03, 0.12, 0.08]} />
       </mesh>
-
-      <mesh material={mats.ceramicPot} position={[-width * 0.25, 0.06, 0]} castShadow>
+      <mesh material={mats.ceramicPot} position={[-width * 0.25, 0.06, 0]}>
         <cylinderGeometry args={[0.035, 0.04, 0.09, 6]} />
       </mesh>
-      <mesh material={mats.ceramicPot} position={[0, 0.05, 0]} castShadow>
+      <mesh material={mats.ceramicPot} position={[0, 0.05, 0]}>
         <cylinderGeometry args={[0.03, 0.025, 0.07, 6]} />
       </mesh>
-      <mesh material={mats.driedHerbs} position={[width * 0.25, 0.05, 0]} castShadow>
+      <mesh material={mats.driedHerbs} position={[width * 0.25, 0.05, 0]}>
         <dodecahedronGeometry args={[0.045, 0]} />
       </mesh>
     </group>
@@ -1638,23 +1693,19 @@ export function RusticChest({
   const mats = SHARED_BUILDING_MATS;
   return (
     <group position={position} rotation={rotation}>
-
-      <mesh material={mats.timberDark} position={[0, 0.15, 0]} castShadow receiveShadow>
+      <mesh material={mats.timberDark} position={[0, 0.15, 0]} receiveShadow>
         <boxGeometry args={[0.54, 0.28, 0.34]} />
       </mesh>
-
-      <mesh material={mats.timberDark} position={[0, 0.30, 0]} castShadow>
+      <mesh material={mats.timberDark} position={[0, 0.30, 0]}>
         <boxGeometry args={[0.56, 0.05, 0.36]} />
       </mesh>
-
-      <mesh material={mats.ironHardware} position={[-0.18, 0.17, 0]} castShadow>
+      <mesh material={mats.ironHardware} position={[-0.18, 0.17, 0]}>
         <boxGeometry args={[0.03, 0.31, 0.35]} />
       </mesh>
-      <mesh material={mats.ironHardware} position={[0.18, 0.17, 0]} castShadow>
+      <mesh material={mats.ironHardware} position={[0.18, 0.17, 0]}>
         <boxGeometry args={[0.03, 0.31, 0.35]} />
       </mesh>
-
-      <mesh material={mats.ironHardware} position={[0, 0.22, 0.18]} castShadow>
+      <mesh material={mats.ironHardware} position={[0, 0.22, 0.18]}>
         <boxGeometry args={[0.06, 0.08, 0.02]} />
       </mesh>
     </group>

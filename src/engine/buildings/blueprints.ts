@@ -103,6 +103,8 @@ export const BUILDING_BLUEPRINTS: Record<BuildingType, BuildingBlueprint> = {
     category: 'agriculture',
     workSlots: 3,
     defaultWage: 2,
+    maxStorage: 30,
+    storageCapacity: { wheat: 30 },
     health: 150,
     color: '#eab308',
     produces: {
@@ -121,6 +123,8 @@ export const BUILDING_BLUEPRINTS: Record<BuildingType, BuildingBlueprint> = {
     category: 'production',
     workSlots: 2,
     defaultWage: 2,
+    maxStorage: 30,
+    storageCapacity: { flour: 30 },
     health: 300,
     color: '#d97706',
     produces: {
@@ -139,6 +143,8 @@ export const BUILDING_BLUEPRINTS: Record<BuildingType, BuildingBlueprint> = {
     category: 'production',
     workSlots: 2,
     defaultWage: 2,
+    maxStorage: 30,
+    storageCapacity: { bread: 30 },
     health: 280,
     color: '#b45309',
     produces: {
@@ -157,6 +163,8 @@ export const BUILDING_BLUEPRINTS: Record<BuildingType, BuildingBlueprint> = {
     category: 'production',
     workSlots: 2,
     defaultWage: 2,
+    maxStorage: 30,
+    storageCapacity: { ale: 30 },
     health: 260,
     color: '#92400e',
     produces: {

@@ -1,5 +1,7 @@
 import { GridMap } from './GridMap';
 import type { RegionBounds } from '../pathfinding/AStar';
+import type { ResourceDeposit } from '../../types/game';
+import { isRoadOverlappingDeposit } from '../buildings/buildingValidation';
 
 export type RoadBoundsFilter = RegionBounds | ((x: number, z: number) => boolean);
 
@@ -75,13 +77,22 @@ export function getContinuousRoadLine(
   return result;
 }
 
-export function isRoadPathValid(grid: GridMap, path: [number, number][]): boolean {
+export function isRoadPathValid(
+  grid: GridMap,
+  path: [number, number][],
+  resourceDeposits?: ResourceDeposit[]
+): boolean {
   if (path.length === 0) return false;
   for (const [x, z] of path) {
     const tile = grid.getTile(x, z);
     if (!tile) return false;
     if (tile.terrain === 'water') return false;
     if (tile.buildingId) return false;
+    if (resourceDeposits && resourceDeposits.length > 0) {
+      if (isRoadOverlappingDeposit(x, z, resourceDeposits)) {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -101,12 +112,47 @@ export function getSmartRoadPath(
   z0: number,
   x1: number,
   z1: number,
-  bounds?: RoadBoundsFilter
+  bounds?: RoadBoundsFilter,
+  resourceDeposits?: ResourceDeposit[]
 ): [number, number][] {
-  const sx = Math.round(x0);
-  const sz = Math.round(z0);
+  let sx = Math.round(x0);
+  let sz = Math.round(z0);
   let tx = Math.round(x1);
   let tz = Math.round(z1);
+
+  const isBlocked = (x: number, z: number) => {
+    const t = grid.getTile(x, z);
+    if (!t || t.terrain === 'water' || t.buildingId) return true;
+    if (resourceDeposits && isRoadOverlappingDeposit(x, z, resourceDeposits)) return true;
+    return false;
+  };
+
+  const findNearestClear = (cx: number, cz: number): [number, number] | null => {
+    if (!isBlocked(cx, cz)) return [cx, cz];
+    const offsets = [
+      [0, 1], [0, -1], [1, 0], [-1, 0],
+      [1, 1], [-1, 1], [1, -1], [-1, -1],
+      [0, 2], [0, -2], [2, 0], [-2, 0],
+    ];
+    for (const [ox, oz] of offsets) {
+      const nx = cx + ox;
+      const nz = cz + oz;
+      if (!isBlocked(nx, nz) && isTileInRoadBounds(nx, nz, bounds)) {
+        return [nx, nz];
+      }
+    }
+    return null;
+  };
+
+  const clearStart = findNearestClear(sx, sz);
+  if (!clearStart) return [];
+  sx = clearStart[0];
+  sz = clearStart[1];
+
+  const clearTarget = findNearestClear(tx, tz);
+  if (!clearTarget) return [];
+  tx = clearTarget[0];
+  tz = clearTarget[1];
 
   if (sx === tx && sz === tz) {
     return [[sx, sz]];
@@ -115,10 +161,9 @@ export function getSmartRoadPath(
   const directLine = getContinuousRoadLine(sx, sz, tx, tz, bounds);
   let directBlocked = false;
 
-  for (let i = 1; i < directLine.length - 1; i++) {
+  for (let i = 0; i < directLine.length; i++) {
     const [lx, lz] = directLine[i];
-    const tile = grid.getTile(lx, lz);
-    if (!tile || tile.terrain === 'water' || tile.buildingId) {
+    if (isBlocked(lx, lz)) {
       directBlocked = true;
       break;
     }
@@ -126,32 +171,6 @@ export function getSmartRoadPath(
 
   if (!directBlocked) {
     return directLine;
-  }
-
-  const targetTile = grid.getTile(tx, tz);
-  if (!targetTile || targetTile.terrain === 'water' || targetTile.buildingId) {
-    const offsets = [
-      [0, 1], [0, -1], [1, 0], [-1, 0],
-      [1, 1], [-1, 1], [1, -1], [-1, -1]
-    ];
-    let bestDist = Infinity;
-    let fallbackX = tx;
-    let fallbackZ = tz;
-    for (const [ox, oz] of offsets) {
-      const cx = tx + ox;
-      const cz = tz + oz;
-      const t = grid.getTile(cx, cz);
-      if (t && t.terrain !== 'water' && !t.buildingId) {
-        const d = Math.hypot(cx - sx, cz - sz);
-        if (d < bestDist) {
-          bestDist = d;
-          fallbackX = cx;
-          fallbackZ = cz;
-        }
-      }
-    }
-    tx = fallbackX;
-    tz = fallbackZ;
   }
 
   const openSet: PathNode[] = [];
@@ -173,7 +192,7 @@ export function getSmartRoadPath(
   ];
 
   let iterations = 0;
-  const maxIterations = 800;
+  const maxIterations = 1500;
 
   while (openSet.length > 0 && iterations++ < maxIterations) {
     let lowestIdx = 0;
@@ -208,13 +227,10 @@ export function getSmartRoadPath(
         continue;
       }
 
+      if (isBlocked(nx, nz)) continue;
+
       const tile = grid.getTile(nx, nz);
-      if (!tile) continue;
-
-      if (tile.terrain === 'water') continue;
-      if (tile.buildingId && (nx !== tx || nz !== tz)) continue;
-
-      const moveCost = tile.terrain === 'road' ? 0.75 : 1.0;
+      const moveCost = tile?.terrain === 'road' ? 0.65 : 1.0;
       const g = current.g + moveCost;
       const h = Math.hypot(tx - nx, tz - nz);
       const f = g + h;
@@ -239,6 +255,6 @@ export function getSmartRoadPath(
     }
   }
 
-  return directLine;
+  return [];
 }
 

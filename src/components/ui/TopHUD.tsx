@@ -28,11 +28,8 @@ import {
   WeatherSnowIcon,
 } from './MedievalIcons';
 
-export const TopHUD: React.FC = React.memo(() => {
+const HUDTimeWidget: React.FC = React.memo(() => {
   const { dict, language } = useTranslation();
-  const { focusTownCenter } = useTownCenterFocus();
-
-  const resources = useGameStore((s) => s.resources);
   const season = useGameStore((s) => s.time.season);
   const month = useGameStore((s) => s.time.month);
   const dayOfMonth = useGameStore((s) => s.time.dayOfMonth);
@@ -42,26 +39,6 @@ export const TopHUD: React.FC = React.memo(() => {
   const hour = useGameStore((s) => s.time.hour);
   const minute = useGameStore((s) => s.time.minute);
   const setIsWeatherDebugOpen = useGameStore((s) => s.setIsWeatherDebugOpen);
-  const settlementName = useGameStore((s) => s.settlementName);
-  const setSettlementName = useGameStore((s) => s.setSettlementName);
-  const setSelectedEntityId = useGameStore((s) => s.setSelectedEntityId);
-  const setCameraFocusTarget = useGameStore((s) => s.setCameraFocusTarget);
-  const influence = useGameStore((s) => s.influence);
-  const royalFavor = useGameStore((s) => s.royalFavor);
-  const immigrationProgress = useGameStore((s) => s.immigrationProgress);
-  const isLordsBarOpen = useGameStore((s) => s.isLordsBarOpen);
-  const toggleLordsBar = useGameStore((s) => s.toggleLordsBar);
-
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempName, setTempName] = useState(settlementName);
-
-  const {
-    king,
-    approvalRating,
-    housingStats,
-    storageUsage,
-    totalFood,
-  } = useSettlementMetrics();
 
   const seasonLabels: Record<string, string> = {
     Spring: dict.hud.seasons.Spring,
@@ -91,6 +68,77 @@ export const TopHUD: React.FC = React.memo(() => {
     storm: dict.hud.weather.storm,
     snow: dict.hud.weather.snow,
   };
+
+  return (
+    <div
+      onClick={() => setIsWeatherDebugOpen(true)}
+      className="flex items-center gap-2 select-none cursor-pointer hover:text-amber-200 transition group"
+      title={`${dict.common.season}: ${seasonLabels[season] || season}, ${month && monthLabels[month] ? `${dict.common.month}: ${monthLabels[month]}, ` : ''}${weatherLabels[weather] || weather}, ${dict.common.day} ${dayOfMonth || day}, ${dict.common.year} ${year || 1}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`}
+    >
+      <CompassIcon className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform drop-shadow shrink-0" />
+      <div className="flex flex-col text-left leading-tight">
+        <span className="font-cinzel text-[11px] font-bold text-amber-200">
+          {month && monthLabels[month] ? monthLabels[month] : (seasonLabels[season] || season)}
+        </span>
+        <span className="text-[9px] text-amber-400/80 font-mono tracking-tight">
+          {seasonLabels[season] || season}
+        </span>
+      </div>
+      <span className="text-xs select-none drop-shadow flex items-center">
+        {weather === 'clear' ? (
+          <WeatherClearIcon className="w-3.5 h-3.5 text-amber-400" />
+        ) : weather === 'rain' ? (
+          <WeatherRainIcon className="w-3.5 h-3.5 text-blue-400" />
+        ) : weather === 'storm' ? (
+          <WeatherStormIcon className="w-3.5 h-3.5 text-indigo-300" />
+        ) : (
+          <WeatherSnowIcon className="w-3.5 h-3.5 text-cyan-200" />
+        )}
+      </span>
+      <div className="flex flex-col text-left leading-tight">
+        <span className="text-[10px] text-slate-300 font-mono font-semibold">
+          {language === 'uk' ? 'Д.' : 'D.'}{dayOfMonth || day}
+        </span>
+        <span className="text-[9px] text-slate-400 font-mono">
+          {language === 'uk' ? 'Р.' : 'Y.'}{year || 1}
+        </span>
+      </div>
+      <div className="w-[1px] h-3.5 bg-[#4a3b26]" />
+      <div className="flex items-center gap-1">
+        <HourglassIcon className="w-3 h-3 text-amber-400 drop-shadow" />
+        <span className="text-xs font-mono font-bold text-amber-300">
+          {String(hour).padStart(2, '0')}:{String(minute).padStart(2, '0')}
+        </span>
+      </div>
+    </div>
+  );
+});
+
+export const TopHUD: React.FC = React.memo(() => {
+  const { dict } = useTranslation();
+  const { focusTownCenter } = useTownCenterFocus();
+
+  const resources = useGameStore((s) => s.resources);
+  const settlementName = useGameStore((s) => s.settlementName);
+  const setSettlementName = useGameStore((s) => s.setSettlementName);
+  const setSelectedEntityId = useGameStore((s) => s.setSelectedEntityId);
+  const setCameraFocusTarget = useGameStore((s) => s.setCameraFocusTarget);
+  const influence = useGameStore((s) => s.influence);
+  const royalFavor = useGameStore((s) => s.royalFavor);
+  const immigrationProgress = useGameStore((s) => s.immigrationProgress);
+  const isLordsBarOpen = useGameStore((s) => s.isLordsBarOpen);
+  const toggleLordsBar = useGameStore((s) => s.toggleLordsBar);
+
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(settlementName);
+
+  const {
+    king,
+    approvalRating,
+    housingStats,
+    storageUsage,
+    totalFood,
+  } = useSettlementMetrics();
 
   const handleLordClick = useCallback(() => {
     if (king) {
@@ -215,47 +263,7 @@ export const TopHUD: React.FC = React.memo(() => {
           </div>
 
           <div className="flex items-center gap-3 text-xs font-mono shrink-0">
-            <div
-              onClick={() => setIsWeatherDebugOpen(true)}
-              className="flex items-center gap-2 select-none cursor-pointer hover:text-amber-200 transition group"
-              title={`${dict.common.season}: ${seasonLabels[season] || season}, ${month && monthLabels[month] ? `${dict.common.month}: ${monthLabels[month]}, ` : ''}${weatherLabels[weather] || weather}, ${dict.common.day} ${dayOfMonth || day}, ${dict.common.year} ${year || 1}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`}
-            >
-              <CompassIcon className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform drop-shadow shrink-0" />
-              <div className="flex flex-col text-left leading-tight">
-                <span className="font-cinzel text-[11px] font-bold text-amber-200">
-                  {month && monthLabels[month] ? monthLabels[month] : (seasonLabels[season] || season)}
-                </span>
-                <span className="text-[9px] text-amber-400/80 font-mono tracking-tight">
-                  {seasonLabels[season] || season}
-                </span>
-              </div>
-              <span className="text-xs select-none drop-shadow flex items-center">
-                {weather === 'clear' ? (
-                  <WeatherClearIcon className="w-3.5 h-3.5 text-amber-400" />
-                ) : weather === 'rain' ? (
-                  <WeatherRainIcon className="w-3.5 h-3.5 text-blue-400" />
-                ) : weather === 'storm' ? (
-                  <WeatherStormIcon className="w-3.5 h-3.5 text-indigo-300" />
-                ) : (
-                  <WeatherSnowIcon className="w-3.5 h-3.5 text-cyan-200" />
-                )}
-              </span>
-              <div className="flex flex-col text-left leading-tight">
-                <span className="text-[10px] text-slate-300 font-mono font-semibold">
-                  {language === 'uk' ? 'Д.' : 'D.'}{dayOfMonth || day}
-                </span>
-                <span className="text-[9px] text-slate-400 font-mono">
-                  {language === 'uk' ? 'Р.' : 'Y.'}{year || 1}
-                </span>
-              </div>
-              <div className="w-[1px] h-3.5 bg-[#4a3b26]" />
-              <div className="flex items-center gap-1">
-                <HourglassIcon className="w-3 h-3 text-amber-400 drop-shadow" />
-                <span className="text-xs font-mono font-bold text-amber-300">
-                  {String(hour).padStart(2, '0')}:{String(minute).padStart(2, '0')}
-                </span>
-              </div>
-            </div>
+            <HUDTimeWidget />
 
             <div className="flex items-center gap-1.5 hover:text-amber-200 transition cursor-help" title={`${dict.hud.wood}: ${resources.wood}`}>
               <FlameIcon className="w-3.5 h-3.5 text-orange-400 drop-shadow" />

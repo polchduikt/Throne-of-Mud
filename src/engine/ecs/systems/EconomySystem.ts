@@ -1,4 +1,4 @@
-import { characterEntities, buildingEntities } from '../world';
+import { characterEntities, buildingEntities, type GameEntity, type Thought } from '../world';
 import { useGameStore } from '../../../store/useGameStore';
 import type { ResourceInventory } from '../../../types/game';
 import {
@@ -55,6 +55,11 @@ export class EconomySystem {
     let totalWagesPaid = 0;
     let unpaidWorkersCount = 0;
 
+    const charMap = new Map<string, GameEntity>();
+    for (const c of characterEntities) {
+      charMap.set(c.id, c);
+    }
+
     for (const building of buildingEntities) {
       if (!building.isCompleted || !building.assignedWorkers || building.assignedWorkers.length === 0) {
         continue;
@@ -65,7 +70,7 @@ export class EconomySystem {
       const wage = building.wage !== undefined ? building.wage : DEFAULT_WAGE;
 
       for (const workerId of building.assignedWorkers) {
-        const worker = Array.from(characterEntities).find((c) => c.id === workerId);
+        const worker = charMap.get(workerId);
         if (!worker) continue;
 
         if (resources.gold >= wage && consumeResource('gold', wage)) {
@@ -73,7 +78,7 @@ export class EconomySystem {
           totalWagesPaid += wage;
 
           if (!worker.thoughts) worker.thoughts = [];
-          worker.thoughts = worker.thoughts.filter((t) => t.id !== 'paid' && t.id !== 'unpaid');
+          worker.thoughts = worker.thoughts.filter((t: Thought) => t.id !== 'paid' && t.id !== 'unpaid');
           worker.thoughts.push({
             id: 'paid',
             text: `Отримав зарплату (+${wage} золота)`,
@@ -89,7 +94,7 @@ export class EconomySystem {
         } else {
           unpaidWorkersCount++;
           if (!worker.thoughts) worker.thoughts = [];
-          worker.thoughts = worker.thoughts.filter((t) => t.id !== 'paid' && t.id !== 'unpaid');
+          worker.thoughts = worker.thoughts.filter((t: Thought) => t.id !== 'paid' && t.id !== 'unpaid');
           worker.thoughts.push({
             id: 'unpaid',
             text: `Затримка зарплати! (${UNPAID_WAGE_MOOD_PENALTY})`,

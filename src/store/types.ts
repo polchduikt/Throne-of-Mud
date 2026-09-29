@@ -64,6 +64,9 @@ export interface UISlice {
   setRoadEraseMode: (v: boolean) => void;
   hoveredTile: [number, number] | null;
   setHoveredTile: (tile: [number, number] | null) => void;
+  buildRotation: number;
+  setBuildRotation: (val: number | ((prev: number) => number)) => void;
+  rotateBuilding: (direction?: 'cw' | 'ccw', step?: number) => void;
 
   previewAnimation: { entityId: string; anim: 'idle' | 'walk' | 'attack' | 'chop'; expiresAt: number } | null;
   triggerAnimation: (entityId: string, anim: 'idle' | 'walk' | 'attack' | 'chop', durationMs?: number) => void;
@@ -126,6 +129,8 @@ export interface SettlementSlice {
   incrementBuildingVersion: () => void;
   foliageVersion: number;
   incrementFoliageVersion: (immediate?: boolean) => void;
+  terrainVersion: number;
+  incrementTerrainVersion: () => void;
 
   regions: RegionData[];
   playerRegionId: number;

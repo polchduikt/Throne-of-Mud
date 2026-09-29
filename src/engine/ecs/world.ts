@@ -62,6 +62,7 @@ export interface GameEntity {
   maxBuildingHealth?: number;
   buildingWidth?: number;
   buildingHeight?: number;
+  rotationAngle?: number;
   isCompleted?: boolean;
   constructionProgress?: number;
   isDemolishing?: boolean;

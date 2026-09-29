@@ -37,6 +37,7 @@ export function StrategicMapCanvas({
     cameraFocusTarget,
     buildingVersion,
     foliageVersion,
+    terrainVersion,
   } = useGameStore();
 
   const activeRegionId = mode === 'setup' ? (propSelectedRegionId ?? 0) : playerRegionId;
@@ -192,7 +193,7 @@ export function StrategicMapCanvas({
     }
 
     return offscreen;
-  }, [grid, buildingVersion, foliageVersion]);
+  }, [grid, buildingVersion, foliageVersion, terrainVersion]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

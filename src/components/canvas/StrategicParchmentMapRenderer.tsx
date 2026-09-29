@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
@@ -12,30 +12,20 @@ interface Props {
 export function StrategicParchmentMapRenderer({ grid }: Props) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
-  const prevTexRef = useRef<THREE.CanvasTexture | null>(null);
 
-  const regions = useGameStore((s) => s.regions);
   const playerRegionId = useGameStore((s) => s.playerRegionId);
-  const resourceDeposits = useGameStore((s) => s.resourceDeposits);
   const buildingVersion = useGameStore((s) => s.buildingVersion);
-  const foliageVersion = useGameStore((s) => s.foliageVersion);
+  const terrainVersion = useGameStore((s) => s.terrainVersion);
 
   const [activeHoverRegion, setActiveHoverRegion] = useState<number | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (prevTexRef.current) {
-        prevTexRef.current.dispose();
-      }
-    };
-  }, []);
-
-  const mapTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 2048;
-    canvas.height = 2048;
+  const drawParchmentToCanvas = useCallback((canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d');
-    if (!ctx) return new THREE.Texture();
+    if (!ctx) return;
+
+    const regions = useGameStore.getState().regions;
+    const resourceDeposits = useGameStore.getState().resourceDeposits;
 
     const cw = canvas.width;
     const ch = canvas.height;
@@ -1076,27 +1066,62 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
       ctx.fill();
     }
 
-    const tex = new THREE.CanvasTexture(canvas);
+  }, [grid, playerRegionId]);
+
+  const { mapTexture, canvas } = useMemo(() => {
+    const cvs = document.createElement('canvas');
+    cvs.width = 2048;
+    cvs.height = 2048;
+    drawParchmentToCanvas(cvs);
+
+    const tex = new THREE.CanvasTexture(cvs);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.generateMipmaps = true;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.anisotropy = 8;
-    if (prevTexRef.current) {
-      prevTexRef.current.dispose();
-    }
-    prevTexRef.current = tex;
-    return tex;
-  }, [grid, regions, playerRegionId, resourceDeposits, buildingVersion, foliageVersion]);
+    return { mapTexture: tex, canvas: cvs };
+  }, [drawParchmentToCanvas]);
+
+  const textureRef = useRef<THREE.CanvasTexture>(mapTexture);
+  const canvasRef = useRef<HTMLCanvasElement>(canvas);
+  useEffect(() => {
+    textureRef.current = mapTexture;
+    canvasRef.current = canvas;
+  }, [mapTexture, canvas]);
+
+  useEffect(() => {
+    return () => {
+      mapTexture.dispose();
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [mapTexture]);
+
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      if (canvasRef.current && textureRef.current) {
+        drawParchmentToCanvas(canvasRef.current);
+        textureRef.current.needsUpdate = true;
+      }
+    }, 600);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [buildingVersion, terrainVersion, drawParchmentToCanvas]);
 
   useFrame(({ camera }) => {
     const orthoCam = camera as THREE.OrthographicCamera;
     const zoom = orthoCam.zoom || 38;
 
-    const t = THREE.MathUtils.clamp((22 - zoom) / (22 - 12), 0, 1);
+    const t = THREE.MathUtils.clamp((18.5 - zoom) / (18.5 - 16.5), 0, 1);
 
     if (matRef.current) {
       matRef.current.opacity = t;
+      matRef.current.depthWrite = t > 0.95;
     }
 
     if (meshRef.current) {
@@ -1109,7 +1134,8 @@ export function StrategicParchmentMapRenderer({ grid }: Props) {
     const gx = e.point.x;
     const gz = e.point.z;
 
-    const reg = regions.find(
+    const currentRegions = useGameStore.getState().regions;
+    const reg = currentRegions.find(
       (r) =>
         gx >= r.bounds.minX &&
         gx <= r.bounds.maxX &&

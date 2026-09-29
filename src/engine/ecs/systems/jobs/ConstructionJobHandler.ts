@@ -33,7 +33,13 @@ export class ConstructionJobHandler {
     }
 
     if (job.targetBuildingId) {
-      const bEnt = Array.from(buildingEntities).find((b: GameEntity) => b.id === job.targetBuildingId);
+      let bEnt: GameEntity | undefined;
+      for (const b of buildingEntities) {
+        if (b.id === job.targetBuildingId) {
+          bEnt = b;
+          break;
+        }
+      }
       if (bEnt) {
         if (job.type === 'build_structure' && bEnt.isCompleted) {
           return true;
@@ -114,12 +120,15 @@ export class ConstructionJobHandler {
                 currentJob: { id: `idle-${newPId}`, type: 'idle', progress: 0, totalWork: 0 },
               });
             }
-            const curBotUnits = Array.from(characterEntities).filter(
-              (e: GameEntity) => e.isCharacter && e.regionId === reg.id
-            );
+            let botPop = 0;
+            for (const e of characterEntities) {
+              if (e.isCharacter && e.regionId === reg.id) {
+                botPop++;
+              }
+            }
             updateRegionStats(reg.id, {
               buildingsCount: reg.buildingsCount + 1,
-              population: curBotUnits.length,
+              population: botPop,
               wealth: reg.wealth + 15,
             });
             addChronicleEvent({
@@ -158,7 +167,13 @@ export class ConstructionJobHandler {
 
     if (!job.targetBuildingId) return;
 
-    const b = Array.from(buildingEntities).find((be: GameEntity) => be.id === job.targetBuildingId);
+    let b: GameEntity | undefined;
+    for (const be of buildingEntities) {
+      if (be.id === job.targetBuildingId) {
+        b = be;
+        break;
+      }
+    }
     if (!b) return;
 
     const blueprint = b.buildingType ? BUILDING_BLUEPRINTS[b.buildingType] : null;
@@ -174,9 +189,9 @@ export class ConstructionJobHandler {
     }
 
     if (b.assignedWorkers && b.assignedWorkers.length > 0) {
-      for (const wid of b.assignedWorkers) {
-        const w = Array.from(characterEntities).find((c: GameEntity) => c.id === wid);
-        if (w) {
+      const workerSet = new Set(b.assignedWorkers);
+      for (const w of characterEntities) {
+        if (workerSet.has(w.id)) {
           w.workBuildingId = undefined;
           w.currentJob = { id: `idle-${w.id}`, type: 'idle', progress: 0, totalWork: 0 };
         }

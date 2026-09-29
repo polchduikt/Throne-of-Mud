@@ -6,16 +6,18 @@ import { MedievalDoor, MedievalWindow, TimberBarrel } from '../common/BuildingPr
 
 export function WindmillModel({
   isLightOn = false,
+  isWorking = true,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
 }) {
   const mats = SHARED_BUILDING_MATS;
   const windmillSailsRef = useRef<THREE.Group>(null);
 
-  useFrame(({ clock }) => {
-    if (windmillSailsRef.current) {
-      windmillSailsRef.current.rotation.z = clock.getElapsedTime() * 0.8;
-    }
+  useFrame((_, delta) => {
+    if (!windmillSailsRef.current || !windmillSailsRef.current.parent?.visible) return;
+    if (!isWorking) return;
+    windmillSailsRef.current.rotation.z += delta * 0.8;
   });
 
   return (
@@ -63,16 +65,16 @@ export function WindmillModel({
       </mesh>
 
       <group ref={windmillSailsRef} position={[0, 2.15, 1.24]}>
-        <mesh material={mats.timberDark} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.14, 0.14, 0.18, 6]} />
+        <mesh material={mats.timberDark} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.14, 0.14, 0.18, 8]} />
         </mesh>
         {[0, 1, 2, 3].map((bi) => (
           <group key={`b-${bi}`} rotation={[0, 0, (bi * Math.PI) / 2]}>
-            <mesh material={mats.timberDark} position={[0, 0.9, 0]} castShadow>
-              <boxGeometry args={[0.07, 1.8, 0.04]} />
+            <mesh material={mats.timberDark} position={[0, 0.9, 0]} castShadow receiveShadow>
+              <boxGeometry args={[0.08, 1.85, 0.05]} />
             </mesh>
-            <mesh material={mats.awningWhite} position={[0.18, 0.9, 0.01]} castShadow>
-              <boxGeometry args={[0.32, 1.4, 0.01]} />
+            <mesh material={mats.awningWhite} position={[0.18, 0.9, 0.02]} castShadow receiveShadow>
+              <boxGeometry args={[0.34, 1.45, 0.04]} />
             </mesh>
           </group>
         ))}

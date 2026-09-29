@@ -6,9 +6,11 @@ import { SHARED_BUILDING_MATS } from '../buildingMaterials';
 
 export function IronMineModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -20,6 +22,7 @@ export function IronMineModel({
   const oreInBucketRef = useRef<THREE.Group>(null);
 
   useFrame(({ clock }) => {
+    if (!bucketRef.current || !bucketRef.current.parent?.visible || !isWorking) return;
     const t = clock.getElapsedTime();
     const period = 7.5;
     const progress = (t % period) / period;
@@ -329,7 +332,6 @@ export function IronMineModel({
           <mesh material={isLightOn ? mats.windowLit : mats.candleGlow} position={[0, -0.02, 0]}>
             <sphereGeometry args={[0.04, 8, 8]} />
           </mesh>
-          <pointLight color="#fde047" intensity={isLightOn ? 1.5 : 0.8} distance={4.5} position={[0, 0, 0.1]} />
         </group>
       </group>
 

@@ -36,33 +36,47 @@ export class GameLoop {
     }
   }
 
+  public step(frameDeltaSeconds: number): void {
+    const { time, advanceTick, gameMode } = useGameStore.getState();
+    if (gameMode !== 'playing' || time.isPaused || time.speedMultiplier <= 0) return;
+
+    const clampedDelta = Math.min(frameDeltaSeconds, 0.1);
+    this.accumulator += clampedDelta * time.speedMultiplier;
+
+    // Limit max ticks executed in a single animation frame to avoid "spiral of death"
+    const maxTicksPerFrame = Math.max(1, Math.min(2, Math.round(time.speedMultiplier)));
+    let ticksRan = 0;
+
+    while (this.accumulator >= this.TICK_TIME && ticksRan < maxTicksPerFrame) {
+      ticksRan++;
+      advanceTick();
+      const currentTick = useGameStore.getState().time.tick;
+
+      NeedsSystem.update(currentTick);
+      JobSystem.update(this.grid, currentTick);
+      ProductionSystem.update();
+      EconomySystem.update(currentTick);
+      ImmigrationSystem.update(this.grid, currentTick);
+      BotAISystem.update(this.grid, currentTick);
+
+      this.accumulator -= this.TICK_TIME;
+    }
+
+    // If accumulator still exceeds tick time, discard the excess
+    if (this.accumulator >= this.TICK_TIME) {
+      this.accumulator = 0;
+    }
+
+    MovementSystem.update(clampedDelta * time.speedMultiplier, this.grid);
+  }
+
   private loop = (currentTime: number): void => {
     if (!this.isRunning) return;
 
     const frameDeltaSeconds = Math.min((currentTime - this.lastTime) / 1000, 0.1);
     this.lastTime = currentTime;
 
-    const { time, advanceTick } = useGameStore.getState();
-
-    if (!time.isPaused && time.speedMultiplier > 0) {
-      this.accumulator += frameDeltaSeconds * time.speedMultiplier;
-
-      while (this.accumulator >= this.TICK_TIME) {
-        advanceTick();
-        const currentTick = useGameStore.getState().time.tick;
-
-        NeedsSystem.update(currentTick);
-        JobSystem.update(this.grid, currentTick);
-        ProductionSystem.update();
-        EconomySystem.update(currentTick);
-        ImmigrationSystem.update(this.grid, currentTick);
-        BotAISystem.update(this.grid, currentTick);
-
-        this.accumulator -= this.TICK_TIME;
-      }
-
-      MovementSystem.update(frameDeltaSeconds * time.speedMultiplier, this.grid);
-    }
+    this.step(frameDeltaSeconds);
 
     this.animFrameId = requestAnimationFrame(this.loop);
   };

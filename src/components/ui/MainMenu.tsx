@@ -30,7 +30,7 @@ interface MainMenuProps {
 }
 
 export function MainMenu({ grid }: MainMenuProps) {
-  const { setGameMode, resetWorld, initWorld, isInitialized, setSaveNotification } = useGameStore();
+  const { setGameMode, resetWorld, setSaveNotification } = useGameStore();
   const { t, dict, language } = useTranslation();
 
   const [saveMeta, setSaveMeta] = useState<SaveMetadata | null>(null);
@@ -96,6 +96,12 @@ export function MainMenu({ grid }: MainMenuProps) {
     }
 
     setShowConfirmNewGame(false);
+    grid.generate(Date.now() % 100000 + Math.random() * 500);
+    grid.isFullTerrainDirty = true;
+    grid.dirtyTerrainCoords = [];
+    useGameStore.getState().incrementTerrainVersion();
+    useGameStore.getState().incrementBuildingVersion();
+    useGameStore.getState().incrementFoliageVersion(true);
     setShowSetupModal(true);
   };
 
@@ -105,11 +111,7 @@ export function MainMenu({ grid }: MainMenuProps) {
     setIsProcessing(true);
     setShowSetupModal(false);
 
-    if (isInitialized) {
-      resetWorld(grid, config);
-    } else {
-      initWorld(grid, config);
-    }
+    resetWorld(grid, config);
 
     useGameStore.setState({
       selectedEntityId: null,

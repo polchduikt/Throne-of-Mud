@@ -1,6 +1,7 @@
-import { buildingEntities, characterEntities } from '../world';
+import { buildingEntities, characterEntities, type GameEntity } from '../world';
 import { BUILDING_BLUEPRINTS } from '../../buildings/blueprints';
 import { useGameStore } from '../../../store/useGameStore';
+import type { ResourceType } from '../../../types/game';
 import {
   HARVEST_WHEAT_TOTAL_WORK,
   DEFAULT_WORK_SKILL,
@@ -8,9 +9,20 @@ import {
   RESOURCE_DEPOSIT_DRAIN_RADIUS,
 } from '../../../constants/jobs';
 
+// Persistent lord map — O(1) lookup per building instead of O(N_characters)
+const _lordMap = new Map<string, GameEntity>();
+
 export class ProductionSystem {
   public static update(): void {
-    const { resources, addResource, consumeResource, addPendingJob, pendingJobs, playerRegionId } = useGameStore.getState();
+    const { resources, addResource, consumeResource, addPendingJob, pendingJobs, playerRegionId, time } = useGameStore.getState();
+    const isNight = time ? (time.hour >= 20 || time.hour < 6) : false;
+    if (isNight) return;
+
+    // Build lord map once — O(N_characters) — instead of per-building O(N_characters) loop
+    _lordMap.clear();
+    for (const c of characterEntities) {
+      _lordMap.set(c.id, c);
+    }
 
     for (const building of buildingEntities) {
       if (!building.isCompleted || !building.buildingType) continue;
@@ -21,6 +33,15 @@ export class ProductionSystem {
       const blueprint = BUILDING_BLUEPRINTS[building.buildingType];
       if (!blueprint || !blueprint.produces) continue;
 
+      const maxStorage = blueprint.maxStorage || 30;
+      building.localInventory = building.localInventory || {};
+      const currentStored = Object.values(building.localInventory).reduce((acc, val) => acc + (val || 0), 0);
+
+      // If internal storage is full, pause production until haulers take resources to stockpile
+      if (currentStored >= maxStorage) {
+        continue;
+      }
+
       const assignedWorkers = building.assignedWorkers || [];
       if (blueprint.workSlots > 0 && assignedWorkers.length === 0) {
         continue;
@@ -30,7 +51,7 @@ export class ProductionSystem {
 
       let supervisorMultiplier = 1.0;
       if (building.assignedLordId) {
-        const lord = Array.from(characterEntities).find((c) => c.id === building.assignedLordId);
+        const lord = _lordMap.get(building.assignedLordId);
         if (lord && lord.skills) {
           const relevantSkill = Math.max(
             lord.skills.intellect,
@@ -75,10 +96,12 @@ export class ProductionSystem {
 
         if (canProduce) {
           for (const [res, amount] of Object.entries(prod.inputs)) {
-            consumeResource(res as any, amount || 0);
+            consumeResource(res as ResourceType, amount || 0);
           }
           for (const [res, amount] of Object.entries(prod.outputs)) {
-            addResource(res as any, amount || 0);
+            const rType = res as ResourceType;
+            building.localInventory[rType] = (building.localInventory[rType] || 0) + (amount || 0);
+            addResource(rType, amount || 0);
           }
 
           if (

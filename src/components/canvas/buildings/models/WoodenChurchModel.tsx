@@ -291,7 +291,6 @@ export function WoodenChurchModel({
           <mesh material={mats.candleGlow} position={[0, 0.15, 0]}>
             <cylinderGeometry args={[0.015, 0.015, 0.09, 6]} />
           </mesh>
-          <pointLight color="#fde047" intensity={0.7} distance={2.5} position={[0, 0.22, 0]} />
         </group>
         <group position={[0.55, 0.64, -0.08]}>
           <mesh material={mats.goldTrim} position={[0, 0.06, 0]} castShadow>
@@ -300,7 +299,6 @@ export function WoodenChurchModel({
           <mesh material={mats.candleGlow} position={[0, 0.15, 0]}>
             <cylinderGeometry args={[0.015, 0.015, 0.09, 6]} />
           </mesh>
-          <pointLight color="#fde047" intensity={0.7} distance={2.5} position={[0, 0.22, 0]} />
         </group>
 
         <group position={[-1.55, 0.35, -0.35]}>

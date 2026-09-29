@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { Html } from '@react-three/drei';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
+import { useGameStore } from '../../../../store/useGameStore';
 
 interface ConstructionScaffoldProps {
   type: string;
@@ -19,6 +20,7 @@ export function ConstructionScaffold({
   progressTextRef,
   progressBarRef,
 }: ConstructionScaffoldProps) {
+  const isStrategicView = useGameStore((s) => s.isStrategicView);
   const mats = SHARED_BUILDING_MATS;
   const isMinimal =
     type === 'wooden_wall' ||
@@ -121,20 +123,22 @@ export function ConstructionScaffold({
         <boxGeometry args={[width * 0.85, height * 0.55, 0.05]} />
       </mesh>
 
-      <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-        <div className="bg-slate-950 text-amber-300 text-[11px] px-3 py-1.5 rounded-xl border border-amber-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
-          <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-amber-400">
-            🔨 {Math.round(progress)}%
-          </span>
-          <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
-            <div
-              ref={progressBarRef}
-              className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-200 shadow-sm"
-              style={{ width: `${Math.max(4, progress)}%` }}
-            />
+      {!isStrategicView && (
+        <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          <div className="bg-slate-950 text-amber-300 text-[11px] px-3 py-1.5 rounded-xl border border-amber-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
+            <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-amber-400">
+              🔨 {Math.round(progress)}%
+            </span>
+            <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
+              <div
+                ref={progressBarRef}
+                className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-200 shadow-sm"
+                style={{ width: `${Math.max(4, progress)}%` }}
+              />
+            </div>
           </div>
-        </div>
-      </Html>
+        </Html>
+      )}
     </group>
   );
 }
@@ -150,6 +154,9 @@ export function DemolitionHUD({
   progressTextRef,
   progressBarRef,
 }: DemolitionHUDProps) {
+  const isStrategicView = useGameStore((s) => s.isStrategicView);
+  if (isStrategicView) return null;
+
   return (
     <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
       <div className="bg-slate-950 text-rose-300 text-[11px] px-3 py-1.5 rounded-xl border border-rose-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
