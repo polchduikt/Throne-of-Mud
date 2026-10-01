@@ -122,26 +122,30 @@ export function WoodChipsRenderer() {
 
     particlesRef.current = alive;
 
-    for (let i = 0; i < MAX_PARTICLES; i++) {
-      if (i < alive.length) {
-        const p = alive[i];
-        const age = now - p.birthTime;
-        const lifeProgress = age / p.lifeSpan;
-        const currentScale = p.scale * (1.0 - Math.pow(lifeProgress, 2.5));
-
-        dummy.position.set(p.x, p.y, p.z);
-        dummy.rotation.set(p.rotX, p.rotY, p.rotZ);
-        dummy.scale.set(currentScale, currentScale, currentScale);
-        dummy.updateMatrix();
-
-        meshRef.current.setMatrixAt(i, dummy.matrix);
-        meshRef.current.setColorAt(i, p.color);
-      } else {
-        dummy.position.set(0, -999, 0);
-        dummy.scale.set(0, 0, 0);
-        dummy.updateMatrix();
-        meshRef.current.setMatrixAt(i, dummy.matrix);
+    if (alive.length === 0) {
+      if (meshRef.current.count !== 0) {
+        meshRef.current.count = 0;
+        meshRef.current.visible = false;
       }
+      return;
+    }
+
+    meshRef.current.visible = true;
+    meshRef.current.count = Math.min(alive.length, MAX_PARTICLES);
+
+    for (let i = 0; i < meshRef.current.count; i++) {
+      const p = alive[i];
+      const age = now - p.birthTime;
+      const lifeProgress = age / p.lifeSpan;
+      const currentScale = p.scale * (1.0 - Math.pow(lifeProgress, 2.5));
+
+      dummy.position.set(p.x, p.y, p.z);
+      dummy.rotation.set(p.rotX, p.rotY, p.rotZ);
+      dummy.scale.set(currentScale, currentScale, currentScale);
+      dummy.updateMatrix();
+
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+      meshRef.current.setColorAt(i, p.color);
     }
 
     meshRef.current.instanceMatrix.needsUpdate = true;
@@ -156,7 +160,6 @@ export function WoodChipsRenderer() {
         ref={meshRef}
         args={[undefined, undefined, MAX_PARTICLES]}
         frustumCulled={false}
-        castShadow
       >
         <boxGeometry args={[0.045, 0.035, 0.075]} />
         <meshStandardMaterial roughness={0.8} flatShading />

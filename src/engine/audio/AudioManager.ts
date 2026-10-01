@@ -290,6 +290,26 @@ class AudioManager {
     });
   }
 
+  private cleanupOnEnd(
+    source: AudioScheduledSourceNode,
+    nodes: (AudioNode | null | undefined)[],
+    fallbackSec = 0.5
+  ): void {
+    let cleaned = false;
+    const doCleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      try { source.disconnect(); } catch (_) {}
+      for (const n of nodes) {
+        if (n) {
+          try { n.disconnect(); } catch (_) {}
+        }
+      }
+    };
+    source.onended = doCleanup;
+    window.setTimeout(doCleanup, Math.max(100, fallbackSec * 1000));
+  }
+
   private playBufferNode(
     buffer: AudioBuffer,
     destGain: GainNode,
@@ -313,8 +333,9 @@ class AudioManager {
     const vol = options?.volume ?? 1.0;
     gain.gain.setValueAtTime(vol, now);
 
+    let filter: BiquadFilterNode | null = null;
     if (options?.cutoff && options.cutoff < 7900) {
-      const filter = this.ctx.createBiquadFilter();
+      filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(options.cutoff, now);
       source.connect(filter);
@@ -325,6 +346,12 @@ class AudioManager {
 
     gain.connect(destGain);
     source.start(now);
+
+    if (!options?.loop) {
+      const duration = buffer.duration / (options?.playbackRate || 1.0) + (options?.delay || 0);
+      this.cleanupOnEnd(source, [filter, gain], duration + 0.2);
+    }
+
     return source;
   }
 
@@ -784,6 +811,8 @@ class AudioManager {
     if (this.villageProximityGain) envGain.connect(this.villageProximityGain);
     osc1.start(audioNow);
     osc1.stop(audioNow + totalDur);
+
+    this.cleanupOnEnd(osc1, [f1, f2, f1Gain, f2Gain, envGain], totalDur + 0.1);
   }
 
   public playUIClick() {
@@ -811,6 +840,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.048);
+
+    this.cleanupOnEnd(osc, [filter, gain], 0.08);
   }
 
   public playUIHover() {
@@ -831,6 +862,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.022);
+
+    this.cleanupOnEnd(osc, [gain], 0.05);
   }
 
   public playUIError() {
@@ -858,6 +891,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.14);
+
+    this.cleanupOnEnd(osc, [filter, gain], 0.18);
   }
 
   public playUIPanelOpen() {
@@ -880,6 +915,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.10);
+
+    this.cleanupOnEnd(osc, [gain], 0.14);
   }
 
   public playUIPanelClose() {
@@ -901,6 +938,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.09);
+
+    this.cleanupOnEnd(osc, [gain], 0.14);
   }
 
   public playUISuccess() {
@@ -932,6 +971,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 0.18);
+
+    this.cleanupOnEnd(osc, [gain], 0.22);
   }
 
   private createNoiseBuffer() {
@@ -1073,6 +1114,8 @@ class AudioManager {
 
     osc.start(now);
     osc.stop(now + 3.1);
+
+    this.cleanupOnEnd(osc, [filter, gain], 3.3);
   }
 
   public setMasterVolume(val: number) {

@@ -186,11 +186,8 @@ export function TerrainRenderer({ grid }: Props) {
   }, [gridTexture, mudTexture, stoneTexture, waterTexture]);
 
   const terrainMaterial = useMemo(() => {
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshLambertMaterial({
       map: grassTexture,
-      roughness: 0.82,
-      metalness: 0.04,
-      flatShading: false,
     });
 
     mat.onBeforeCompile = (shader) => {
@@ -421,11 +418,8 @@ export function TerrainRenderer({ grid }: Props) {
   }, [grid.width, grid.height]);
 
   const dioramaBaseMaterial = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
+    return new THREE.MeshBasicMaterial({
       color: '#1c1917',
-      roughness: 0.95,
-      metalness: 0.05,
-      flatShading: true,
     });
   }, []);
 

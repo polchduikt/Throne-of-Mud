@@ -37,7 +37,6 @@ export class NeedsSystem {
   public static update(currentTick: number): void {
     const { resources, consumeResource } = useGameStore.getState();
 
-    // Track consumption totals — apply in single Zustand set() after the loop
     let breadAvailable = resources.bread || 0;
     let aleAvailable = resources.ale || 0;
     let breadConsumed = 0;
@@ -119,7 +118,6 @@ export class NeedsSystem {
       }
     }
 
-    // Apply batched consumption — at most 2 Zustand set() calls per tick instead of up to 135
     if (breadConsumed > 0) consumeResource('bread', breadConsumed);
     if (aleConsumed > 0) consumeResource('ale', aleConsumed);
   }

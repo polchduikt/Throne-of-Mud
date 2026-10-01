@@ -83,16 +83,13 @@ export function UnitsRenderer({ grid }: { grid?: GridMap }) {
 
   const [units, setUnits] = useState<GameEntity[]>(() => Array.from(characterEntities));
   const lastUnitCountRef = useRef<number>(characterEntities.size);
-  const lastSyncTimeRef = useRef<number>(0);
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     const { time } = useGameStore.getState();
     isGamePausedRef.current = time.isPaused || time.speedMultiplier === 0;
 
-    const t = clock.getElapsedTime();
-    if (characterEntities.size !== lastUnitCountRef.current || t - lastSyncTimeRef.current > 1.5) {
+    if (characterEntities.size !== lastUnitCountRef.current) {
       lastUnitCountRef.current = characterEntities.size;
-      lastSyncTimeRef.current = t;
       setUnits(Array.from(characterEntities));
     }
   });
@@ -208,6 +205,7 @@ function Unit3D({
   const scepterRef = useRef<THREE.Group>(null);
   const shadowDiscRef = useRef<THREE.Mesh>(null);
   const detailsRef = useRef<THREE.Group>(null);
+  const headMeshRef = useRef<THREE.Mesh>(null);
 
   const prevPos = useRef<[number, number]>([unit.position?.[0] || 0, unit.position?.[2] || 0]);
   const facingAngle = useRef<number>((unit.id.charCodeAt(unit.id.length - 1) * 1.2) % (Math.PI * 2));
@@ -219,6 +217,14 @@ function Unit3D({
   const isPeasant = !isLord && !isLady && !isKnight;
 
   const app = useMemo(() => getUnitAppearance(unit.id, characterClass), [unit.id, characterClass]);
+  const multiHeadMats = useMemo(() => [
+    app.skinMat,
+    app.skinMat,
+    app.skinMat,
+    app.skinMat,
+    app.faceMat,
+    app.skinMat,
+  ], [app.skinMat, app.faceMat]);
   const staticMats = SHARED_STATIC_MATS;
 
   const prevPhaseRef = useRef<number>(0);
@@ -233,7 +239,7 @@ function Unit3D({
     const zoom = (window as any).__lastCameraZoom || 38;
     if (camTarget) {
       const distSq = (ux - camTarget[0]) ** 2 + (uz - camTarget[1]) ** 2;
-      const maxDist = Math.min(42, Math.max(25, (33 / zoom) * 38));
+      const maxDist = Math.max(24, (900 / zoom) + 8);
       const isVisible = distSq < maxDist * maxDist;
       groupRef.current.visible = isVisible;
       if (!isVisible) return;
@@ -241,16 +247,29 @@ function Unit3D({
       groupRef.current.visible = true;
     }
 
-    if (detailsRef.current) {
-      detailsRef.current.visible = zoom >= 24;
-    }
-
-    groupRef.current.position.set(ux, uy || 0, uz);
-
     const curPath = unit.path;
     const isMovingNow = !isGamePaused && Boolean(curPath && curPath.length > 0);
     const curJob = unit.currentJob;
     const curJobType = curJob?.type;
+    const isSleepingNow = !isMovingNow && curJobType === 'sleep';
+
+    if (isSleepingNow && !isSelected) {
+      groupRef.current.visible = false;
+      return;
+    }
+
+    if (detailsRef.current) {
+      detailsRef.current.visible = zoom >= 42;
+    }
+
+    if (headMeshRef.current) {
+      const targetMat = (zoom >= 42 ? multiHeadMats : app.skinMat) as any;
+      if (headMeshRef.current.material !== targetMat) {
+        headMeshRef.current.material = targetMat;
+      }
+    }
+
+    groupRef.current.position.set(ux, uy || 0, uz);
 
     const isActivelyWorkingNow = !isGamePaused && !isMovingNow && Boolean(curJobType && curJobType !== 'idle' && curJobType !== 'wander');
     const isActivelyChoppingStandingNow = isActivelyWorkingNow && curJobType === 'chop_tree';
@@ -260,7 +279,6 @@ function Unit3D({
     const isActivelyBuildingNow = isActivelyWorkingNow && (curJobType === 'build_structure' || curJobType === 'demolish_structure');
     const isActivelyMiningNow = isActivelyWorkingNow && curJobType === 'mine_rock';
     const isActivelyFightingNow = !isGamePaused && !isMovingNow && curJobType === 'fight';
-    const isSleepingNow = !isMovingNow && curJobType === 'sleep';
     const isSittingNow = !isMovingNow && curJobType === 'sit_by_fire';
 
     if (twoHandedRigRef.current) twoHandedRigRef.current.visible = isActivelyChoppingNow;
@@ -654,26 +672,19 @@ function Unit3D({
         </group>
 
         <group ref={torsoRef}>
-          <mesh material={app.tunicMat} position={[0, 0.44, 0]} geometry={SHARED_GEOS.torso} receiveShadow />
+          <mesh material={app.tunicMat} position={[0, 0.44, 0]} geometry={SHARED_GEOS.torso} />
 
           {app.gender === 'female' && isPeasant && (
-            <mesh material={app.tunicMat} position={[0, 0.24, 0]} geometry={SHARED_GEOS.femaleSkirt} receiveShadow />
+            <mesh material={app.tunicMat} position={[0, 0.24, 0]} geometry={SHARED_GEOS.femaleSkirt} />
           )}
 
           <mesh material={app.bootsMat} position={[0, 0.28, 0]} geometry={SHARED_GEOS.belt} />
 
           <group position={[0, 0.72, 0]}>
             <mesh
-              material={[
-                app.skinMat,
-                app.skinMat,
-                app.skinMat,
-                app.skinMat,
-                app.faceMat,
-                app.skinMat,
-              ]}
+              ref={headMeshRef}
+              material={multiHeadMats}
               geometry={SHARED_GEOS.head}
-              receiveShadow
             />
           </group>
 
@@ -913,32 +924,20 @@ function Unit3D({
             </group>
 
             <group position={[0.17, 0.08, 0]} rotation={[-0.55, -0.22, 0.35]}>
-              <mesh material={app.tunicMat} position={[0, -0.10, 0]}>
-                <boxGeometry args={[0.085, 0.22, 0.085]} />
-              </mesh>
-              <mesh material={app.skinMat} position={[-0.01, -0.21, 0.02]}>
-                <boxGeometry args={[0.08, 0.075, 0.08]} />
-              </mesh>
+              <mesh material={app.tunicMat} position={[0, -0.10, 0]} geometry={SHARED_GEOS.armSleeveUpper} />
+              <mesh material={app.skinMat} position={[-0.01, -0.21, 0.02]} geometry={SHARED_GEOS.armHandUpper} />
             </group>
 
             <group position={[-0.17, 0.08, 0]} rotation={[-0.72, 0.38, -0.35]}>
-              <mesh material={app.tunicMat} position={[0, -0.10, 0]}>
-                <boxGeometry args={[0.085, 0.22, 0.085]} />
-              </mesh>
-              <mesh material={app.skinMat} position={[0.02, -0.21, 0.02]}>
-                <boxGeometry args={[0.08, 0.075, 0.08]} />
-              </mesh>
+              <mesh material={app.tunicMat} position={[0, -0.10, 0]} geometry={SHARED_GEOS.armSleeveUpper} />
+              <mesh material={app.skinMat} position={[0.02, -0.21, 0.02]} geometry={SHARED_GEOS.armHandUpper} />
             </group>
           </group>
 
           <group ref={standardArmsRef}>
             <group ref={leftArmRef} position={[-0.22, 0.52, 0]}>
-              <mesh material={app.tunicMat} position={[0, -0.06, 0]}>
-                <boxGeometry args={[0.085, 0.14, 0.085]} />
-              </mesh>
-              <mesh material={app.skinMat} position={[0, -0.18, 0]}>
-                <boxGeometry args={[0.08, 0.14, 0.08]} />
-              </mesh>
+              <mesh material={app.tunicMat} position={[0, -0.06, 0]} geometry={SHARED_GEOS.armSleeveStandard} />
+              <mesh material={app.skinMat} position={[0, -0.18, 0]} geometry={SHARED_GEOS.armHandStandard} />
               {isKnight && app.shieldMat && (
                 <mesh material={app.shieldMat} position={[-0.08, -0.12, 0.08]} rotation={[0, 0.3, 0]}>
                   <boxGeometry args={[0.04, 0.38, 0.26]} />
@@ -947,12 +946,8 @@ function Unit3D({
             </group>
 
             <group ref={rightArmRef} position={[0.22, 0.52, 0]}>
-              <mesh material={app.tunicMat} position={[0, -0.06, 0]}>
-                <boxGeometry args={[0.085, 0.14, 0.085]} />
-              </mesh>
-              <mesh material={app.skinMat} position={[0, -0.18, 0]}>
-                <boxGeometry args={[0.08, 0.14, 0.08]} />
-              </mesh>
+              <mesh material={app.tunicMat} position={[0, -0.06, 0]} geometry={SHARED_GEOS.armSleeveStandard} />
+              <mesh material={app.skinMat} position={[0, -0.18, 0]} geometry={SHARED_GEOS.armHandStandard} />
 
               <group ref={hammerRef} position={[0, -0.2, 0.12]} rotation={[-Math.PI / 5, 0, 0]} visible={false}>
                 <mesh material={staticMats.woodHandle}>

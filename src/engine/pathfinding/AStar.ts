@@ -105,6 +105,17 @@ const sharedHeap = new FastIndexMinHeap();
 
 const unreachableCache = new Map<number, number>();
 
+function recordUnreachable(targetKey: number, expiry: number): void {
+  if (unreachableCache.size > 256) {
+    const nowTime = performance.now();
+    for (const [k, exp] of unreachableCache.entries()) {
+      if (exp < nowTime) unreachableCache.delete(k);
+    }
+    if (unreachableCache.size > 256) unreachableCache.clear();
+  }
+  unreachableCache.set(targetKey, expiry);
+}
+
 export class AStar {
   public static clearUnreachableCache(): void {
     unreachableCache.clear();
@@ -222,7 +233,7 @@ export class AStar {
           return subPath;
         }
       }
-      unreachableCache.set(targetKey, now + 3500);
+      recordUnreachable(targetKey, now + 3500);
       return null;
     }
 
@@ -314,7 +325,7 @@ export class AStar {
       }
     }
 
-    unreachableCache.set(targetKey, performance.now() + 3500);
+    recordUnreachable(targetKey, performance.now() + 3500);
     return null;
   }
 

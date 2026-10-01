@@ -9,7 +9,6 @@ import {
   RESOURCE_DEPOSIT_DRAIN_RADIUS,
 } from '../../../constants/jobs';
 
-// Persistent lord map — O(1) lookup per building instead of O(N_characters)
 const _lordMap = new Map<string, GameEntity>();
 
 export class ProductionSystem {
@@ -18,7 +17,6 @@ export class ProductionSystem {
     const isNight = time ? (time.hour >= 20 || time.hour < 6) : false;
     if (isNight) return;
 
-    // Build lord map once — O(N_characters) — instead of per-building O(N_characters) loop
     _lordMap.clear();
     for (const c of characterEntities) {
       _lordMap.set(c.id, c);
@@ -37,7 +35,6 @@ export class ProductionSystem {
       building.localInventory = building.localInventory || {};
       const currentStored = Object.values(building.localInventory).reduce((acc, val) => acc + (val || 0), 0);
 
-      // If internal storage is full, pause production until haulers take resources to stockpile
       if (currentStored >= maxStorage) {
         continue;
       }

@@ -230,8 +230,9 @@ export const SHARED_BUILDING_MATS = {
   }),
   windowLit: new THREE.MeshBasicMaterial({ color: '#fef08a' }),
   windowUnlit: new THREE.MeshStandardMaterial({
-    color: '#1a2332',
-    roughness: 0.85,
+    color: '#465f75',
+    roughness: 0.3,
+    metalness: 0.2,
   }),
   fireplaceCold: new THREE.MeshStandardMaterial({
     map: BUILDING_TEXTURES.stoneMasonry,

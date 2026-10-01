@@ -255,7 +255,6 @@ export class HaulingJobHandler {
     const targetRegionId =
       stockpile.regionId !== undefined ? stockpile.regionId : isPlayerStockpile ? playerRegionId : undefined;
 
-    // Pre-calculate claimed resources per building in a single pass over units
     const claimedMap = new Map<string, number>();
     for (const other of characterEntities) {
       if (

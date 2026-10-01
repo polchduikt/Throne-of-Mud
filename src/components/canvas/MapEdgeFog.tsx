@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '../../store/useGameStore';
@@ -141,7 +141,6 @@ export function MapEdgeFog({ mapWidth = 256, mapHeight = 256 }: Props) {
     if (seaTexRef.current) {
       seaTexRef.current.offset.x += delta * 0.003;
       seaTexRef.current.offset.y += delta * 0.0015;
-      seaTexRef.current.needsUpdate = true;
     }
   });
 
@@ -150,6 +149,80 @@ export function MapEdgeFog({ mapWidth = 256, mapHeight = 256 }: Props) {
   const PLANE_W = mapWidth  * 6;
   const PLANE_H = mapHeight * 6;
 
+  const hollowFogGeometry = useMemo(() => {
+    const x0 = -120;
+    const x1 = 24;
+    const x2 = mapWidth - 24;
+    const x3 = mapWidth + 120;
+
+    const z0 = -120;
+    const z1 = 32;
+    const z2 = mapHeight - 24;
+    const z3 = mapHeight + 120;
+
+    const quads: [number, number, number, number][] = [
+      [x0, x1, z0, z1],
+      [x1, x2, z0, z1],
+      [x2, x3, z0, z1],
+      [x0, x1, z1, z2],
+      [x2, x3, z1, z2],
+      [x0, x1, z2, z3],
+      [x1, x2, z2, z3],
+      [x2, x3, z2, z3],
+    ];
+
+    const positions: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+    let vertIdx = 0;
+
+    for (const [qx0, qx1, qz0, qz1] of quads) {
+      const lx0 = qx0 - cx;
+      const lx1 = qx1 - cx;
+      const lz0 = qz0 - cz;
+      const lz1 = qz1 - cz;
+
+      positions.push(
+        lx0, -lz1, 0,
+        lx1, -lz1, 0,
+        lx1, -lz0, 0,
+        lx0, -lz0, 0,
+      );
+
+      const uA = (qx0 + PLANE_W / 2 - cx) / PLANE_W;
+      const uB = (qx1 + PLANE_W / 2 - cx) / PLANE_W;
+      const vA = 1.0 - (qz1 + PLANE_H / 2 - cz) / PLANE_H;
+      const vB = 1.0 - (qz0 + PLANE_H / 2 - cz) / PLANE_H;
+
+      uvs.push(
+        uA, vA,
+        uB, vA,
+        uB, vB,
+        uA, vB,
+      );
+
+      indices.push(
+        vertIdx, vertIdx + 1, vertIdx + 2,
+        vertIdx, vertIdx + 2, vertIdx + 3,
+      );
+      vertIdx += 4;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }, [mapWidth, mapHeight, cx, cz, PLANE_W, PLANE_H]);
+
+  useEffect(() => {
+    return () => {
+      fogTexture.dispose();
+      hollowFogGeometry.dispose();
+    };
+  }, [fogTexture, hollowFogGeometry]);
+
   return (
     <group visible={!isStrategicView}>
       <mesh
@@ -157,30 +230,16 @@ export function MapEdgeFog({ mapWidth = 256, mapHeight = 256 }: Props) {
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={-10}
       >
-        <planeGeometry args={[PLANE_W, PLANE_H]} />
+        <planeGeometry args={[mapWidth + 240, mapHeight + 240]} />
         <meshBasicMaterial map={seaTexture} color="#03050a" toneMapped={false} />
-      </mesh>
-
-      <mesh
-        position={[cx, 0.45, cz]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        renderOrder={11}
-      >
-        <planeGeometry args={[PLANE_W, PLANE_H]} />
-        <meshBasicMaterial
-          map={fogTexture}
-          transparent
-          depthWrite={false}
-          toneMapped={false}
-        />
       </mesh>
 
       <mesh
         position={[cx, 8.0, cz]}
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={12}
+        geometry={hollowFogGeometry}
       >
-        <planeGeometry args={[PLANE_W, PLANE_H]} />
         <meshBasicMaterial
           map={fogTexture}
           transparent

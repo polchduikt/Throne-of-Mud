@@ -237,7 +237,6 @@ export class RestJobHandler {
         const distToSit = distance2D(currentUPos[0], currentUPos[2], sitX, sitZ);
 
         if (!unit.path || unit.path.length === 0) {
-          // A campfire bench seat is reached when the unit is at or adjacent to the bench (~2.2 distance)
           if (distToSit <= 2.2) {
             unit.position = [sitX, targetY, sitZ];
             unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useState, memo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
@@ -39,7 +39,6 @@ function createGrassTuftGeometry(bladeCount: number, height: number, spread: num
     normals.push(cosA * 0.5, 0.8, sinA * 0.5);
 
     indices.push(baseIdx, baseIdx + 1, baseIdx + 2);
-    indices.push(baseIdx, baseIdx + 2, baseIdx + 1);
   }
 
   const geo = new THREE.BufferGeometry();
@@ -47,6 +46,8 @@ function createGrassTuftGeometry(bladeCount: number, height: number, spread: num
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  geo.computeBoundingBox();
   return geo;
 }
 
@@ -168,8 +169,21 @@ function createBareBushGeometry(): THREE.BufferGeometry {
   return mergeBufferGeometries(parts);
 }
 
+function createPineCanopyGeometry(): THREE.BufferGeometry {
+  const g1 = new THREE.ConeGeometry(0.68, 0.65, 6);
+  g1.translate(0, 0.65, 0);
+  const g2 = new THREE.ConeGeometry(0.54, 0.6, 6);
+  g2.translate(0, 1.05, 0);
+  const g3 = new THREE.ConeGeometry(0.4, 0.5, 6);
+  g3.translate(0, 1.45, 0);
+  const g4 = new THREE.ConeGeometry(0.25, 0.4, 6);
+  g4.translate(0, 1.8, 0);
+  return mergeBufferGeometries([g1, g2, g3, g4]);
+}
+
 const defaultBareWinterTreeGeo = createBareWinterTreeGeometry();
 const defaultBareBushGeo = createBareBushGeometry();
+const defaultPineCanopyGeo = createPineCanopyGeometry();
 
 function FallingTreeItem({
   tree,
@@ -273,29 +287,20 @@ function FallingTreeItem({
   );
 }
 
-interface FoliageChunkData {
-  id: number;
-  centerX: number;
-  centerZ: number;
-  bareOakTrees: THREE.Matrix4[];
-  oakTrunks: THREE.Matrix4[];
+interface FoliageBucket {
+  cx: number;
+  cz: number;
+  bareTrees: THREE.Matrix4[];
+  treeTrunks: THREE.Matrix4[];
   oakCanopies: THREE.Matrix4[];
-  bareAutumnTrees: THREE.Matrix4[];
-  autumnTrunks: THREE.Matrix4[];
   autumnCanopies: THREE.Matrix4[];
   pineTrunks: THREE.Matrix4[];
-  pineT1: THREE.Matrix4[];
-  pineT2: THREE.Matrix4[];
-  pineT3: THREE.Matrix4[];
-  pineT4: THREE.Matrix4[];
+  pineCanopies: THREE.Matrix4[];
   stumps: THREE.Matrix4[];
   fallenLogs: THREE.Matrix4[];
   fallenOakCanopies: THREE.Matrix4[];
   fallenAutumnCanopies: THREE.Matrix4[];
-  fallenPineT1: THREE.Matrix4[];
-  fallenPineT2: THREE.Matrix4[];
-  fallenPineT3: THREE.Matrix4[];
-  fallenPineT4: THREE.Matrix4[];
+  fallenPineCanopies: THREE.Matrix4[];
   rocks: THREE.Matrix4[];
   bareBushes: THREE.Matrix4[];
   bushes: THREE.Matrix4[];
@@ -304,198 +309,118 @@ interface FoliageChunkData {
   shortGrass: THREE.Matrix4[];
   reeds: THREE.Matrix4[];
   lilies: THREE.Matrix4[];
-  redFlowers: THREE.Matrix4[];
-  yellowFlowers: THREE.Matrix4[];
-  blueFlowers: THREE.Matrix4[];
-  whiteFlowers: THREE.Matrix4[];
+  flowers: THREE.Matrix4[];
+  flowerColors: number[];
   pebbles: THREE.Matrix4[];
   mushrooms: THREE.Matrix4[];
 }
 
-const FoliageMesh = memo(function FoliageMesh({
-  geo,
-  mat,
-  matrices,
-  visible = true,
-  receiveShadow = false,
-}: {
-  geo: THREE.BufferGeometry;
-  mat: THREE.Material;
-  matrices: THREE.Matrix4[];
-  visible?: boolean;
-  receiveShadow?: boolean;
-}) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+const BUCKET_SIZE = 16;
 
-  useEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    for (let i = 0; i < matrices.length; i++) {
-      mesh.setMatrixAt(i, matrices[i]);
-    }
-    mesh.count = matrices.length;
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [matrices]);
-
-  if (matrices.length === 0) return null;
-
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geo, mat, matrices.length]}
-      visible={visible}
-      receiveShadow={receiveShadow}
-      frustumCulled={true}
-    />
-  );
-});
-
-const FoliageChunk = memo(function FoliageChunk({
-  chunk,
-  geos,
-  mats,
-  isWinter,
-  showGrass,
-}: {
-  chunk: FoliageChunkData;
-  geos: any;
-  mats: any;
-  isWinter: boolean;
-  showGrass: boolean;
-}) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame(() => {
-    if (!groupRef.current) return;
-    const camTarget = (window as any).__lastCameraTarget;
-    const zoom = (window as any).__lastCameraZoom || 38;
-    if (camTarget) {
-      const maxDist = Math.min(85, Math.max(48, (60 / zoom) * 38)) + 34;
-      const dx = chunk.centerX - camTarget[0];
-      const dz = chunk.centerZ - camTarget[1];
-      const isVisible = dx * dx + dz * dz < maxDist * maxDist;
-      if (groupRef.current.visible !== isVisible) {
-        groupRef.current.visible = isVisible;
-      }
-    }
-  });
-
-  return (
-    <group ref={groupRef}>
-      <FoliageMesh geo={geos.bareWinterTreeGeo} mat={mats.wood} matrices={chunk.bareOakTrees} visible={isWinter} receiveShadow />
-      <FoliageMesh geo={geos.trunkGeo} mat={mats.wood} matrices={chunk.oakTrunks} visible={!isWinter} receiveShadow />
-      <FoliageMesh geo={geos.oakCanopyGeo} mat={mats.oak} matrices={chunk.oakCanopies} visible={!isWinter} receiveShadow />
-
-      <FoliageMesh geo={geos.bareWinterTreeGeo} mat={mats.wood} matrices={chunk.bareAutumnTrees} visible={isWinter} receiveShadow />
-      <FoliageMesh geo={geos.trunkGeo} mat={mats.wood} matrices={chunk.autumnTrunks} visible={!isWinter} receiveShadow />
-      <FoliageMesh geo={geos.oakCanopyGeo} mat={mats.autumn} matrices={chunk.autumnCanopies} visible={!isWinter} receiveShadow />
-
-      <FoliageMesh geo={geos.pineTrunkGeo} mat={mats.wood} matrices={chunk.pineTrunks} receiveShadow />
-      <FoliageMesh geo={geos.pineT1Geo} mat={mats.pine1} matrices={chunk.pineT1} receiveShadow />
-      <FoliageMesh geo={geos.pineT2Geo} mat={mats.pine2} matrices={chunk.pineT2} receiveShadow />
-      <FoliageMesh geo={geos.pineT3Geo} mat={mats.pine3} matrices={chunk.pineT3} receiveShadow />
-      <FoliageMesh geo={geos.pineT4Geo} mat={mats.pine4} matrices={chunk.pineT4} receiveShadow />
-
-      <FoliageMesh geo={geos.stumpGeo} mat={mats.wood} matrices={chunk.stumps} receiveShadow />
-      <FoliageMesh geo={geos.fallenLogGeo} mat={mats.wood} matrices={chunk.fallenLogs} receiveShadow />
-      <FoliageMesh geo={geos.oakCanopyGeo} mat={mats.oak} matrices={chunk.fallenOakCanopies} visible={!isWinter} receiveShadow />
-      <FoliageMesh geo={geos.oakCanopyGeo} mat={mats.autumn} matrices={chunk.fallenAutumnCanopies} visible={!isWinter} receiveShadow />
-      <FoliageMesh geo={geos.pineT1Geo} mat={mats.pine1} matrices={chunk.fallenPineT1} receiveShadow />
-      <FoliageMesh geo={geos.pineT2Geo} mat={mats.pine2} matrices={chunk.fallenPineT2} receiveShadow />
-      <FoliageMesh geo={geos.pineT3Geo} mat={mats.pine3} matrices={chunk.fallenPineT3} receiveShadow />
-      <FoliageMesh geo={geos.pineT4Geo} mat={mats.pine4} matrices={chunk.fallenPineT4} receiveShadow />
-
-      <FoliageMesh geo={geos.rockGeo} mat={mats.rock} matrices={chunk.rocks} receiveShadow />
-      <FoliageMesh geo={geos.bareBushGeo} mat={mats.wood} matrices={chunk.bareBushes} visible={isWinter} receiveShadow />
-      <FoliageMesh geo={geos.bushGeo} mat={mats.bush} matrices={chunk.bushes} visible={!isWinter} receiveShadow />
-
-      <FoliageMesh geo={geos.tallGrassGeo} mat={mats.tallGrassMat} matrices={chunk.tallGrass} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.medGrassGeo} mat={mats.medGrassMat} matrices={chunk.medGrass} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.shortGrassGeo} mat={mats.shortGrassMat} matrices={chunk.shortGrass} visible={showGrass} />
-      <FoliageMesh geo={geos.reedGeo} mat={mats.reed} matrices={chunk.reeds} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.lilyGeo} mat={mats.lily} matrices={chunk.lilies} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.flowerGeo} mat={mats.flowerRed} matrices={chunk.redFlowers} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.flowerGeo} mat={mats.flowerYellow} matrices={chunk.yellowFlowers} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.flowerGeo} mat={mats.flowerBlue} matrices={chunk.blueFlowers} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.flowerGeo} mat={mats.flowerWhite} matrices={chunk.whiteFlowers} visible={showGrass && !isWinter} />
-      <FoliageMesh geo={geos.pebbleGeo} mat={mats.pebble} matrices={chunk.pebbles} visible={showGrass} />
-      <FoliageMesh geo={geos.shroomGeo} mat={mats.mushroom} matrices={chunk.mushrooms} visible={showGrass && !isWinter} />
-    </group>
-  );
-});
+const CAPACITIES = {
+  tree: 1600,
+  bush: 800,
+  rock: 500,
+  fallen: 350,
+  tallGrass: 2500,
+  medGrass: 2500,
+  shortGrass: 2500,
+  reed: 400,
+  lily: 200,
+  flower: 800,
+  pebble: 500,
+  mushroom: 300,
+};
 
 export function FoliageRenderer({ grid }: Props) {
   const foliageVersion = useGameStore((state) => state.foliageVersion);
-  const buildingVersion = useGameStore((state) => state.buildingVersion);
   const fallingTrees = useGameStore((state) => state.fallingTrees);
   const isStrategicView = useGameStore((state) => state.isStrategicView);
   const resourceDeposits = useGameStore((state) => state.resourceDeposits);
-  const season = useGameStore((state) => state.time?.season || 'Spring');
-  const isWinter = season === 'Winter';
 
-  const [showGrass, setShowGrass] = useState(true);
-  const showGrassRef = useRef(true);
+  const bareWinterTreeRef = useRef<THREE.InstancedMesh>(null);
+  const treeTrunkRef = useRef<THREE.InstancedMesh>(null);
+  const oakCanopyRef = useRef<THREE.InstancedMesh>(null);
+  const autumnCanopyRef = useRef<THREE.InstancedMesh>(null);
+  const pineTrunkRef = useRef<THREE.InstancedMesh>(null);
+  const pineCanopyRef = useRef<THREE.InstancedMesh>(null);
 
-  const chunkDataList = useMemo(() => {
+  const stumpRef = useRef<THREE.InstancedMesh>(null);
+  const fallenLogRef = useRef<THREE.InstancedMesh>(null);
+  const fallenOakCanopyRef = useRef<THREE.InstancedMesh>(null);
+  const fallenAutumnCanopyRef = useRef<THREE.InstancedMesh>(null);
+  const fallenPineCanopyRef = useRef<THREE.InstancedMesh>(null);
+
+  const rockRef = useRef<THREE.InstancedMesh>(null);
+  const bareBushRef = useRef<THREE.InstancedMesh>(null);
+  const bushRef = useRef<THREE.InstancedMesh>(null);
+
+  const tallGrassRef = useRef<THREE.InstancedMesh>(null);
+  const medGrassRef = useRef<THREE.InstancedMesh>(null);
+  const shortGrassRef = useRef<THREE.InstancedMesh>(null);
+  const reedRef = useRef<THREE.InstancedMesh>(null);
+  const lilyRef = useRef<THREE.InstancedMesh>(null);
+  const flowerRef = useRef<THREE.InstancedMesh>(null);
+  const pebbleRef = useRef<THREE.InstancedMesh>(null);
+  const mushroomRef = useRef<THREE.InstancedMesh>(null);
+
+  const lastUpdateRef = useRef({
+    x: -9999,
+    z: -9999,
+    zoom: -9999,
+    angle: -9999,
+    season: '',
+    showGrass: true,
+    foliageVersion: -1,
+    strategic: false,
+  });
+  const forceUpdateRef = useRef(true);
+
+  const cols = Math.ceil(grid.width / BUCKET_SIZE);
+  const rows = Math.ceil(grid.height / BUCKET_SIZE);
+
+  const buckets = useMemo(() => {
     void foliageVersion;
-    void buildingVersion;
 
-    const CHUNK_SIZE = 48;
-    const cols = Math.ceil(grid.width / CHUNK_SIZE);
-    const rows = Math.ceil(grid.height / CHUNK_SIZE);
-    const totalChunks = cols * rows;
-
-    const chunks: FoliageChunkData[] = [];
-    for (let i = 0; i < totalChunks; i++) {
-      const cx = i % cols;
-      const cz = Math.floor(i / cols);
-      chunks.push({
-        id: i,
-        centerX: Math.min(grid.width, (cx + 0.5) * CHUNK_SIZE),
-        centerZ: Math.min(grid.height, (cz + 0.5) * CHUNK_SIZE),
-        bareOakTrees: [],
-        oakTrunks: [],
-        oakCanopies: [],
-        bareAutumnTrees: [],
-        autumnTrunks: [],
-        autumnCanopies: [],
-        pineTrunks: [],
-        pineT1: [],
-        pineT2: [],
-        pineT3: [],
-        pineT4: [],
-        stumps: [],
-        fallenLogs: [],
-        fallenOakCanopies: [],
-        fallenAutumnCanopies: [],
-        fallenPineT1: [],
-        fallenPineT2: [],
-        fallenPineT3: [],
-        fallenPineT4: [],
-        rocks: [],
-        bareBushes: [],
-        bushes: [],
-        tallGrass: [],
-        medGrass: [],
-        shortGrass: [],
-        reeds: [],
-        lilies: [],
-        redFlowers: [],
-        yellowFlowers: [],
-        blueFlowers: [],
-        whiteFlowers: [],
-        pebbles: [],
-        mushrooms: [],
-      });
+    const bucketList: FoliageBucket[] = [];
+    for (let bz = 0; bz < rows; bz++) {
+      for (let bx = 0; bx < cols; bx++) {
+        bucketList.push({
+          cx: (bx + 0.5) * BUCKET_SIZE,
+          cz: (bz + 0.5) * BUCKET_SIZE,
+          bareTrees: [],
+          treeTrunks: [],
+          oakCanopies: [],
+          autumnCanopies: [],
+          pineTrunks: [],
+          pineCanopies: [],
+          stumps: [],
+          fallenLogs: [],
+          fallenOakCanopies: [],
+          fallenAutumnCanopies: [],
+          fallenPineCanopies: [],
+          rocks: [],
+          bareBushes: [],
+          bushes: [],
+          tallGrass: [],
+          medGrass: [],
+          shortGrass: [],
+          reeds: [],
+          lilies: [],
+          flowers: [],
+          flowerColors: [],
+          pebbles: [],
+          mushrooms: [],
+        });
+      }
     }
 
     const dummy = new THREE.Object3D();
 
-    const getChunk = (x: number, z: number): FoliageChunkData => {
-      const cx = Math.min(cols - 1, Math.max(0, Math.floor(x / CHUNK_SIZE)));
-      const cz = Math.min(rows - 1, Math.max(0, Math.floor(z / CHUNK_SIZE)));
-      return chunks[cz * cols + cx];
+    const getBucket = (x: number, z: number): FoliageBucket => {
+      const bx = Math.min(cols - 1, Math.max(0, Math.floor(x / BUCKET_SIZE)));
+      const bz = Math.min(rows - 1, Math.max(0, Math.floor(z / BUCKET_SIZE)));
+      return bucketList[bz * cols + bx];
     };
 
     const depositClearings: Array<{ gx: number; gz: number; rSq: number }> = [];
@@ -510,7 +435,7 @@ export function FoliageRenderer({ grid }: Props) {
       const tile = grid.tiles[x]?.[z];
       if (!tile || !tile.foliageType || tile.buildingId) return;
 
-      const chunk = getChunk(x, z);
+      const bucket = getBucket(x, z);
       const tileH = tile.height || 0.05;
       const jitterX = (pseudoRandom(x, z) - 0.5) * 0.35;
       const jitterZ = (pseudoRandom(z, x + 37) - 0.5) * 0.35;
@@ -525,57 +450,47 @@ export function FoliageRenderer({ grid }: Props) {
           dummy.rotation.set(0, rotY, 0);
           dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.pineTrunks.push(dummy.matrix.clone());
+          bucket.pineTrunks.push(dummy.matrix.clone());
 
-          dummy.position.set(posX, tileH + 0.65 * sc, posZ);
+          dummy.position.set(posX, tileH, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.pineT1.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH + 1.05 * sc, posZ);
-          dummy.updateMatrix();
-          chunk.pineT2.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH + 1.45 * sc, posZ);
-          dummy.updateMatrix();
-          chunk.pineT3.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH + 1.8 * sc, posZ);
-          dummy.updateMatrix();
-          chunk.pineT4.push(dummy.matrix.clone());
+          bucket.pineCanopies.push(dummy.matrix.clone());
         } else if (treeType === 'oak') {
           dummy.position.set(posX, tileH + 0.42 * sc, posZ);
           dummy.rotation.set(0, rotY, 0);
           dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.oakTrunks.push(dummy.matrix.clone());
+          bucket.treeTrunks.push(dummy.matrix.clone());
 
           dummy.position.set(posX, tileH + 1.25 * sc, posZ);
           dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
           dummy.updateMatrix();
-          chunk.oakCanopies.push(dummy.matrix.clone());
+          bucket.oakCanopies.push(dummy.matrix.clone());
 
           dummy.position.set(posX, tileH, posZ);
           dummy.rotation.set(0, rotY, 0);
           dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.bareOakTrees.push(dummy.matrix.clone());
+          bucket.bareTrees.push(dummy.matrix.clone());
         } else {
           dummy.position.set(posX, tileH + 0.42 * sc, posZ);
           dummy.rotation.set(0, rotY, 0);
           dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.autumnTrunks.push(dummy.matrix.clone());
+          bucket.treeTrunks.push(dummy.matrix.clone());
 
           dummy.position.set(posX, tileH + 1.25 * sc, posZ);
           dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
           dummy.updateMatrix();
-          chunk.autumnCanopies.push(dummy.matrix.clone());
+          bucket.autumnCanopies.push(dummy.matrix.clone());
 
           dummy.position.set(posX, tileH, posZ);
           dummy.rotation.set(0, rotY, 0);
           dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.bareAutumnTrees.push(dummy.matrix.clone());
+          bucket.bareTrees.push(dummy.matrix.clone());
         }
       } else if (tile.foliageType === 'fallen_tree') {
         const proc = getTreeProceduralData(x, z);
@@ -589,57 +504,36 @@ export function FoliageRenderer({ grid }: Props) {
         dummy.rotation.set(0, logAngle, 0);
         dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix();
-        chunk.stumps.push(dummy.matrix.clone());
+        bucket.stumps.push(dummy.matrix.clone());
 
         dummy.position.set(posX + sinA * 0.42 * sc, tileH + 0.09 * sc, posZ + cosA * 0.42 * sc);
         dummy.rotation.set(0, logAngle, 0);
         dummy.rotateX(Math.PI / 2);
         dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix();
-        chunk.fallenLogs.push(dummy.matrix.clone());
+        bucket.fallenLogs.push(dummy.matrix.clone());
 
         if (treeType === 'pine') {
-          dummy.position.set(posX + sinA * 0.65 * sc, tileH + 0.18 * sc, posZ + cosA * 0.65 * sc);
+          dummy.position.set(posX, tileH + 0.16 * sc, posZ);
           dummy.rotation.set(0, logAngle, 0);
           dummy.rotateX(Math.PI / 2);
           dummy.scale.set(sc, sc, sc);
           dummy.updateMatrix();
-          chunk.fallenPineT1.push(dummy.matrix.clone());
-
-          dummy.position.set(posX + sinA * 1.05 * sc, tileH + 0.16 * sc, posZ + cosA * 1.05 * sc);
-          dummy.rotation.set(0, logAngle, 0);
-          dummy.rotateX(Math.PI / 2);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          chunk.fallenPineT2.push(dummy.matrix.clone());
-
-          dummy.position.set(posX + sinA * 1.45 * sc, tileH + 0.14 * sc, posZ + cosA * 1.45 * sc);
-          dummy.rotation.set(0, logAngle, 0);
-          dummy.rotateX(Math.PI / 2);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          chunk.fallenPineT3.push(dummy.matrix.clone());
-
-          dummy.position.set(posX + sinA * 1.80 * sc, tileH + 0.12 * sc, posZ + cosA * 1.80 * sc);
-          dummy.rotation.set(0, logAngle, 0);
-          dummy.rotateX(Math.PI / 2);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          chunk.fallenPineT4.push(dummy.matrix.clone());
+          bucket.fallenPineCanopies.push(dummy.matrix.clone());
         } else if (treeType === 'oak') {
           dummy.position.set(posX + sinA * 1.25 * sc, tileH + 0.32 * sc, posZ + cosA * 1.25 * sc);
           dummy.rotation.set(0, logAngle, 0);
           dummy.rotateX(Math.PI / 2);
           dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
           dummy.updateMatrix();
-          chunk.fallenOakCanopies.push(dummy.matrix.clone());
+          bucket.fallenOakCanopies.push(dummy.matrix.clone());
         } else {
           dummy.position.set(posX + sinA * 1.25 * sc, tileH + 0.32 * sc, posZ + cosA * 1.25 * sc);
           dummy.rotation.set(0, logAngle, 0);
           dummy.rotateX(Math.PI / 2);
           dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
           dummy.updateMatrix();
-          chunk.fallenAutumnCanopies.push(dummy.matrix.clone());
+          bucket.fallenAutumnCanopies.push(dummy.matrix.clone());
         }
       } else if (tile.foliageType === 'rock') {
         const sc = 0.95 + (pseudoRandom(x + 13, z + 7) - 0.5) * 0.25;
@@ -647,20 +541,20 @@ export function FoliageRenderer({ grid }: Props) {
         dummy.rotation.set(0.1, rotY, 0.05);
         dummy.scale.set(sc * 1.2, sc * 0.8, sc * 1.05);
         dummy.updateMatrix();
-        chunk.rocks.push(dummy.matrix.clone());
+        bucket.rocks.push(dummy.matrix.clone());
       } else if (tile.foliageType === 'bush') {
         const sc = 0.85 + (pseudoRandom(x * 7, z * 13) - 0.5) * 0.35;
         dummy.position.set(posX, tileH + 0.15 * sc, posZ);
         dummy.rotation.set(0, rotY, 0);
         dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix();
-        chunk.bushes.push(dummy.matrix.clone());
+        bucket.bushes.push(dummy.matrix.clone());
 
         dummy.position.set(posX, tileH, posZ);
         dummy.rotation.set(0, rotY, 0);
         dummy.scale.set(sc, sc, sc);
         dummy.updateMatrix();
-        chunk.bareBushes.push(dummy.matrix.clone());
+        bucket.bareBushes.push(dummy.matrix.clone());
       }
     };
 
@@ -705,7 +599,7 @@ export function FoliageRenderer({ grid }: Props) {
         }
         if (inBuilding) continue;
 
-        const chunk = getChunk(x, z);
+        const bucket = getBucket(x, z);
         const tileH = tile.height || 0.05;
         const jitterX = (pseudoRandom(x, z) - 0.5) * 0.35;
         const jitterZ = (pseudoRandom(z, x + 37) - 0.5) * 0.35;
@@ -720,7 +614,7 @@ export function FoliageRenderer({ grid }: Props) {
             dummy.rotation.set(0, rotY, 0);
             dummy.scale.set(sc, sc, sc);
             dummy.updateMatrix();
-            chunk.lilies.push(dummy.matrix.clone());
+            bucket.lilies.push(dummy.matrix.clone());
           }
         } else if (tile.terrain === 'fertile_soil' || tile.terrain === 'mud') {
           if (pseudoRandom(x + 11, z + 89) > 0.55) {
@@ -729,7 +623,7 @@ export function FoliageRenderer({ grid }: Props) {
             dummy.rotation.set(0, rotY, 0);
             dummy.scale.set(sc, sc, sc);
             dummy.updateMatrix();
-            chunk.reeds.push(dummy.matrix.clone());
+            bucket.reeds.push(dummy.matrix.clone());
           }
           if (pseudoRandom(x * 37, z * 29) > 0.40) {
             const sc = 0.65 + pseudoRandom(x, z) * 0.35;
@@ -737,7 +631,7 @@ export function FoliageRenderer({ grid }: Props) {
             dummy.rotation.set(0.1, rotY, 0.05);
             dummy.scale.set(sc * 1.3, sc * 0.5, sc * 1.1);
             dummy.updateMatrix();
-            chunk.pebbles.push(dummy.matrix.clone());
+            bucket.pebbles.push(dummy.matrix.clone());
           }
         } else if (tile.terrain === 'grass') {
           const patchNoise = Math.sin(x * 0.24 + z * 0.16) * 0.55 + Math.cos(x * 0.12 - z * 0.26) * 0.45;
@@ -755,9 +649,9 @@ export function FoliageRenderer({ grid }: Props) {
               dummy.scale.set(subScale, subScale, subScale);
               dummy.updateMatrix();
 
-              if (k < 1) chunk.tallGrass.push(dummy.matrix.clone());
-              else if (k < 2) chunk.medGrass.push(dummy.matrix.clone());
-              else chunk.shortGrass.push(dummy.matrix.clone());
+              if (k < 1) bucket.tallGrass.push(dummy.matrix.clone());
+              else if (k < 2) bucket.medGrass.push(dummy.matrix.clone());
+              else bucket.shortGrass.push(dummy.matrix.clone());
             }
 
             const randFlower = pseudoRandom(x * 19 + 5, z * 23 + 17);
@@ -772,10 +666,16 @@ export function FoliageRenderer({ grid }: Props) {
               dummy.scale.set(sc, sc, sc);
               dummy.updateMatrix();
 
-              if (fType < 0.28) chunk.redFlowers.push(dummy.matrix.clone());
-              else if (fType < 0.56) chunk.yellowFlowers.push(dummy.matrix.clone());
-              else if (fType < 0.82) chunk.blueFlowers.push(dummy.matrix.clone());
-              else chunk.whiteFlowers.push(dummy.matrix.clone());
+              bucket.flowers.push(dummy.matrix.clone());
+              if (fType < 0.28) {
+                bucket.flowerColors.push(0.937, 0.267, 0.267);
+              } else if (fType < 0.56) {
+                bucket.flowerColors.push(0.980, 0.800, 0.082);
+              } else if (fType < 0.82) {
+                bucket.flowerColors.push(0.220, 0.741, 0.973);
+              } else {
+                bucket.flowerColors.push(0.973, 0.980, 0.988);
+              }
             }
 
             if (pseudoRandom(x * 47, z * 31) > 0.78) {
@@ -784,7 +684,7 @@ export function FoliageRenderer({ grid }: Props) {
               dummy.rotation.set(0, rotY, 0);
               dummy.scale.set(scM, scM, scM);
               dummy.updateMatrix();
-              chunk.mushrooms.push(dummy.matrix.clone());
+              bucket.mushrooms.push(dummy.matrix.clone());
             }
           } else if (patchNoise > -0.20) {
             const tuftCount = 1 + Math.floor(pseudoRandom(x * 5, z * 11) * 1.5);
@@ -799,8 +699,8 @@ export function FoliageRenderer({ grid }: Props) {
               dummy.scale.set(subScale, subScale, subScale);
               dummy.updateMatrix();
 
-              if (k < 1) chunk.medGrass.push(dummy.matrix.clone());
-              else chunk.shortGrass.push(dummy.matrix.clone());
+              if (k < 1) bucket.medGrass.push(dummy.matrix.clone());
+              else bucket.shortGrass.push(dummy.matrix.clone());
             }
           } else {
             if (pseudoRandom(x * 23 + 7, z * 17 + 11) > 0.60) {
@@ -814,44 +714,42 @@ export function FoliageRenderer({ grid }: Props) {
               dummy.scale.set(subScale, subScale, subScale);
               dummy.updateMatrix();
 
-              chunk.shortGrass.push(dummy.matrix.clone());
+              bucket.shortGrass.push(dummy.matrix.clone());
             }
           }
         }
       }
     }
 
-    return chunks;
-  }, [grid, foliageVersion, buildingVersion, resourceDeposits]);
+    return bucketList;
+  }, [grid, foliageVersion, resourceDeposits, cols, rows]);
 
   const geos = useMemo(() => ({
     trunkGeo: new THREE.CylinderGeometry(0.12, 0.22, 0.85, 6),
     bareWinterTreeGeo: defaultBareWinterTreeGeo,
-    oakCanopyGeo: new THREE.DodecahedronGeometry(0.72, 1),
+    oakCanopyGeo: new THREE.DodecahedronGeometry(0.72, 0),
     pineTrunkGeo: new THREE.CylinderGeometry(0.09, 0.15, 0.65, 6),
-    pineT1Geo: new THREE.ConeGeometry(0.68, 0.65, 6),
-    pineT2Geo: new THREE.ConeGeometry(0.54, 0.6, 6),
-    pineT3Geo: new THREE.ConeGeometry(0.4, 0.5, 6),
-    pineT4Geo: new THREE.ConeGeometry(0.25, 0.4, 6),
+    pineCanopyGeo: defaultPineCanopyGeo,
     rockGeo: new THREE.DodecahedronGeometry(0.42, 0),
-    bushGeo: new THREE.DodecahedronGeometry(0.32, 1),
+    bushGeo: new THREE.DodecahedronGeometry(0.32, 0),
     bareBushGeo: defaultBareBushGeo,
 
     stumpGeo: new THREE.CylinderGeometry(0.15, 0.22, 0.22, 6),
     fallenLogGeo: new THREE.CylinderGeometry(0.13, 0.16, 1.35, 6),
-    fallenBranchGeo: new THREE.DodecahedronGeometry(0.42, 1),
+    fallenBranchGeo: new THREE.DodecahedronGeometry(0.42, 0),
 
-    tallGrassGeo: createGrassTuftGeometry(8, 0.52, 0.38),
-    medGrassGeo: createGrassTuftGeometry(6, 0.38, 0.28),
-    shortGrassGeo: createGrassTuftGeometry(5, 0.26, 0.22),
+    tallGrassGeo: createGrassTuftGeometry(3, 0.50, 0.35),
+    medGrassGeo: createGrassTuftGeometry(2, 0.38, 0.26),
+    shortGrassGeo: createGrassTuftGeometry(2, 0.25, 0.20),
 
     reedGeo: new THREE.CylinderGeometry(0.02, 0.03, 0.65, 4),
     lilyGeo: new THREE.CylinderGeometry(0.20, 0.20, 0.02, 6),
-    flowerGeo: new THREE.DodecahedronGeometry(0.09, 0),
+    flowerGeo: new THREE.OctahedronGeometry(0.09, 0),
     pebbleGeo: new THREE.DodecahedronGeometry(0.11, 0),
     shroomGeo: new THREE.ConeGeometry(0.11, 0.12, 5),
   }), []);
 
+  const registeredShadersRef = useRef<WeakSet<any>>(new WeakSet());
   const windShadersRef = useRef<Array<{ shader: { uniforms: Record<string, THREE.IUniform> }; isFlower: boolean }>>([]);
   const treeShadersRef = useRef<Array<{ shader: { uniforms: Record<string, THREE.IUniform> }; isCanopy: boolean }>>([]);
   const canopyScaleRef = useRef(1.0);
@@ -859,15 +757,16 @@ export function FoliageRenderer({ grid }: Props) {
 
   const createWindMaterial = useMemo(() => {
     return (colorHex: string, swayIntensity: number = 1.0, isFlower: boolean = false) => {
-      const mat = new THREE.MeshStandardMaterial({
+      const mat = new THREE.MeshLambertMaterial({
         color: colorHex,
-        roughness: 0.82,
-        flatShading: true,
         side: THREE.DoubleSide,
       });
 
       mat.onBeforeCompile = (shader) => {
-        windShadersRef.current.push({ shader, isFlower });
+        if (!registeredShadersRef.current.has(shader)) {
+          registeredShadersRef.current.add(shader);
+          windShadersRef.current.push({ shader, isFlower });
+        }
         shader.uniforms.uTime = { value: 0 };
         shader.uniforms.uFlowerScale = { value: 1.0 };
 
@@ -881,7 +780,11 @@ export function FoliageRenderer({ grid }: Props) {
           #include <begin_vertex>
           ${isFlower ? 'transformed *= uFlowerScale;' : ''}
 
+          #ifdef USE_INSTANCING
           vec4 instPos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          #else
+          vec4 instPos = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          #endif
           float windPhase = instPos.x * 0.38 + instPos.z * 0.26 + uTime * 2.5;
           float gust = sin(windPhase) * 0.70 + sin(windPhase * 0.5 + uTime * 1.2) * 0.30;
 
@@ -900,15 +803,16 @@ export function FoliageRenderer({ grid }: Props) {
   }, []);
 
   const createTreeMaterial = useMemo(() => {
-    return (colorHex: string, roughness: number = 0.82, isCanopy: boolean = false) => {
-      const mat = new THREE.MeshStandardMaterial({
+    return (colorHex: string, _roughness: number = 0.82, isCanopy: boolean = false) => {
+      const mat = new THREE.MeshLambertMaterial({
         color: colorHex,
-        roughness,
-        flatShading: true,
       });
 
       mat.onBeforeCompile = (shader) => {
-        treeShadersRef.current.push({ shader, isCanopy });
+        if (!registeredShadersRef.current.has(shader)) {
+          registeredShadersRef.current.add(shader);
+          treeShadersRef.current.push({ shader, isCanopy });
+        }
         shader.uniforms.uTime = { value: 0 };
         shader.uniforms.uCanopyScale = { value: 1.0 };
         shader.uniforms.uTreeHits = {
@@ -934,7 +838,11 @@ export function FoliageRenderer({ grid }: Props) {
           `
           #include <begin_vertex>
           ${isCanopy ? 'transformed *= uCanopyScale;' : ''}
+          #ifdef USE_INSTANCING
           vec4 instPos = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          #else
+          vec4 instPos = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          #endif
 
           float windPhase = instPos.x * 0.28 + instPos.z * 0.22 + uTime * 2.0;
           float gust = sin(windPhase) * 0.65 + sin(windPhase * 0.4 + uTime * 1.1) * 0.35;
@@ -974,11 +882,8 @@ export function FoliageRenderer({ grid }: Props) {
     wood: createTreeMaterial('#422817', 0.9, false),
     oak: createTreeMaterial('#22c55e', 0.8, true),
     autumn: createTreeMaterial('#ea580c', 0.8, true),
-    pine1: createTreeMaterial('#13351b', 0.85, false),
-    pine2: createTreeMaterial('#184223', 0.85, false),
-    pine3: createTreeMaterial('#1f4f2c', 0.85, false),
-    pine4: createTreeMaterial('#286237', 0.85, false),
-    rock: new THREE.MeshStandardMaterial({ color: '#4b5563', roughness: 0.88, flatShading: true }),
+    pine: createTreeMaterial('#1c4a28', 0.85, true),
+    rock: new THREE.MeshLambertMaterial({ color: '#4b5563' }),
     bush: createTreeMaterial('#22c55e', 0.85, true),
 
     tallGrassMat: createWindMaterial('#3f782c', 1.35, false),
@@ -986,23 +891,17 @@ export function FoliageRenderer({ grid }: Props) {
     shortGrassMat: createWindMaterial('#5ea338', 0.95, false),
 
     reed: createWindMaterial('#4d7c0f', 1.20, false),
-    lily: new THREE.MeshStandardMaterial({ color: '#166534', roughness: 0.6, flatShading: true }),
-    flowerRed: createWindMaterial('#ef4444', 0.80, true),
-    flowerYellow: createWindMaterial('#facc15', 0.80, true),
-    flowerBlue: createWindMaterial('#38bdf8', 0.80, true),
-    flowerWhite: createWindMaterial('#f8fafc', 0.80, true),
-    pebble: new THREE.MeshStandardMaterial({ color: '#64748b', roughness: 0.9, flatShading: true }),
-    mushroom: new THREE.MeshStandardMaterial({ color: '#dc2626', roughness: 0.6, flatShading: true }),
+    lily: new THREE.MeshLambertMaterial({ color: '#166534' }),
+    flowerMat: createWindMaterial('#ffffff', 0.80, true),
+    pebble: new THREE.MeshLambertMaterial({ color: '#64748b' }),
+    mushroom: new THREE.MeshLambertMaterial({ color: '#dc2626' }),
   }), [createWindMaterial, createTreeMaterial]);
 
   const targetPalette = useMemo(() => ({
     Spring: {
       oak: new THREE.Color('#22c55e'),
       autumn: new THREE.Color('#4ade80'),
-      pine1: new THREE.Color('#13351b'),
-      pine2: new THREE.Color('#184223'),
-      pine3: new THREE.Color('#1f4f2c'),
-      pine4: new THREE.Color('#286237'),
+      pine: new THREE.Color('#1c4a28'),
       bush: new THREE.Color('#22c55e'),
       tallGrass: new THREE.Color('#38a169'),
       medGrass: new THREE.Color('#48bb78'),
@@ -1011,10 +910,7 @@ export function FoliageRenderer({ grid }: Props) {
     Summer: {
       oak: new THREE.Color('#1e5e1a'),
       autumn: new THREE.Color('#287024'),
-      pine1: new THREE.Color('#113219'),
-      pine2: new THREE.Color('#163c20'),
-      pine3: new THREE.Color('#1c4a28'),
-      pine4: new THREE.Color('#255f34'),
+      pine: new THREE.Color('#153a1f'),
       bush: new THREE.Color('#226118'),
       tallGrass: new THREE.Color('#33691e'),
       medGrass: new THREE.Color('#3f782c'),
@@ -1023,10 +919,7 @@ export function FoliageRenderer({ grid }: Props) {
     Autumn: {
       oak: new THREE.Color('#d97706'),
       autumn: new THREE.Color('#ea580c'),
-      pine1: new THREE.Color('#13351b'),
-      pine2: new THREE.Color('#184223'),
-      pine3: new THREE.Color('#1f4f2c'),
-      pine4: new THREE.Color('#286237'),
+      pine: new THREE.Color('#1b4525'),
       bush: new THREE.Color('#c2410c'),
       tallGrass: new THREE.Color('#a16207'),
       medGrass: new THREE.Color('#b45309'),
@@ -1035,10 +928,7 @@ export function FoliageRenderer({ grid }: Props) {
     Winter: {
       oak: new THREE.Color('#422817'),
       autumn: new THREE.Color('#422817'),
-      pine1: new THREE.Color('#183a22'),
-      pine2: new THREE.Color('#20462c'),
-      pine3: new THREE.Color('#30593e'),
-      pine4: new THREE.Color('#cbd5e1'),
+      pine: new THREE.Color('#224b30'),
       bush: new THREE.Color('#422817'),
       tallGrass: new THREE.Color('#94a3b8'),
       medGrass: new THREE.Color('#cbd5e1'),
@@ -1046,35 +936,230 @@ export function FoliageRenderer({ grid }: Props) {
     },
   }), []);
 
+  useEffect(() => {
+    const allMeshes = [
+      bareWinterTreeRef.current,
+      treeTrunkRef.current,
+      oakCanopyRef.current,
+      autumnCanopyRef.current,
+      pineTrunkRef.current,
+      pineCanopyRef.current,
+      stumpRef.current,
+      fallenLogRef.current,
+      fallenOakCanopyRef.current,
+      fallenAutumnCanopyRef.current,
+      fallenPineCanopyRef.current,
+      rockRef.current,
+      bareBushRef.current,
+      bushRef.current,
+      tallGrassRef.current,
+      medGrassRef.current,
+      shortGrassRef.current,
+      reedRef.current,
+      lilyRef.current,
+      flowerRef.current,
+      pebbleRef.current,
+      mushroomRef.current,
+    ];
+    for (const m of allMeshes) {
+      if (m) {
+        m.count = 0;
+        m.visible = false;
+      }
+    }
+    if (flowerRef.current && !flowerRef.current.instanceColor) {
+      flowerRef.current.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITIES.flower * 3), 3);
+    }
+    forceUpdateRef.current = true;
+  }, [buckets]);
+
   useFrame(() => {
     const curZoom = (window as any).__lastCameraZoom ?? 38;
-    const nextShowGrass = curZoom >= 22;
-    if (nextShowGrass !== showGrassRef.current) {
-      showGrassRef.current = nextShowGrass;
-      setShowGrass(nextShowGrass);
+    const curShowGrass = curZoom >= 16;
+
+    const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
+    const camAngle = ((window as any).__lastCameraAngle as number) || 0;
+    const camX = camTarget ? camTarget[0] : grid.width / 2;
+    const camZ = camTarget ? camTarget[1] : grid.height / 2;
+
+    const { activeTreeHits, time } = useGameStore.getState();
+    const curSeason = time?.season || 'Spring';
+    const isWinterSeason = curSeason === 'Winter';
+
+    const dx = camX - lastUpdateRef.current.x;
+    const dz = camZ - lastUpdateRef.current.z;
+    const distSq = dx * dx + dz * dz;
+    const zoomDiff = Math.abs(curZoom - lastUpdateRef.current.zoom);
+    const angleDiff = Math.abs(camAngle - lastUpdateRef.current.angle);
+    const seasonChanged = curSeason !== lastUpdateRef.current.season;
+    const grassToggled = curShowGrass !== lastUpdateRef.current.showGrass;
+    const verChanged = foliageVersion !== lastUpdateRef.current.foliageVersion;
+    const stratChanged = isStrategicView !== lastUpdateRef.current.strategic;
+
+    if (
+      forceUpdateRef.current ||
+      distSq >= 25.0 ||
+      zoomDiff >= 3.0 ||
+      angleDiff >= 0.25 ||
+      seasonChanged ||
+      grassToggled ||
+      verChanged ||
+      stratChanged
+    ) {
+      if (!isStrategicView) {
+        lastUpdateRef.current = {
+          x: camX,
+          z: camZ,
+          zoom: curZoom,
+          angle: camAngle,
+          season: curSeason,
+          showGrass: curShowGrass,
+          foliageVersion,
+          strategic: isStrategicView,
+        };
+        forceUpdateRef.current = false;
+
+        const halfSpan = Math.max(42, Math.min(56, (1400 / curZoom) + 8));
+        const minX = Math.max(0, camX - halfSpan);
+        const maxX = Math.min(grid.width, camX + halfSpan);
+        const minZ = Math.max(0, camZ - halfSpan);
+        const maxZ = Math.min(grid.height, camZ + halfSpan);
+
+        const minBx = Math.max(0, Math.floor(minX / BUCKET_SIZE));
+        const maxBx = Math.min(cols - 1, Math.floor(maxX / BUCKET_SIZE));
+        const minBz = Math.max(0, Math.floor(minZ / BUCKET_SIZE));
+        const maxBz = Math.min(rows - 1, Math.floor(maxZ / BUCKET_SIZE));
+
+        const visibleBuckets: FoliageBucket[] = [];
+        for (let bz = minBz; bz <= maxBz; bz++) {
+          const rowOffset = bz * cols;
+          for (let bx = minBx; bx <= maxBx; bx++) {
+            visibleBuckets.push(buckets[rowOffset + bx]);
+          }
+        }
+
+        visibleBuckets.sort((a, b) => {
+          const da = (a.cx - camX) * (a.cx - camX) + (a.cz - camZ) * (a.cz - camZ);
+          const db = (b.cx - camX) * (b.cx - camX) + (b.cz - camZ) * (b.cz - camZ);
+          return da - db;
+        });
+
+        const updateMesh = (
+          meshRef: React.RefObject<THREE.InstancedMesh | null>,
+          key: keyof FoliageBucket,
+          capacity: number,
+          visibleCondition: boolean
+        ) => {
+          const mesh = meshRef.current;
+          if (!mesh) return;
+
+          if (!visibleCondition) {
+            if (mesh.count !== 0) {
+              mesh.count = 0;
+              mesh.visible = false;
+            }
+            return;
+          }
+
+          const array = mesh.instanceMatrix.array as Float32Array;
+          let count = 0;
+
+          for (let i = 0; i < visibleBuckets.length; i++) {
+            const list = visibleBuckets[i][key] as THREE.Matrix4[];
+            if (!list) continue;
+            for (let j = 0; j < list.length; j++) {
+              if (count < capacity) {
+                array.set(list[j].elements, count * 16);
+                count++;
+              }
+            }
+          }
+
+          mesh.count = count;
+          mesh.visible = count > 0;
+          mesh.instanceMatrix.needsUpdate = true;
+        };
+
+        updateMesh(bareWinterTreeRef, 'bareTrees', CAPACITIES.tree, isWinterSeason);
+        updateMesh(treeTrunkRef, 'treeTrunks', CAPACITIES.tree, !isWinterSeason);
+        updateMesh(oakCanopyRef, 'oakCanopies', CAPACITIES.tree, !isWinterSeason);
+        updateMesh(autumnCanopyRef, 'autumnCanopies', CAPACITIES.tree, !isWinterSeason);
+        updateMesh(pineTrunkRef, 'pineTrunks', CAPACITIES.tree, true);
+        updateMesh(pineCanopyRef, 'pineCanopies', CAPACITIES.tree, true);
+
+        updateMesh(stumpRef, 'stumps', CAPACITIES.fallen, true);
+        updateMesh(fallenLogRef, 'fallenLogs', CAPACITIES.fallen, true);
+        updateMesh(fallenOakCanopyRef, 'fallenOakCanopies', CAPACITIES.fallen, !isWinterSeason);
+        updateMesh(fallenAutumnCanopyRef, 'fallenAutumnCanopies', CAPACITIES.fallen, !isWinterSeason);
+        updateMesh(fallenPineCanopyRef, 'fallenPineCanopies', CAPACITIES.fallen, true);
+
+        updateMesh(rockRef, 'rocks', CAPACITIES.rock, true);
+        updateMesh(bareBushRef, 'bareBushes', CAPACITIES.bush, isWinterSeason);
+        updateMesh(bushRef, 'bushes', CAPACITIES.bush, !isWinterSeason);
+
+        updateMesh(tallGrassRef, 'tallGrass', CAPACITIES.tallGrass, curShowGrass && !isWinterSeason);
+        updateMesh(medGrassRef, 'medGrass', CAPACITIES.medGrass, curShowGrass && !isWinterSeason);
+        updateMesh(shortGrassRef, 'shortGrass', CAPACITIES.shortGrass, curShowGrass);
+        updateMesh(reedRef, 'reeds', CAPACITIES.reed, curShowGrass && !isWinterSeason);
+        updateMesh(lilyRef, 'lilies', CAPACITIES.lily, curShowGrass && !isWinterSeason);
+        updateMesh(pebbleRef, 'pebbles', CAPACITIES.pebble, curShowGrass);
+        updateMesh(mushroomRef, 'mushrooms', CAPACITIES.mushroom, curShowGrass && !isWinterSeason);
+
+        const flowerMesh = flowerRef.current;
+        if (flowerMesh) {
+          const renderFlowers = curShowGrass && !isWinterSeason;
+          if (!renderFlowers) {
+            if (flowerMesh.count !== 0) {
+              flowerMesh.count = 0;
+              flowerMesh.visible = false;
+            }
+          } else {
+            const matArray = flowerMesh.instanceMatrix.array as Float32Array;
+            if (!flowerMesh.instanceColor) {
+              flowerMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITIES.flower * 3), 3);
+            }
+            const colArray = flowerMesh.instanceColor.array as Float32Array;
+            let count = 0;
+
+            for (let i = 0; i < visibleBuckets.length; i++) {
+              const b = visibleBuckets[i];
+              const matsList = b.flowers;
+              const colsList = b.flowerColors;
+              for (let j = 0; j < matsList.length; j++) {
+                if (count < CAPACITIES.flower) {
+                  matArray.set(matsList[j].elements, count * 16);
+                  colArray[count * 3] = colsList[j * 3];
+                  colArray[count * 3 + 1] = colsList[j * 3 + 1];
+                  colArray[count * 3 + 2] = colsList[j * 3 + 2];
+                  count++;
+                }
+              }
+            }
+
+            flowerMesh.count = count;
+            flowerMesh.visible = count > 0;
+            flowerMesh.instanceMatrix.needsUpdate = true;
+            flowerMesh.instanceColor.needsUpdate = true;
+          }
+        }
+      }
     }
 
     const t = performance.now() / 1000;
-    const { activeTreeHits, time } = useGameStore.getState();
-
-    const currentSeason = time?.season || 'Spring';
-    const palette = targetPalette[currentSeason];
+    const palette = targetPalette[curSeason];
     if (palette) {
       const factor = 0.08;
       mats.oak.color.lerp(palette.oak, factor);
       mats.autumn.color.lerp(palette.autumn, factor);
-      mats.pine1.color.lerp(palette.pine1, factor);
-      mats.pine2.color.lerp(palette.pine2, factor);
-      mats.pine3.color.lerp(palette.pine3, factor);
-      mats.pine4.color.lerp(palette.pine4, factor);
+      mats.pine.color.lerp(palette.pine, factor);
       mats.bush.color.lerp(palette.bush, factor);
       mats.tallGrassMat.color.lerp(palette.tallGrass, factor);
       mats.medGrassMat.color.lerp(palette.medGrass, factor);
       mats.shortGrassMat.color.lerp(palette.shortGrass, factor);
     }
 
-    const targetCanopyScale = currentSeason === 'Winter' ? 0.0 : 1.0;
-    const targetFlowerScale = currentSeason === 'Winter' ? 0.0 : currentSeason === 'Autumn' ? 0.35 : 1.0;
+    const targetCanopyScale = curSeason === 'Winter' ? 0.0 : 1.0;
+    const targetFlowerScale = curSeason === 'Winter' ? 0.0 : curSeason === 'Autumn' ? 0.35 : 1.0;
 
     canopyScaleRef.current = THREE.MathUtils.lerp(canopyScaleRef.current, targetCanopyScale, 0.08);
     flowerScaleRef.current = THREE.MathUtils.lerp(flowerScaleRef.current, targetFlowerScale, 0.08);
@@ -1116,16 +1201,33 @@ export function FoliageRenderer({ grid }: Props) {
 
   return (
     <group visible={!isStrategicView} raycast={() => null}>
-      {chunkDataList.map((chunk) => (
-        <FoliageChunk
-          key={chunk.id}
-          chunk={chunk}
-          geos={geos}
-          mats={mats}
-          isWinter={isWinter}
-          showGrass={showGrass}
-        />
-      ))}
+      <instancedMesh ref={bareWinterTreeRef} args={[geos.bareWinterTreeGeo, mats.wood, CAPACITIES.tree]} frustumCulled={false} />
+      <instancedMesh ref={treeTrunkRef} args={[geos.trunkGeo, mats.wood, CAPACITIES.tree]} frustumCulled={false} />
+      <instancedMesh ref={oakCanopyRef} args={[geos.oakCanopyGeo, mats.oak, CAPACITIES.tree]} frustumCulled={false} />
+      <instancedMesh ref={autumnCanopyRef} args={[geos.oakCanopyGeo, mats.autumn, CAPACITIES.tree]} frustumCulled={false} />
+
+      <instancedMesh ref={pineTrunkRef} args={[geos.pineTrunkGeo, mats.wood, CAPACITIES.tree]} frustumCulled={false} />
+      <instancedMesh ref={pineCanopyRef} args={[geos.pineCanopyGeo, mats.pine, CAPACITIES.tree]} frustumCulled={false} />
+
+      <instancedMesh ref={stumpRef} args={[geos.stumpGeo, mats.wood, CAPACITIES.fallen]} frustumCulled={false} />
+      <instancedMesh ref={fallenLogRef} args={[geos.fallenLogGeo, mats.wood, CAPACITIES.fallen]} frustumCulled={false} />
+      <instancedMesh ref={fallenOakCanopyRef} args={[geos.oakCanopyGeo, mats.oak, CAPACITIES.fallen]} frustumCulled={false} />
+      <instancedMesh ref={fallenAutumnCanopyRef} args={[geos.oakCanopyGeo, mats.autumn, CAPACITIES.fallen]} frustumCulled={false} />
+      <instancedMesh ref={fallenPineCanopyRef} args={[geos.pineCanopyGeo, mats.pine, CAPACITIES.fallen]} frustumCulled={false} />
+
+      <instancedMesh ref={rockRef} args={[geos.rockGeo, mats.rock, CAPACITIES.rock]} frustumCulled={false} />
+      <instancedMesh ref={bareBushRef} args={[geos.bareBushGeo, mats.wood, CAPACITIES.bush]} frustumCulled={false} />
+      <instancedMesh ref={bushRef} args={[geos.bushGeo, mats.bush, CAPACITIES.bush]} frustumCulled={false} />
+
+      <instancedMesh ref={tallGrassRef} args={[geos.tallGrassGeo, mats.tallGrassMat, CAPACITIES.tallGrass]} frustumCulled={false} />
+      <instancedMesh ref={medGrassRef} args={[geos.medGrassGeo, mats.medGrassMat, CAPACITIES.medGrass]} frustumCulled={false} />
+      <instancedMesh ref={shortGrassRef} args={[geos.shortGrassGeo, mats.shortGrassMat, CAPACITIES.shortGrass]} frustumCulled={false} />
+      <instancedMesh ref={reedRef} args={[geos.reedGeo, mats.reed, CAPACITIES.reed]} frustumCulled={false} />
+      <instancedMesh ref={lilyRef} args={[geos.lilyGeo, mats.lily, CAPACITIES.lily]} frustumCulled={false} />
+      <instancedMesh ref={flowerRef} args={[geos.flowerGeo, mats.flowerMat, CAPACITIES.flower]} frustumCulled={false} />
+      <instancedMesh ref={pebbleRef} args={[geos.pebbleGeo, mats.pebble, CAPACITIES.pebble]} frustumCulled={false} />
+      <instancedMesh ref={mushroomRef} args={[geos.shroomGeo, mats.mushroom, CAPACITIES.mushroom]} frustumCulled={false} />
+
       {fallingTrees.map((tree) => (
         <FallingTreeItem key={tree.id} tree={tree} grid={grid} />
       ))}

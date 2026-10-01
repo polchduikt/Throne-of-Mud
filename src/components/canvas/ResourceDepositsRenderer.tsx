@@ -1,7 +1,8 @@
-import { useRef, memo } from 'react';
+import { useRef, memo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGameStore } from '../../store/useGameStore';
 import type { ResourceDeposit } from '../../types/game';
 import { GridMap } from '../../engine/grid/GridMap';
@@ -114,6 +115,248 @@ const BERRY_BUSH_CONFIGS = [
   { px: 0.05, pz: 1.10, s: 0.95, mat: DEPOSIT_MATS.berryLeaves2 },
 ];
 
+function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  if (!g.attributes.normal) g.computeVertexNormals();
+  if (!g.attributes.uv) {
+    const count = g.attributes.position.count;
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
+  }
+  const cleaned = new THREE.BufferGeometry();
+  cleaned.setAttribute('position', g.attributes.position);
+  cleaned.setAttribute('normal', g.attributes.normal);
+  cleaned.setAttribute('uv', g.attributes.uv);
+  return cleaned;
+}
+
+const ironQuarryCliffGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(4.2, 2.10, 1.3).translate(0, 1.10, -1.85)));
+
+  const cL = new THREE.BoxGeometry(1.3, 1.90, 3.1);
+  cL.applyMatrix4(new THREE.Matrix4().makeRotationY(0.1).setPosition(-2.05, 0.95, -0.45));
+  geos.push(toStandard(cL));
+
+  const cR = new THREE.BoxGeometry(1.3, 1.90, 3.1);
+  cR.applyMatrix4(new THREE.Matrix4().makeRotationY(-0.1).setPosition(2.05, 0.95, -0.45));
+  geos.push(toStandard(cR));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const ironQuarrySoilGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(4.3, 0.35, 0.9).translate(0, 2.18, -2.05)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.9, 0.30, 3.2).translate(-2.35, 1.88, -0.45)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.9, 0.30, 3.2).translate(2.35, 1.88, -0.45)));
+  geos.push(toStandard(new THREE.BoxGeometry(2.7, 0.12, 2.4).translate(0, 0.06, 0.15)));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const ironQuarryRockGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const rL = new THREE.BoxGeometry(1.2, 0.85, 1.3);
+  rL.applyMatrix4(new THREE.Matrix4().makeRotationY(0.4).setPosition(-1.85, 0.45, 1.35));
+  const rR = new THREE.BoxGeometry(1.2, 0.85, 1.3);
+  rR.applyMatrix4(new THREE.Matrix4().makeRotationY(-0.4).setPosition(1.85, 0.45, 1.35));
+
+  geos.push(toStandard(rL), toStandard(rR));
+  geos.push(toStandard(new THREE.BoxGeometry(3.2, 0.75, 0.65).translate(0, 0.45, -1.25)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.65, 0.75, 2.0).translate(-1.35, 0.45, -0.15)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.65, 0.75, 2.0).translate(1.35, 0.45, -0.15)));
+  geos.push(toStandard(new THREE.BoxGeometry(2.4, 0.04, 2.1).translate(0, 0.13, 0.15)));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const ironQuarryLogsGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(3.5, 0.18, 0.18).translate(0, 0.85, -1.50)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.18, 0.18, 2.4).translate(-1.60, 0.85, -0.3)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.18, 0.18, 2.4).translate(1.60, 0.85, -0.3)));
+
+  for (const px of [-1.55, -0.8, 0.8, 1.55]) {
+    geos.push(toStandard(new THREE.CylinderGeometry(0.075, 0.085, 1.85, 6).translate(px, 0.95, -1.45)));
+  }
+
+  geos.push(toStandard(new THREE.BoxGeometry(0.16, 0.16, 1.7).translate(-0.85, 0.22, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.16, 0.16, 1.7).translate(0.85, 0.22, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(1.7, 0.16, 0.16).translate(0, 0.22, -0.85)));
+  geos.push(toStandard(new THREE.BoxGeometry(1.7, 0.16, 0.16).translate(0, 0.22, 0.85)));
+
+  const ladM = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.42, 0, -0.1)).setPosition(-0.95, 0.85, -0.95);
+  const railL = new THREE.BoxGeometry(0.04, 2.3, 0.04).translate(-0.14, 0, 0).applyMatrix4(ladM);
+  const railR = new THREE.BoxGeometry(0.04, 2.3, 0.04).translate(0.14, 0, 0).applyMatrix4(ladM);
+  geos.push(toStandard(railL), toStandard(railR));
+
+  for (const ry of [-0.95, -0.75, -0.55, -0.35, -0.15, 0.05, 0.25, 0.45, 0.65, 0.85, 1.05]) {
+    const rung = new THREE.CylinderGeometry(0.016, 0.016, 0.28, 4).rotateZ(Math.PI / 2).translate(0, ry, 0).applyMatrix4(ladM);
+    geos.push(toStandard(rung));
+  }
+
+  const pickM = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.4, 0.3, -0.5)).setPosition(-0.75, 0.42, 0.45);
+  const pHandle = new THREE.CylinderGeometry(0.022, 0.022, 0.75, 5).translate(0, 0.28, 0).applyMatrix4(pickM);
+  geos.push(toStandard(pHandle));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const ironQuarryTrackGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(0.06, 0.03, 1.7).translate(-0.35, 0.16, 0.35)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.06, 0.03, 1.7).translate(0.35, 0.16, 0.35)));
+
+  for (const tz of [-0.45, -0.15, 0.15, 0.45, 0.75, 1.05]) {
+    geos.push(toStandard(new THREE.BoxGeometry(0.85, 0.02, 0.08).translate(0, 0.15, tz)));
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const ironQuarryOreGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(1.45, 0.02, 1.45).translate(0, 0.15, 0)));
+
+  const h1 = new THREE.DodecahedronGeometry(0.92, 0);
+  h1.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.2, 0.4, -0.1)).setPosition(-1.45, 1.75, -1.65));
+  geos.push(toStandard(h1));
+
+  const o1 = new THREE.DodecahedronGeometry(0.70, 0);
+  o1.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.1, 0.2, 0.3)).setPosition(-1.85, 1.45, -1.15));
+  geos.push(toStandard(o1));
+
+  const o2 = new THREE.DodecahedronGeometry(0.95, 0);
+  o2.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.15, -0.3, 0.2)).setPosition(1.45, 1.80, -1.55));
+  geos.push(toStandard(o2));
+
+  const h2 = new THREE.DodecahedronGeometry(0.68, 0);
+  h2.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.2, 0.1, -0.2)).setPosition(1.85, 1.45, -1.05));
+  geos.push(toStandard(h2));
+
+  const h3 = new THREE.DodecahedronGeometry(0.72, 0);
+  h3.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.3, -0.2, 0.1)).setPosition(-1.95, 0.85, 0.45));
+  geos.push(toStandard(h3));
+
+  const h4 = new THREE.DodecahedronGeometry(0.72, 0);
+  h4.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.2, 0.3, 0.15)).setPosition(1.95, 0.85, 0.45));
+  geos.push(toStandard(h4));
+
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.35, 0).translate(0.45, 0.28, -0.45)));
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.32, 0).translate(-0.45, 0.26, -0.25)));
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.26, 0).translate(0.35, 0.24, 0.65)));
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.24, 0).translate(-0.45, 0.22, 0.75)));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const wildGameLogGeo = (() => {
+  const logM = new THREE.Matrix4().makeRotationY(0.35).setPosition(0.1, 0.14, -0.5);
+  const log = new THREE.CylinderGeometry(0.18, 0.22, 2.4, 6).rotateZ(Math.PI / 2).applyMatrix4(logM);
+  return toStandard(log);
+})();
+
+const wildGameMossGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const logM = new THREE.Matrix4().makeRotationY(0.35).setPosition(0.1, 0.14, -0.5);
+  const m1 = new THREE.BoxGeometry(0.45, 0.06, 0.22).translate(0.4, 0.16, 0).applyMatrix4(logM);
+  const m2 = new THREE.BoxGeometry(0.38, 0.06, 0.20).translate(-0.5, 0.15, 0.05).applyMatrix4(logM);
+  geos.push(toStandard(m1), toStandard(m2));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const stagBodyGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const body = new THREE.BoxGeometry(0.44, 0.36, 0.78).translate(0, 0.48, 0);
+  const belly = new THREE.BoxGeometry(0.36, 0.10, 0.68).translate(0, 0.34, 0);
+  geos.push(toStandard(body), toStandard(belly));
+
+  for (const lx of [-0.16, 0.16]) {
+    for (const lz of [-0.28, 0.28]) {
+      const leg = new THREE.CylinderGeometry(0.03, 0.024, 0.46, 5).translate(lx, 0.20, lz);
+      const hoof = new THREE.BoxGeometry(0.05, 0.04, 0.05).translate(lx, 0.02, lz);
+      geos.push(toStandard(leg), toStandard(hoof));
+    }
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const stagHeadGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const neck = new THREE.CylinderGeometry(0.10, 0.15, 0.44, 6).rotateX(-0.45).translate(0, 0.20, 0.08);
+  const head = new THREE.BoxGeometry(0.18, 0.18, 0.26).translate(0, 0.38, 0.20);
+  const nose = new THREE.BoxGeometry(0.08, 0.06, 0.04).translate(0, 0.34, 0.34);
+  geos.push(toStandard(neck), toStandard(head), toStandard(nose));
+
+  for (const side of [-1, 1]) {
+    const ear = new THREE.BoxGeometry(0.05, 0.14, 0.03);
+    ear.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.2, side * 0.4, side * 0.35)).setPosition(side * 0.11, 0.48, 0.14));
+    geos.push(toStandard(ear));
+
+    const antRootM = new THREE.Matrix4().setPosition(side * 0.08, 0.46, 0.14);
+    const a1 = new THREE.CylinderGeometry(0.02, 0.028, 0.44, 4);
+    a1.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.35, side * 0.2, side * 0.3)).setPosition(side * 0.06, 0.18, -0.04).premultiply(antRootM));
+    const a2 = new THREE.CylinderGeometry(0.014, 0.02, 0.20, 4);
+    a2.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.85, side * 0.15, 0)).setPosition(side * 0.02, 0.10, 0.08).premultiply(antRootM));
+    const a3 = new THREE.CylinderGeometry(0.014, 0.018, 0.22, 4);
+    a3.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.2, side * 0.3, side * 0.5)).setPosition(side * 0.12, 0.34, -0.08).premultiply(antRootM));
+    geos.push(toStandard(a1), toStandard(a2), toStandard(a3));
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const doeBodyGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const body = new THREE.BoxGeometry(0.38, 0.3, 0.66).translate(0, 0.42, 0);
+  const belly = new THREE.BoxGeometry(0.30, 0.08, 0.58).translate(0, 0.30, 0);
+  geos.push(toStandard(body), toStandard(belly));
+
+  for (const lx of [-0.14, 0.14]) {
+    for (const lz of [-0.24, 0.24]) {
+      const leg = new THREE.CylinderGeometry(0.026, 0.022, 0.4, 5).translate(lx, 0.18, lz);
+      const hoof = new THREE.BoxGeometry(0.045, 0.035, 0.045).translate(lx, 0.02, lz);
+      geos.push(toStandard(leg), toStandard(hoof));
+    }
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const doeHeadGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const neck = new THREE.CylinderGeometry(0.09, 0.13, 0.34, 6).rotateX(-0.25).translate(0, 0.15, 0.05);
+  const head = new THREE.BoxGeometry(0.14, 0.14, 0.20).translate(0, 0.30, 0.15);
+  const nose = new THREE.BoxGeometry(0.06, 0.04, 0.03).translate(0, 0.28, 0.26);
+  geos.push(toStandard(neck), toStandard(head), toStandard(nose));
+
+  for (const side of [-1, 1]) {
+    const ear = new THREE.BoxGeometry(0.04, 0.12, 0.025);
+    ear.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.2, side * 0.4, side * 0.35)).setPosition(side * 0.08, 0.38, 0.10));
+    geos.push(toStandard(ear));
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const fawnBodyGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const body = new THREE.BoxGeometry(0.25, 0.2, 0.42).translate(0, 0.26, 0);
+  const belly = new THREE.BoxGeometry(0.20, 0.06, 0.36).translate(0, 0.18, 0);
+  geos.push(toStandard(body), toStandard(belly));
+
+  for (const sx of [-0.09, 0.09]) {
+    for (const sz of [-0.10, 0.0, 0.10]) {
+      const spot = new THREE.SphereGeometry(0.02, 4, 4).translate(sx, 0.34, sz);
+      geos.push(toStandard(spot));
+    }
+    for (const lz of [-0.15, 0.15]) {
+      const leg = new THREE.CylinderGeometry(0.018, 0.015, 0.24, 4).translate(sx, 0.11, lz);
+      geos.push(toStandard(leg));
+    }
+  }
+
+  const head = new THREE.BoxGeometry(0.11, 0.22, 0.14).rotateX(-0.3).translate(0, 0.36, 0.16);
+  const nose = new THREE.BoxGeometry(0.045, 0.03, 0.025).translate(0, 0.34, 0.24);
+  geos.push(toStandard(head), toStandard(nose));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
 export function ResourceDepositsRenderer({ grid }: { grid?: GridMap }) {
   const resourceDeposits = useGameStore((state) => state.resourceDeposits);
   const selectedEntityId = useGameStore((state) => state.selectedEntityId);
@@ -139,8 +382,6 @@ export function ResourceDepositsRenderer({ grid }: { grid?: GridMap }) {
 
 const DepositNodeMemo = memo(DepositNode);
 
-const _camDir = new THREE.Vector3();
-
 function DepositNode({
   deposit,
   grid,
@@ -157,9 +398,8 @@ function DepositNode({
   const stagHeadRef = useRef<THREE.Group>(null);
   const doe1HeadRef = useRef<THREE.Group>(null);
   const doe2HeadRef = useRef<THREE.Group>(null);
-  const htmlRef = useRef<HTMLDivElement>(null);
-
-  const inViewRef = useRef(true);
+  const [inView, setInView] = useState(false);
+  const inViewRef = useRef(false);
   const frameCount = useRef(0);
 
   const [x, , z] = deposit.position;
@@ -171,28 +411,20 @@ function DepositNode({
   useFrame(({ camera, clock }) => {
     frameCount.current++;
 
-    if (frameCount.current % 12 === 0) {
-      const orthoCam = camera as THREE.OrthographicCamera;
-      const zoom = orthoCam.zoom || 38;
-
-      _camDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
-      let targetX = camera.position.x;
-      let targetZ = camera.position.z;
-      if (Math.abs(_camDir.y) > 0.0001) {
-        const t = -camera.position.y / _camDir.y;
-        targetX = camera.position.x + _camDir.x * t;
-        targetZ = camera.position.z + _camDir.z * t;
-      }
+    if (frameCount.current % 15 === 0 || frameCount.current === 1) {
+      const zoom = (window as any).__lastCameraZoom ?? (camera as THREE.OrthographicCamera).zoom ?? 38;
+      const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
+      const targetX = camTarget ? camTarget[0] : camera.position.x;
+      const targetZ = camTarget ? camTarget[1] : camera.position.z;
 
       const distSq = (x - targetX) * (x - targetX) + (z - targetZ) * (z - targetZ);
-      const shouldBeInView = zoom >= 16 && distSq < 36 * 36;
+      const maxDist = Math.max(22, (800 / zoom) + 6);
+      const shouldBeInView = zoom >= 16 && distSq < maxDist * maxDist;
       if (shouldBeInView !== inViewRef.current) {
         inViewRef.current = shouldBeInView;
-        if (htmlRef.current) {
-          htmlRef.current.style.display = shouldBeInView ? 'flex' : 'none';
-        }
+        setInView(shouldBeInView);
       }
-      if (nodeRef.current) {
+      if (nodeRef.current && nodeRef.current.visible !== shouldBeInView) {
         nodeRef.current.visible = shouldBeInView;
       }
     }
@@ -414,184 +646,26 @@ function DepositNode({
 
       {deposit.type === 'iron' && (
         <group>
+          <mesh geometry={ironQuarryCliffGeo} material={DEPOSIT_MATS.quarryCliff} receiveShadow />
+          <mesh geometry={ironQuarrySoilGeo} material={DEPOSIT_MATS.quarrySoil} receiveShadow />
+          <mesh geometry={ironQuarryRockGeo} material={DEPOSIT_MATS.quarryRock} receiveShadow />
+          <mesh geometry={ironQuarryLogsGeo} material={DEPOSIT_MATS.quarryTimberLogs} />
+          <mesh geometry={ironQuarryTrackGeo} material={DEPOSIT_MATS.mineTrackWood} />
+          <mesh geometry={ironQuarryOreGeo} material={DEPOSIT_MATS.quarryHematite} />
 
-          <mesh position={[0, 1.10, -1.85]} material={DEPOSIT_MATS.quarryCliff} receiveShadow>
-            <boxGeometry args={[4.2, 2.10, 1.3]} />
+          <mesh position={[0.95, 1.35, -1.35]} material={DEPOSIT_MATS.lanternGlow}>
+            <sphereGeometry args={[0.06, 6, 6]} />
           </mesh>
-          <mesh position={[0, 2.18, -2.05]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
-            <boxGeometry args={[4.3, 0.35, 0.9]} />
-          </mesh>
-
-          <mesh position={[-2.05, 0.95, -0.45]} rotation={[0, 0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow>
-            <boxGeometry args={[1.3, 1.90, 3.1]} />
-          </mesh>
-          <mesh position={[-2.35, 1.88, -0.45]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
-            <boxGeometry args={[0.9, 0.30, 3.2]} />
-          </mesh>
-
-          <mesh position={[2.05, 0.95, -0.45]} rotation={[0, -0.1, 0]} material={DEPOSIT_MATS.quarryCliff} receiveShadow>
-            <boxGeometry args={[1.3, 1.90, 3.1]} />
-          </mesh>
-          <mesh position={[2.35, 1.88, -0.45]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
-            <boxGeometry args={[0.9, 0.30, 3.2]} />
+          <mesh position={[-0.95, 0.55, 0.85]} material={DEPOSIT_MATS.lanternGlow}>
+            <sphereGeometry args={[0.06, 6, 6]} />
           </mesh>
 
-          <mesh position={[-1.85, 0.45, 1.35]} rotation={[0, 0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
-            <boxGeometry args={[1.2, 0.85, 1.3]} />
+          <mesh position={[0.95, 0.24 + 0.14, 0.85]} material={DEPOSIT_MATS.basketWicker}>
+            <cylinderGeometry args={[0.24, 0.18, 0.30, 8]} />
           </mesh>
-          <mesh position={[1.85, 0.45, 1.35]} rotation={[0, -0.4, 0]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
-            <boxGeometry args={[1.2, 0.85, 1.3]} />
+          <mesh position={[-0.75, 0.42 + 0.65, 0.45]} material={DEPOSIT_MATS.ironTool} rotation={[0.4, 0.3, -0.5]}>
+            <boxGeometry args={[0.32, 0.08, 0.05]} />
           </mesh>
-
-          <mesh position={[0, 0.45, -1.25]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
-            <boxGeometry args={[3.2, 0.75, 0.65]} />
-          </mesh>
-          <mesh position={[-1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
-            <boxGeometry args={[0.65, 0.75, 2.0]} />
-          </mesh>
-          <mesh position={[1.35, 0.45, -0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
-            <boxGeometry args={[0.65, 0.75, 2.0]} />
-          </mesh>
-
-          <mesh position={[0, 0.85, -1.50]} material={DEPOSIT_MATS.quarryTimberLogs}>
-            <boxGeometry args={[3.5, 0.18, 0.18]} />
-          </mesh>
-          <mesh position={[-1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs}>
-            <boxGeometry args={[0.18, 0.18, 2.4]} />
-          </mesh>
-          <mesh position={[1.60, 0.85, -0.3]} material={DEPOSIT_MATS.quarryTimberLogs}>
-            <boxGeometry args={[0.18, 0.18, 2.4]} />
-          </mesh>
-
-          {[-1.55, -0.8, 0.8, 1.55].map((px, idx) => (
-            <mesh key={`v-post-${idx}`} position={[px, 0.95, -1.45]} material={DEPOSIT_MATS.quarryTimberLogs}>
-              <cylinderGeometry args={[0.075, 0.085, 1.85, 6]} />
-            </mesh>
-          ))}
-
-          <mesh position={[0, 0.06, 0.15]} material={DEPOSIT_MATS.quarrySoil} receiveShadow>
-            <boxGeometry args={[2.7, 0.12, 2.4]} />
-          </mesh>
-          <mesh position={[0, 0.13, 0.15]} material={DEPOSIT_MATS.quarryRock} receiveShadow>
-            <boxGeometry args={[2.4, 0.04, 2.1]} />
-          </mesh>
-
-          <group position={[0, 0.14, 0]}>
-            <mesh position={[-0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs}>
-              <boxGeometry args={[0.16, 0.16, 1.7]} />
-            </mesh>
-            <mesh position={[0.85, 0.08, 0]} material={DEPOSIT_MATS.quarryTimberLogs}>
-              <boxGeometry args={[0.16, 0.16, 1.7]} />
-            </mesh>
-            <mesh position={[0, 0.08, -0.85]} material={DEPOSIT_MATS.quarryTimberLogs}>
-              <boxGeometry args={[1.7, 0.16, 0.16]} />
-            </mesh>
-            <mesh position={[0, 0.08, 0.85]} material={DEPOSIT_MATS.quarryTimberLogs}>
-              <boxGeometry args={[1.7, 0.16, 0.16]} />
-            </mesh>
-
-            <mesh position={[0, 0.01, 0]} material={DEPOSIT_MATS.quarryOreDark} receiveShadow>
-              <boxGeometry args={[1.45, 0.02, 1.45]} />
-            </mesh>
-          </group>
-
-          <mesh position={[-0.35, 0.16, 0.35]} material={DEPOSIT_MATS.mineTrackWood}>
-            <boxGeometry args={[0.06, 0.03, 1.7]} />
-          </mesh>
-          <mesh position={[0.35, 0.16, 0.35]} material={DEPOSIT_MATS.mineTrackWood}>
-            <boxGeometry args={[0.06, 0.03, 1.7]} />
-          </mesh>
-          {[-0.45, -0.15, 0.15, 0.45, 0.75, 1.05].map((tz, i) => (
-            <mesh key={`tie-${i}`} position={[0, 0.15, tz]} material={DEPOSIT_MATS.mineTrackWood}>
-              <boxGeometry args={[0.85, 0.02, 0.08]} />
-            </mesh>
-          ))}
-
-          <group position={[-0.95, 0.85, -0.95]} rotation={[0.42, 0, -0.1]}>
-            <mesh position={[-0.14, 0, 0]} material={DEPOSIT_MATS.quarryTimberPlanks}>
-              <boxGeometry args={[0.04, 2.3, 0.04]} />
-            </mesh>
-            <mesh position={[0.14, 0, 0]} material={DEPOSIT_MATS.quarryTimberPlanks}>
-              <boxGeometry args={[0.04, 2.3, 0.04]} />
-            </mesh>
-            {[-0.95, -0.75, -0.55, -0.35, -0.15, 0.05, 0.25, 0.45, 0.65, 0.85, 1.05].map((ry, idx) => (
-              <mesh key={`q-rung-${idx}`} position={[0, ry, 0]} rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.quarryTimberPlanks}>
-                <cylinderGeometry args={[0.016, 0.016, 0.28, 4]} />
-              </mesh>
-            ))}
-          </group>
-
-          <group position={[0.95, 1.35, -1.35]}>
-            <mesh material={DEPOSIT_MATS.ironTool} position={[0, 0.12, 0]}>
-              <cylinderGeometry args={[0.04, 0.06, 0.14, 6]} />
-            </mesh>
-            <mesh material={DEPOSIT_MATS.lanternGlow}>
-              <sphereGeometry args={[0.06, 6, 6]} />
-            </mesh>
-          </group>
-          <group position={[-0.95, 0.55, 0.85]}>
-            <mesh material={DEPOSIT_MATS.ironTool} position={[0, 0.12, 0]}>
-              <cylinderGeometry args={[0.04, 0.06, 0.14, 6]} />
-            </mesh>
-            <mesh material={DEPOSIT_MATS.lanternGlow}>
-              <sphereGeometry args={[0.06, 6, 6]} />
-            </mesh>
-          </group>
-
-          <mesh position={[-1.45, 1.75, -1.65]} rotation={[0.2, 0.4, -0.1]} material={DEPOSIT_MATS.quarryHematite}>
-            <dodecahedronGeometry args={[0.92, 0]} />
-          </mesh>
-          <mesh position={[-1.85, 1.45, -1.15]} rotation={[-0.1, 0.2, 0.3]} material={DEPOSIT_MATS.quarryOreDark}>
-            <dodecahedronGeometry args={[0.70, 0]} />
-          </mesh>
-
-          <mesh position={[1.45, 1.80, -1.55]} rotation={[-0.15, -0.3, 0.2]} material={DEPOSIT_MATS.quarryOreDark}>
-            <dodecahedronGeometry args={[0.95, 0]} />
-          </mesh>
-          <mesh position={[1.85, 1.45, -1.05]} rotation={[0.2, 0.1, -0.2]} material={DEPOSIT_MATS.quarryHematite}>
-            <dodecahedronGeometry args={[0.68, 0]} />
-          </mesh>
-
-          <mesh position={[-1.95, 0.85, 0.45]} rotation={[0.3, -0.2, 0.1]} material={DEPOSIT_MATS.quarryHematite}>
-            <dodecahedronGeometry args={[0.72, 0]} />
-          </mesh>
-          <mesh position={[1.95, 0.85, 0.45]} rotation={[-0.2, 0.3, 0.15]} material={DEPOSIT_MATS.quarryHematite}>
-            <dodecahedronGeometry args={[0.72, 0]} />
-          </mesh>
-
-          <mesh position={[0.45, 0.28, -0.45]} material={DEPOSIT_MATS.quarryOreDark}>
-            <dodecahedronGeometry args={[0.35, 0]} />
-          </mesh>
-          <mesh position={[-0.45, 0.26, -0.25]} material={DEPOSIT_MATS.quarryHematite}>
-            <dodecahedronGeometry args={[0.32, 0]} />
-          </mesh>
-          <mesh position={[0.35, 0.24, 0.65]} material={DEPOSIT_MATS.quarryOreDark}>
-            <dodecahedronGeometry args={[0.26, 0]} />
-          </mesh>
-          <mesh position={[-0.45, 0.22, 0.75]} material={DEPOSIT_MATS.quarryHematite}>
-            <dodecahedronGeometry args={[0.24, 0]} />
-          </mesh>
-
-          <group position={[0.95, 0.24, 0.85]} rotation={[0, -0.4, 0.15]}>
-            <mesh position={[0, 0.14, 0]} material={DEPOSIT_MATS.basketWicker}>
-              <cylinderGeometry args={[0.24, 0.18, 0.30, 8]} />
-            </mesh>
-            <mesh position={[-0.03, 0.26, 0]} material={DEPOSIT_MATS.quarryOreDark}>
-              <dodecahedronGeometry args={[0.16, 0]} />
-            </mesh>
-            <mesh position={[0.04, 0.27, 0.03]} material={DEPOSIT_MATS.quarryHematite}>
-              <dodecahedronGeometry args={[0.14, 0]} />
-            </mesh>
-          </group>
-
-          <group position={[-0.75, 0.42, 0.45]} rotation={[0.4, 0.3, -0.5]}>
-            <mesh position={[0, 0.28, 0]} material={DEPOSIT_MATS.quarryTimberLogs}>
-              <cylinderGeometry args={[0.022, 0.022, 0.75, 5]} />
-            </mesh>
-            <mesh position={[0, 0.65, 0]} material={DEPOSIT_MATS.ironTool}>
-              <boxGeometry args={[0.32, 0.08, 0.05]} />
-            </mesh>
-          </group>
         </group>
       )}
 
@@ -656,214 +730,32 @@ function DepositNode({
 
       {deposit.type === 'wild_game' && (
         <group>
-
-          <group position={[0.1, 0.14, -0.5]} rotation={[0, 0.35, 0]}>
-            <mesh rotation={[0, 0, Math.PI / 2]} material={DEPOSIT_MATS.mossyLog}>
-              <cylinderGeometry args={[0.18, 0.22, 2.4, 6]} />
-            </mesh>
-            <mesh position={[0.4, 0.16, 0]} material={DEPOSIT_MATS.mossGreen}>
-              <boxGeometry args={[0.45, 0.06, 0.22]} />
-            </mesh>
-            <mesh position={[-0.5, 0.15, 0.05]} material={DEPOSIT_MATS.mossGreen}>
-              <boxGeometry args={[0.38, 0.06, 0.20]} />
-            </mesh>
-          </group>
+          <mesh geometry={wildGameLogGeo} material={DEPOSIT_MATS.mossyLog} />
+          <mesh geometry={wildGameMossGeo} material={DEPOSIT_MATS.mossGreen} />
 
           <group position={[0.8, 0, 0.4]} rotation={[0, -0.8, 0]}>
-
-            <mesh position={[0, 0.48, 0]} material={DEPOSIT_MATS.stagFur}>
-              <boxGeometry args={[0.44, 0.36, 0.78]} />
-            </mesh>
-
-            <mesh position={[0, 0.34, 0]} material={DEPOSIT_MATS.deerBelly}>
-              <boxGeometry args={[0.36, 0.10, 0.68]} />
-            </mesh>
-
-            {[-0.16, 0.16].map((lx, i) =>
-              [-0.28, 0.28].map((lz, j) => (
-                <group key={`stag-leg-${i}-${j}`} position={[lx, 0, lz]}>
-                  <mesh position={[0, 0.20, 0]} material={DEPOSIT_MATS.stagFur}>
-                    <cylinderGeometry args={[0.03, 0.024, 0.46, 5]} />
-                  </mesh>
-                  <mesh position={[0, 0.02, 0]} material={DEPOSIT_MATS.deerHoof}>
-                    <boxGeometry args={[0.05, 0.04, 0.05]} />
-                  </mesh>
-                </group>
-              ))
-            )}
-
+            <mesh geometry={stagBodyGeo} material={DEPOSIT_MATS.stagFur} />
             <group ref={stagHeadRef} position={[0, 0.65, 0.32]}>
-
-              <mesh position={[0, 0.20, 0.08]} rotation={[-0.45, 0, 0]} material={DEPOSIT_MATS.stagFur}>
-                <cylinderGeometry args={[0.10, 0.15, 0.44, 6]} />
-              </mesh>
-
-              <mesh position={[0, 0.38, 0.20]} material={DEPOSIT_MATS.stagFur}>
-                <boxGeometry args={[0.18, 0.18, 0.26]} />
-              </mesh>
-
-              <mesh position={[0, 0.34, 0.34]} material={DEPOSIT_MATS.deerNose}>
-                <boxGeometry args={[0.08, 0.06, 0.04]} />
-              </mesh>
-
-              {[-1, 1].map((side, k) => (
-                <mesh
-                  key={`stag-ear-${k}`}
-                  position={[side * 0.11, 0.48, 0.14]}
-                  rotation={[0.2, side * 0.4, side * 0.35]}
-                  material={DEPOSIT_MATS.stagFur}
-                >
-                  <boxGeometry args={[0.05, 0.14, 0.03]} />
-                </mesh>
-              ))}
-
-              {[-1, 1].map((side, k) => (
-                <group key={`antler-rack-${k}`} position={[side * 0.08, 0.46, 0.14]}>
-
-                  <mesh
-                    position={[side * 0.06, 0.18, -0.04]}
-                    rotation={[0.35, side * 0.2, side * 0.3]}
-                    material={DEPOSIT_MATS.deerAntler}
-                  >
-                    <cylinderGeometry args={[0.02, 0.028, 0.44, 4]} />
-                  </mesh>
-
-                  <mesh
-                    position={[side * 0.02, 0.10, 0.08]}
-                    rotation={[0.85, side * 0.15, 0]}
-                    material={DEPOSIT_MATS.deerAntler}
-                  >
-                    <cylinderGeometry args={[0.014, 0.02, 0.20, 4]} />
-                  </mesh>
-
-                  <mesh
-                    position={[side * 0.12, 0.34, -0.08]}
-                    rotation={[-0.2, side * 0.3, side * 0.5]}
-                    material={DEPOSIT_MATS.deerAntler}
-                  >
-                    <cylinderGeometry args={[0.014, 0.018, 0.22, 4]} />
-                  </mesh>
-                </group>
-              ))}
+              <mesh geometry={stagHeadGeo} material={DEPOSIT_MATS.stagFur} />
             </group>
           </group>
 
           <group position={[-0.95, 0, 0.35]} rotation={[0, 0.6, 0]}>
-            <mesh position={[0, 0.42, 0]} material={DEPOSIT_MATS.doeFur}>
-              <boxGeometry args={[0.38, 0.3, 0.66]} />
-            </mesh>
-            <mesh position={[0, 0.30, 0]} material={DEPOSIT_MATS.deerBelly}>
-              <boxGeometry args={[0.30, 0.08, 0.58]} />
-            </mesh>
-            {[-0.14, 0.14].map((lx, i) =>
-              [-0.24, 0.24].map((lz, j) => (
-                <group key={`doe1-leg-${i}-${j}`} position={[lx, 0, lz]}>
-                  <mesh position={[0, 0.18, 0]} material={DEPOSIT_MATS.doeFur}>
-                    <cylinderGeometry args={[0.026, 0.022, 0.4, 5]} />
-                  </mesh>
-                  <mesh position={[0, 0.02, 0]} material={DEPOSIT_MATS.deerHoof}>
-                    <boxGeometry args={[0.045, 0.035, 0.045]} />
-                  </mesh>
-                </group>
-              ))
-            )}
-
+            <mesh geometry={doeBodyGeo} material={DEPOSIT_MATS.doeFur} />
             <group ref={doe1HeadRef} position={[0, 0.46, 0.3]}>
-              <mesh position={[0, -0.12, 0.18]} rotation={[-0.8, 0, 0]} material={DEPOSIT_MATS.doeFur}>
-                <cylinderGeometry args={[0.09, 0.13, 0.34, 6]} />
-              </mesh>
-              <mesh position={[0, -0.26, 0.30]} material={DEPOSIT_MATS.doeFur}>
-                <boxGeometry args={[0.14, 0.14, 0.20]} />
-              </mesh>
-              <mesh position={[0, -0.28, 0.41]} material={DEPOSIT_MATS.deerNose}>
-                <boxGeometry args={[0.06, 0.04, 0.03]} />
-              </mesh>
-
-              {[-1, 1].map((side, k) => (
-                <mesh
-                  key={`doe1-ear-${k}`}
-                  position={[side * 0.08, -0.18, 0.26]}
-                  rotation={[-0.3, side * 0.3, side * 0.4]}
-                  material={DEPOSIT_MATS.doeFur}
-                >
-                  <boxGeometry args={[0.04, 0.12, 0.025]} />
-                </mesh>
-              ))}
+              <mesh geometry={doeHeadGeo} material={DEPOSIT_MATS.doeFur} />
             </group>
           </group>
 
           <group position={[-0.55, 0, -1.05]} rotation={[0, 2.2, 0]}>
-            <mesh position={[0, 0.42, 0]} material={DEPOSIT_MATS.doeFur}>
-              <boxGeometry args={[0.38, 0.3, 0.66]} />
-            </mesh>
-            <mesh position={[0, 0.30, 0]} material={DEPOSIT_MATS.deerBelly}>
-              <boxGeometry args={[0.30, 0.08, 0.58]} />
-            </mesh>
-            {[-0.14, 0.14].map((lx, i) =>
-              [-0.24, 0.24].map((lz, j) => (
-                <group key={`doe2-leg-${i}-${j}`} position={[lx, 0, lz]}>
-                  <mesh position={[0, 0.18, 0]} material={DEPOSIT_MATS.doeFur}>
-                    <cylinderGeometry args={[0.026, 0.022, 0.4, 5]} />
-                  </mesh>
-                  <mesh position={[0, 0.02, 0]} material={DEPOSIT_MATS.deerHoof}>
-                    <boxGeometry args={[0.045, 0.035, 0.045]} />
-                  </mesh>
-                </group>
-              ))
-            )}
-
+            <mesh geometry={doeBodyGeo} material={DEPOSIT_MATS.doeFur} />
             <group ref={doe2HeadRef} position={[0, 0.54, 0.28]}>
-              <mesh position={[0, 0.15, 0.05]} rotation={[-0.25, 0, 0]} material={DEPOSIT_MATS.doeFur}>
-                <cylinderGeometry args={[0.09, 0.13, 0.34, 6]} />
-              </mesh>
-              <mesh position={[0, 0.30, 0.15]} material={DEPOSIT_MATS.doeFur}>
-                <boxGeometry args={[0.14, 0.14, 0.20]} />
-              </mesh>
-              <mesh position={[0, 0.28, 0.26]} material={DEPOSIT_MATS.deerNose}>
-                <boxGeometry args={[0.06, 0.04, 0.03]} />
-              </mesh>
-
-              {[-1, 1].map((side, k) => (
-                <mesh
-                  key={`doe2-ear-${k}`}
-                  position={[side * 0.08, 0.38, 0.10]}
-                  rotation={[0.2, side * 0.4, side * 0.35]}
-                  material={DEPOSIT_MATS.doeFur}
-                >
-                  <boxGeometry args={[0.04, 0.12, 0.025]} />
-                </mesh>
-              ))}
+              <mesh geometry={doeHeadGeo} material={DEPOSIT_MATS.doeFur} />
             </group>
           </group>
 
           <group position={[0.25, 0, -1.0]} rotation={[0, -0.4, 0]}>
-            <mesh position={[0, 0.26, 0]} material={DEPOSIT_MATS.fawnFur}>
-              <boxGeometry args={[0.25, 0.2, 0.42]} />
-            </mesh>
-            <mesh position={[0, 0.18, 0]} material={DEPOSIT_MATS.deerBelly}>
-              <boxGeometry args={[0.20, 0.06, 0.36]} />
-            </mesh>
-
-            {[-0.09, 0.09].map((sx, k) =>
-              [-0.10, 0.0, 0.10].map((sz, m) => (
-                <mesh key={`fawn-spot-${k}-${m}`} position={[sx, 0.34, sz]} material={DEPOSIT_MATS.fawnSpot}>
-                  <sphereGeometry args={[0.02, 4, 4]} />
-                </mesh>
-              ))
-            )}
-            {[-0.09, 0.09].map((lx, i) =>
-              [-0.15, 0.15].map((lz, j) => (
-                <mesh key={`fawn-leg-${i}-${j}`} position={[lx, 0.11, lz]} material={DEPOSIT_MATS.fawnFur}>
-                  <cylinderGeometry args={[0.018, 0.015, 0.24, 4]} />
-                </mesh>
-              ))
-            )}
-            <mesh position={[0, 0.36, 0.16]} rotation={[-0.3, 0, 0]} material={DEPOSIT_MATS.fawnFur}>
-              <boxGeometry args={[0.11, 0.22, 0.14]} />
-            </mesh>
-            <mesh position={[0, 0.34, 0.24]} material={DEPOSIT_MATS.deerNose}>
-              <boxGeometry args={[0.045, 0.03, 0.025]} />
-            </mesh>
+            <mesh geometry={fawnBodyGeo} material={DEPOSIT_MATS.fawnFur} />
           </group>
         </group>
       )}
@@ -887,65 +779,66 @@ function DepositNode({
         </mesh>
       )}
 
-      <Html
-        position={[0, badgeY, 0]}
-        center
-        zIndexRange={[10, 0]}
-        style={{
-          pointerEvents: 'none',
-          userSelect: 'none',
-        }}
-      >
-        <div
-          ref={htmlRef}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
+      {inView && (
+        <Html
+          position={[0, badgeY, 0]}
+          center
+          zIndexRange={[10, 0]}
+          style={{
+            pointerEvents: 'none',
+            userSelect: 'none',
           }}
-          className={`group flex flex-col items-center select-none pointer-events-auto cursor-pointer ${
-            isSelected ? 'scale-110 -translate-y-1' : 'opacity-95'
-          }`}
         >
           <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full shadow-lg ${
-              deposit.isRich
-                ? 'bg-amber-950 border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
-                : 'bg-stone-950 border border-amber-600/70 shadow-[0_2px_8px_rgba(0,0,0,0.8)]'
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            className={`group flex flex-col items-center select-none pointer-events-auto cursor-pointer ${
+              isSelected ? 'scale-110 -translate-y-1' : 'opacity-95'
             }`}
           >
-            {deposit.isRich && (
-              <span className="text-amber-400 text-xs font-bold -ml-0.5" title="Багате родовище">
-                👑
-              </span>
-            )}
-
-            <span className="text-sm leading-none drop-shadow">{deposit.icon}</span>
-
-            <div className="flex items-baseline gap-0.5 text-xs font-bold tracking-tight">
-              <span className={deposit.currentAmount > 0 ? (deposit.isRich ? 'text-amber-300' : 'text-stone-100') : 'text-red-400'}>
-                {deposit.currentAmount}
-              </span>
-              <span className="text-[10px] text-stone-400 font-normal">/</span>
-              <span className="text-[10px] text-stone-400 font-normal">{deposit.maxAmount}</span>
-            </div>
-          </div>
-
-          <div className="w-10 h-1 bg-stone-900 rounded-full mt-0.5 overflow-hidden border border-stone-800">
             <div
-              className={`h-full ${
-                deposit.isRich ? 'bg-gradient-to-r from-amber-500 to-yellow-300' : 'bg-amber-500'
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full shadow-lg ${
+                deposit.isRich
+                  ? 'bg-amber-950 border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+                  : 'bg-stone-950 border border-amber-600/70 shadow-[0_2px_8px_rgba(0,0,0,0.8)]'
               }`}
-              style={{ width: `${fillPercent}%` }}
-            />
-          </div>
+            >
+              {deposit.isRich && (
+                <span className="text-amber-400 text-xs font-bold -ml-0.5" title="Багате родовище">
+                  👑
+                </span>
+              )}
 
-          {isSelected && (
-            <div className="mt-1 px-2 py-0.5 bg-stone-950 border border-amber-500/70 rounded text-[10px] font-medium text-amber-200 shadow-xl whitespace-nowrap">
-              {deposit.name}
+              <span className="text-sm leading-none drop-shadow">{deposit.icon}</span>
+
+              <div className="flex items-baseline gap-0.5 text-xs font-bold tracking-tight">
+                <span className={deposit.currentAmount > 0 ? (deposit.isRich ? 'text-amber-300' : 'text-stone-100') : 'text-red-400'}>
+                  {deposit.currentAmount}
+                </span>
+                <span className="text-[10px] text-stone-400 font-normal">/</span>
+                <span className="text-[10px] text-stone-400 font-normal">{deposit.maxAmount}</span>
+              </div>
             </div>
-          )}
-        </div>
-      </Html>
+
+            <div className="w-10 h-1 bg-stone-900 rounded-full mt-0.5 overflow-hidden border border-stone-800">
+              <div
+                className={`h-full ${
+                  deposit.isRich ? 'bg-gradient-to-r from-amber-500 to-yellow-300' : 'bg-amber-500'
+                }`}
+                style={{ width: `${fillPercent}%` }}
+              />
+            </div>
+
+            {isSelected && (
+              <div className="mt-1 px-2 py-0.5 bg-stone-950 border border-amber-500/70 rounded text-[10px] font-medium text-amber-200 shadow-xl whitespace-nowrap">
+                {deposit.name}
+              </div>
+            )}
+          </div>
+        </Html>
+      )}
     </group>
   );
 }

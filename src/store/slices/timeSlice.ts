@@ -208,7 +208,6 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       const minute = totalMinutes % MINUTES_PER_HOUR;
       const day = 1 + Math.floor((DAY_START_HOUR * MINUTES_PER_HOUR + totalMinutes) / MINUTES_PER_DAY);
 
-      // Only recalculate date info when the day changes — not every tick
       const dateInfo = day !== state.time.day ? getDateInfo(day) : {
         season: state.time.season,
         month: state.time.month,

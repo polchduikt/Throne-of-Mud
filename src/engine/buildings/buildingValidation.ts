@@ -336,8 +336,6 @@ export function isRoadOverlappingDeposit(
   for (const dep of resourceDeposits) {
     const depX = dep.position ? dep.position[0] : (dep.gridPosition ? dep.gridPosition[0] + 0.5 : 0);
     const depZ = dep.position ? dep.position[2] : (dep.gridPosition ? dep.gridPosition[1] + 0.5 : 0);
-    // Roads only need to avoid the visual core center of the deposit (~0.85 radius),
-    // allowing roads to reach mines, quarries, fishing huts, and forager camps!
     const coreRadius = dep.type === 'fish' ? 0.7 : 0.85;
     const distSq = (x + 0.5 - depX) ** 2 + (z + 0.5 - depZ) ** 2;
     if (distSq < coreRadius * coreRadius) {

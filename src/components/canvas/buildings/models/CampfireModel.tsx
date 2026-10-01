@@ -1,7 +1,76 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import type * as THREE from 'three';
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
+import { isObjectEffectivelyVisible } from '../common/BuildingPrimitives';
+
+function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  return geo.index ? geo.toNonIndexed() : geo;
+}
+
+export const campfireStonesGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const g = new THREE.DodecahedronGeometry(1, 0);
+    g.applyMatrix4(
+      new THREE.Matrix4()
+        .makeRotationFromEuler(new THREE.Euler(i * 0.4, i * 0.8, 0))
+        .scale(new THREE.Vector3(0.2, 0.15, 0.2))
+        .setPosition(Math.cos(angle) * 0.52, 0.08, Math.sin(angle) * 0.52)
+    );
+    geos.push(toStandard(g));
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const campfireLogsGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const logConfigs: [number, number, number, number, number, number][] = [
+    [0.06, 0.08, 0.65, 0.2, 0.4, 0.1],
+    [0.06, 0.08, 0.65, -0.2, -0.7, 0.1],
+    [0.05, 0.07, 0.62, 0.6, 0.2, -0.4],
+    [0.05, 0.07, 0.62, -0.5, 0.6, 0.3],
+  ];
+  for (let idx = 0; idx < logConfigs.length; idx++) {
+    const [r1, r2, len, rx, ry, rz] = logConfigs[idx];
+    const g = new THREE.CylinderGeometry(r1, r2, len, 5);
+    const yOff = 0.08 + idx * 0.01;
+    g.applyMatrix4(
+      new THREE.Matrix4()
+        .makeRotationFromEuler(new THREE.Euler(rx, ry, rz))
+        .setPosition(0, yOff, 0)
+    );
+    geos.push(toStandard(g));
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const campfireEmbersGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  for (const ex of [-0.08, 0.08]) {
+    for (const ez of [-0.08, 0.08]) {
+      const g = new THREE.DodecahedronGeometry(1, 0);
+      g.applyMatrix4(
+        new THREE.Matrix4()
+          .scale(new THREE.Vector3(0.05, 0.03, 0.05))
+          .setPosition(ex, 0.05, ez)
+      );
+      geos.push(toStandard(g));
+    }
+  }
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const campfireBenchesGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const b1 = new THREE.BoxGeometry(0.2, 0.14, 0.8); b1.translate(-0.75, 0.08, 0); geos.push(toStandard(b1));
+  const b2 = new THREE.BoxGeometry(0.2, 0.14, 0.8); b2.translate(0.75, 0.08, 0); geos.push(toStandard(b2));
+  const b3 = new THREE.BoxGeometry(0.8, 0.14, 0.2); b3.translate(0, 0.08, -0.75); geos.push(toStandard(b3));
+  const b4 = new THREE.BoxGeometry(0.8, 0.14, 0.2); b4.translate(0, 0.08, 0.75); geos.push(toStandard(b4));
+  return mergeGeometries(geos) || geos[0];
+})();
 
 export function CampfireModel() {
   const mats = SHARED_BUILDING_MATS;
@@ -10,7 +79,9 @@ export function CampfireModel() {
   const fireLightRef = useRef<THREE.PointLight>(null);
 
   useFrame(({ clock }) => {
-    if (!fireFlameRef.current || !fireFlameRef.current.parent?.visible) return;
+    if (!fireFlameRef.current || !isObjectEffectivelyVisible(fireFlameRef.current)) return;
+    const currentZoom = (window as any).__lastCameraZoom ?? 38;
+    if (currentZoom <= 18.5) return;
     const t = clock.getElapsedTime();
 
     if (fireFlameRef.current) {
@@ -52,69 +123,10 @@ export function CampfireModel() {
       <mesh material={mats.ashBed} position={[0, 0.02, 0]} receiveShadow>
         <cylinderGeometry args={[0.75, 0.75, 0.02, 12]} />
       </mesh>
-      {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
-        const angle = (i / 8) * Math.PI * 2;
-        return (
-          <mesh
-            key={`c-stone-${i}`}
-            material={mats.stoneMed}
-            position={[Math.cos(angle) * 0.52, 0.08, Math.sin(angle) * 0.52]}
-            rotation={[i * 0.4, i * 0.8, 0]}
-            scale={[0.2, 0.15, 0.2]}
-            castShadow
-            receiveShadow
-          >
-            <dodecahedronGeometry args={[1, 0]} />
-          </mesh>
-        );
-      })}
-
-      <mesh material={mats.charredWood} position={[0, 0.08, 0]} rotation={[0.2, 0.4, 0.1]} castShadow>
-        <cylinderGeometry args={[0.06, 0.08, 0.65, 5]} />
-      </mesh>
-      <mesh material={mats.charredWood} position={[0, 0.09, 0]} rotation={[-0.2, -0.7, 0.1]} castShadow>
-        <cylinderGeometry args={[0.06, 0.08, 0.65, 5]} />
-      </mesh>
-      <mesh material={mats.charredWood} position={[0, 0.10, 0]} rotation={[0.6, 0.2, -0.4]} castShadow>
-        <cylinderGeometry args={[0.05, 0.07, 0.62, 5]} />
-      </mesh>
-      <mesh material={mats.charredWood} position={[0, 0.10, 0]} rotation={[-0.5, 0.6, 0.3]} castShadow>
-        <cylinderGeometry args={[0.05, 0.07, 0.62, 5]} />
-      </mesh>
-
-      {[-0.08, 0.08].map((ex, ei) =>
-        [-0.08, 0.08].map((ez, zi) => (
-          <mesh
-            key={`ember-${ei}-${zi}`}
-            material={mats.emberGlow}
-            position={[ex, 0.05, ez]}
-            scale={[0.05, 0.03, 0.05]}
-          >
-            <dodecahedronGeometry args={[1, 0]} />
-          </mesh>
-        ))
-      )}
-
-      <group position={[-0.75, 0.08, 0]}>
-        <mesh material={mats.timberLight} castShadow receiveShadow>
-          <boxGeometry args={[0.2, 0.14, 0.8]} />
-        </mesh>
-      </group>
-      <group position={[0.75, 0.08, 0]}>
-        <mesh material={mats.timberLight} castShadow receiveShadow>
-          <boxGeometry args={[0.2, 0.14, 0.8]} />
-        </mesh>
-      </group>
-      <group position={[0, 0.08, -0.75]}>
-        <mesh material={mats.timberLight} castShadow receiveShadow>
-          <boxGeometry args={[0.8, 0.14, 0.2]} />
-        </mesh>
-      </group>
-      <group position={[0, 0.08, 0.75]}>
-        <mesh material={mats.timberLight} castShadow receiveShadow>
-          <boxGeometry args={[0.8, 0.14, 0.2]} />
-        </mesh>
-      </group>
+      <mesh geometry={campfireStonesGeo} material={mats.stoneMed} receiveShadow />
+      <mesh geometry={campfireLogsGeo} material={mats.charredWood} />
+      <mesh geometry={campfireEmbersGeo} material={mats.emberGlow} />
+      <mesh geometry={campfireBenchesGeo} material={mats.timberLight} receiveShadow />
 
       <group ref={fireFlameRef} position={[0, 0.10, 0]}>
         <group position={[0, 0, 0]}>
@@ -146,27 +158,24 @@ export function CampfireModel() {
             <coneGeometry args={[0.06, 0.28, 4]} />
           </mesh>
         </group>
-
-        <group position={[-0.01, 0, -0.08]} rotation={[-0.15, 0.3, 0.1]}>
-          <mesh material={mats.fireOrange} position={[0, 0.17, 0]}>
-            <coneGeometry args={[0.10, 0.42, 5]} />
-          </mesh>
-          <mesh material={mats.fireYellow} position={[0, 0.14, 0]}>
-            <coneGeometry args={[0.07, 0.32, 4]} />
-          </mesh>
-        </group>
       </group>
 
-      <group ref={fireSparksRef} position={[0, 0.15, 0]}>
-        {[0, 1, 2, 3, 4, 5].map((si) => (
-          <mesh key={`spark-${si}`} material={si % 2 === 0 ? mats.fireYellow : mats.fireOrange}>
-            <dodecahedronGeometry args={[1, 0]} />
+      <group ref={fireSparksRef}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <mesh key={`spark-${i}`} material={mats.fireYellow} position={[0, 0.2, 0]}>
+            <octahedronGeometry args={[1, 0]} />
           </mesh>
         ))}
       </group>
 
-      <pointLight ref={fireLightRef} color="#f59e0b" intensity={2.8} distance={8} decay={2} position={[0, 0.55, 0]} />
+      <pointLight
+        ref={fireLightRef}
+        position={[0, 0.35, 0]}
+        color="#ff7711"
+        intensity={2.4}
+        distance={7.0}
+        decay={2}
+      />
     </group>
   );
 }
-

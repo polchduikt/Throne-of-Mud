@@ -14,7 +14,6 @@ export class ManualJobHandler {
   ): boolean {
     if (!unit.gridPosition) return false;
 
-    // Precalculate worker tracking in a single pass over units
     const activeBuildersCount = new Map<string, number>();
     const takenJobIds = new Set<string>();
     const takenPositions = new Set<number>();
@@ -63,7 +62,6 @@ export class ManualJobHandler {
     const unitGx = unit.gridPosition[0];
     const unitGz = unit.gridPosition[1];
 
-    // Pre-cache building positions for fast distance calculation during sorting
     const buildingMap = new Map<string, GameEntity>();
     for (const b of buildingEntities) {
       buildingMap.set(b.id, b);
@@ -95,7 +93,6 @@ export class ManualJobHandler {
       return distA - distB;
     });
 
-    // Only test top 3 closest jobs to avoid testing dozens of jobs with A* in one tick
     for (const job of sortedJobs.slice(0, 3)) {
       let path: [number, number][] | null = null;
 
@@ -216,7 +213,6 @@ export class ManualJobHandler {
         let rx = Math.max(minX, Math.min(maxX, anchorX + Math.floor(Math.random() * (wanderRange * 2 + 1) - wanderRange)));
         let rz = Math.max(minZ, Math.min(maxZ, anchorZ + Math.floor(Math.random() * (wanderRange * 2 + 1) - wanderRange)));
 
-        // Pre-collect occupied positions once instead of Array.from inside attempt loop
         const occupiedCoords = new Set<number>();
         for (const c of characterEntities) {
           if (c.id !== unit.id && c.gridPosition) {

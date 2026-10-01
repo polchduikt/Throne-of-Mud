@@ -12,6 +12,13 @@ export const FpsMonitor: React.FC = React.memo(() => {
     minFps: 60,
     avgFps: 60,
     maxFrameTime: 16.6,
+    drawCalls: 0,
+    triangles: 0,
+    simulationMs: 0,
+    geometries: 0,
+    textures: 0,
+    programs: 0,
+    heapMb: 0,
   });
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -30,6 +37,13 @@ export const FpsMonitor: React.FC = React.memo(() => {
       minFps: 60,
       avgFps: 60,
       maxFrameTime: 16.6,
+      drawCalls: 0,
+      triangles: 0,
+      simulationMs: 0,
+      geometries: 0,
+      textures: 0,
+      programs: 0,
+      heapMb: 0,
     });
   }, []);
 
@@ -91,6 +105,10 @@ export const FpsMonitor: React.FC = React.memo(() => {
           const fps = Math.round(1000 / (currentFt || 16.6));
           const avgFps = Math.round(1000 / (avgFt || 16.6));
           const minFps = Math.round(1000 / (maxFt || 16.6));
+          const renderMetrics = (window as any).__renderMetrics as { calls?: number; triangles?: number; geometries?: number; textures?: number; programs?: number } | undefined;
+          const simulationMs = Number(((window as any).__simulationMs || 0).toFixed(1));
+          const memory = (performance as any).memory;
+          const heapMb = memory?.usedJSHeapSize ? Math.round(memory.usedJSHeapSize / (1024 * 1024)) : 0;
 
           setStats({
             fps: Math.min(fps, 360),
@@ -98,6 +116,13 @@ export const FpsMonitor: React.FC = React.memo(() => {
             minFps: Math.min(minFps, 360),
             avgFps: Math.min(avgFps, 360),
             maxFrameTime: Number(maxFt.toFixed(1)),
+            drawCalls: renderMetrics?.calls || 0,
+            triangles: renderMetrics?.triangles || 0,
+            simulationMs,
+            geometries: renderMetrics?.geometries || 0,
+            textures: renderMetrics?.textures || 0,
+            programs: renderMetrics?.programs || 0,
+            heapMb,
           });
 
           const canvas = canvasRef.current;
@@ -299,6 +324,36 @@ export const FpsMonitor: React.FC = React.memo(() => {
               <span className="font-mono text-xs font-bold text-rose-300 mt-0.5">
                 {stats.maxFrameTime}
               </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1 bg-black/30 border border-stone-800/60 rounded-xl px-2 py-1.5 text-center">
+            <div className="flex flex-col">
+              <span className="text-[8px] text-stone-400 uppercase tracking-wider font-semibold">Draw</span>
+              <span className="font-mono text-xs font-bold text-stone-200 mt-0.5">{stats.drawCalls}</span>
+            </div>
+            <div className="flex flex-col border-x border-stone-800/60">
+              <span className="text-[8px] text-stone-400 uppercase tracking-wider font-semibold">Трикутники</span>
+              <span className="font-mono text-xs font-bold text-amber-200/90 mt-0.5">{stats.triangles ? `${Math.round(stats.triangles / 1000)}k` : '—'}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[8px] text-stone-400 uppercase tracking-wider font-semibold">Симуляція</span>
+              <span className="font-mono text-xs font-bold text-stone-200 mt-0.5">{stats.simulationMs} ms</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-0.5 bg-black/20 border border-stone-800/40 rounded-lg px-1.5 py-1 text-center text-[9px] font-mono">
+            <div title="Geometries">
+              <span className="text-stone-500">Geo:</span> <span className="text-stone-300 font-bold">{stats.geometries}</span>
+            </div>
+            <div title="Textures">
+              <span className="text-stone-500">Tex:</span> <span className="text-stone-300 font-bold">{stats.textures}</span>
+            </div>
+            <div title="Compiled Shaders">
+              <span className="text-stone-500">Prog:</span> <span className="text-stone-300 font-bold">{stats.programs}</span>
+            </div>
+            <div title="JS Heap">
+              <span className="text-stone-500">Heap:</span> <span className="text-stone-300 font-bold">{stats.heapMb ? `${stats.heapMb}M` : '—'}</span>
             </div>
           </div>
 

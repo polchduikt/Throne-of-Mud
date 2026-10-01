@@ -28,7 +28,6 @@ import type { RegionData } from '../../../types/game';
 
 export { getEntityRegionId };
 
-// Persistent module-level caches — reused every tick to avoid GC pressure
 const _buildingMap = new Map<string, GameEntity>();
 const _regionMap = new Map<number, RegionData>();
 
@@ -43,13 +42,11 @@ export class JobSystem {
       playerSpawnPoint,
     } = useGameStore.getState();
 
-    // Rebuild building map once per tick — O(N_buildings), reuses persistent Map (no GC)
     _buildingMap.clear();
     for (const b of buildingEntities) {
       _buildingMap.set(b.id, b);
     }
 
-    // Build region map once — O(R) — so per-unit lookup is O(1) instead of O(R)
     _regionMap.clear();
     for (const r of regions) {
       _regionMap.set(r.id, r);

@@ -63,13 +63,28 @@ function tryNudgeEntity(
   if (isPositionValid(targetX, targetZ)) {
     ent.position[0] = targetX;
     ent.position[2] = targetZ;
-    ent.gridPosition = [Math.floor(targetX), Math.floor(targetZ)];
+    if (ent.gridPosition) {
+      ent.gridPosition[0] = Math.floor(targetX);
+      ent.gridPosition[1] = Math.floor(targetZ);
+    } else {
+      ent.gridPosition = [Math.floor(targetX), Math.floor(targetZ)];
+    }
   } else if (isPositionValid(targetX, curZ)) {
     ent.position[0] = targetX;
-    ent.gridPosition = [Math.floor(targetX), Math.floor(curZ)];
+    if (ent.gridPosition) {
+      ent.gridPosition[0] = Math.floor(targetX);
+      ent.gridPosition[1] = Math.floor(curZ);
+    } else {
+      ent.gridPosition = [Math.floor(targetX), Math.floor(curZ)];
+    }
   } else if (isPositionValid(curX, targetZ)) {
     ent.position[2] = targetZ;
-    ent.gridPosition = [Math.floor(curX), Math.floor(targetZ)];
+    if (ent.gridPosition) {
+      ent.gridPosition[0] = Math.floor(curX);
+      ent.gridPosition[1] = Math.floor(targetZ);
+    } else {
+      ent.gridPosition = [Math.floor(curX), Math.floor(targetZ)];
+    }
   }
 }
 
@@ -166,7 +181,12 @@ export class MovementSystem {
           if (distance <= remainingMove) {
             entity.position[0] = targetX;
             entity.position[2] = targetZ;
-            entity.gridPosition = [wp[0], wp[1]];
+            if (entity.gridPosition) {
+              entity.gridPosition[0] = wp[0];
+              entity.gridPosition[1] = wp[1];
+            } else {
+              entity.gridPosition = [wp[0], wp[1]];
+            }
             entity.path.shift();
             remainingMove -= distance;
             if (entity.path.length === 0) {
@@ -191,7 +211,12 @@ export class MovementSystem {
             if (clampedX !== entity.position[0] || clampedZ !== entity.position[2]) {
               entity.position[0] = clampedX;
               entity.position[2] = clampedZ;
-              entity.gridPosition = [Math.floor(clampedX), Math.floor(clampedZ)];
+              if (entity.gridPosition) {
+                entity.gridPosition[0] = Math.floor(clampedX);
+                entity.gridPosition[1] = Math.floor(clampedZ);
+              } else {
+                entity.gridPosition = [Math.floor(clampedX), Math.floor(clampedZ)];
+              }
             }
           }
         }
@@ -202,10 +227,12 @@ export class MovementSystem {
 
     _entityList.length = 0;
     _isFixedList.length = 0;
-    _spatialGrid.clear();
+    for (const list of _spatialGrid.values()) {
+      list.length = 0;
+    }
 
     const CELL_SIZE = 4;
-    const maxSimDistSq = 42 * 42;
+    const maxSimDistSq = 36 * 36;
 
     for (const entity of characterEntities) {
       if (!entity.position) continue;

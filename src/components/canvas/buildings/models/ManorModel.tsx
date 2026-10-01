@@ -1,260 +1,217 @@
 import type { RefObject } from 'react';
-import type * as THREE from 'three';
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import {
-  GothicButtress,
-  GothicPortal,
-  GothicLancetWindow,
-  GothicManorFireplace,
-  LordManorBed,
-  TriangularGable,
-  DetailedChimney,
-} from '../common/BuildingPrimitives';
+import { ChimneySmoke, GothicPortal } from '../common/BuildingPrimitives';
+
+function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  if (!g.attributes.normal) g.computeVertexNormals();
+  if (!g.attributes.uv) {
+    const count = g.attributes.position.count;
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(count * 2), 2));
+  }
+  const cleaned = new THREE.BufferGeometry();
+  cleaned.setAttribute('position', g.attributes.position);
+  cleaned.setAttribute('normal', g.attributes.normal);
+  cleaned.setAttribute('uv', g.attributes.uv);
+  return cleaned;
+}
+
+function createButtressGeo(pos: [number, number, number], rotY: number, height = 1.75): THREE.BufferGeometry {
+  const geos: THREE.BufferGeometry[] = [];
+  const b1 = new THREE.BoxGeometry(0.26, height * 0.5, 0.36).translate(0, height * 0.25, 0);
+  const b2 = new THREE.BoxGeometry(0.22, height * 0.44, 0.26).translate(0, height * 0.72, -0.04);
+  const cap1 = new THREE.BoxGeometry(0.27, 0.12, 0.28);
+  cap1.applyMatrix4(new THREE.Matrix4().makeRotationX(0.45).setPosition(0, height * 0.5 + 0.04, -0.02));
+  const cap2 = new THREE.BoxGeometry(0.23, 0.1, 0.2);
+  cap2.applyMatrix4(new THREE.Matrix4().makeRotationX(0.45).setPosition(0, height * 0.94 + 0.04, -0.05));
+  const cone = new THREE.ConeGeometry(0.12, 0.28, 4).translate(0, height + 0.12, -0.06);
+  geos.push(b1, b2, cap1, cap2, cone);
+  const m = new THREE.Matrix4().makeRotationY(rotY).setPosition(pos[0], pos[1], pos[2]);
+  return toStandard(mergeGeometries(geos) || b1).applyMatrix4(m);
+}
+
+function createLancetWindowGeo(pos: [number, number, number], rotY: number, width: number, height: number) {
+  const geos: THREE.BufferGeometry[] = [];
+  const sill = new THREE.BoxGeometry(width + 0.22, 0.08, 0.16).translate(0, -height / 2 - 0.04, 0.08);
+  const jambL = new THREE.BoxGeometry(0.10, height, 0.12).translate(-width / 2 - 0.05, 0, 0.04);
+  const jambR = new THREE.BoxGeometry(0.10, height, 0.12).translate(width / 2 + 0.05, 0, 0.04);
+  const archL = new THREE.BoxGeometry(0.10, width * 0.72, 0.12);
+  archL.applyMatrix4(new THREE.Matrix4().makeRotationZ(-0.6).setPosition(-width * 0.25, height / 2 + 0.08, 0.04));
+  const archR = new THREE.BoxGeometry(0.10, width * 0.72, 0.12);
+  archR.applyMatrix4(new THREE.Matrix4().makeRotationZ(0.6).setPosition(width * 0.25, height / 2 + 0.08, 0.04));
+  const mVert = new THREE.BoxGeometry(0.035, height, 0.02).translate(0, 0, 0.05);
+  const mHoriz = new THREE.BoxGeometry(width, 0.035, 0.02).translate(0, height * 0.15, 0.05);
+  const ring = new THREE.TorusGeometry(0.07, 0.015, 6, 12).translate(0, height / 2 + 0.05, 0.05);
+  geos.push(sill, jambL, jambR, archL, archR, mVert, mHoriz, ring);
+
+  const g1 = new THREE.BoxGeometry(width, height, 0.04).translate(0, 0, 0.02);
+  const g2 = new THREE.BoxGeometry(width * 0.62, width * 0.62, 0.04);
+  g2.applyMatrix4(new THREE.Matrix4().makeRotationZ(Math.PI / 4).setPosition(0, height / 2 + 0.06, 0.02));
+  const glass = mergeGeometries([g1, g2]) || g1;
+
+  const m = new THREE.Matrix4().makeRotationY(rotY).setPosition(pos[0], pos[1], pos[2]);
+  return {
+    frame: toStandard(mergeGeometries(geos) || sill).applyMatrix4(m),
+    glass: toStandard(glass).applyMatrix4(m),
+  };
+}
+
+export const manorBaseGeometry = (() => {
+  return toStandard(new THREE.BoxGeometry(5.06, 0.32, 4.06).translate(0, 0.16, 0));
+})();
+
+export const manorWallsGeometry = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(4.88, 0.04, 3.88).translate(0, 0.18, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(4.88, 1.68, 0.16).translate(0, 1.0, -1.88)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.16, 1.68, 3.88).translate(-2.38, 1.0, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.16, 1.68, 3.88).translate(2.38, 1.0, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(1.28, 1.68, 0.16).translate(-1.72, 1.0, 1.88)));
+  geos.push(toStandard(new THREE.BoxGeometry(1.28, 1.68, 0.16).translate(1.72, 1.0, 1.88)));
+  geos.push(toStandard(new THREE.BoxGeometry(2.20, 0.28, 0.16).translate(0, 1.72, 1.88)));
+
+  const pJambL = new THREE.BoxGeometry(0.18, 1.55, 0.20).translate(-0.71, 0.18 + 0.775, 1.88);
+  const pJambR = new THREE.BoxGeometry(0.18, 1.55, 0.20).translate(0.71, 0.18 + 0.775, 1.88);
+  geos.push(toStandard(pJambL), toStandard(pJambR));
+
+  const s = new THREE.Shape();
+  const halfD = 3.88 / 2;
+  s.moveTo(-halfD, 0); s.lineTo(halfD, 0); s.lineTo(0, 1.58); s.closePath();
+
+  const gL = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: false });
+  gL.applyMatrix4(new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(-2.38, 1.84, 0));
+
+  const gR = new THREE.ExtrudeGeometry(s, { depth: 0.16, bevelEnabled: false });
+  gR.applyMatrix4(new THREE.Matrix4().makeRotationY(Math.PI / 2).setPosition(2.38, 1.84, 0));
+  geos.push(toStandard(gL), toStandard(gR));
+
+  geos.push(createButtressGeo([-2.48, 0.16, 1.98], -Math.PI / 4));
+  geos.push(createButtressGeo([2.48, 0.16, 1.98], Math.PI / 4));
+  geos.push(createButtressGeo([-2.48, 0.16, -1.98], -Math.PI * 0.75));
+  geos.push(createButtressGeo([2.48, 0.16, -1.98], Math.PI * 0.75));
+  geos.push(createButtressGeo([-0.96, 0.16, 1.96], 0));
+  geos.push(createButtressGeo([0.96, 0.16, 1.96], 0));
+  geos.push(createButtressGeo([-1.2, 0.16, -1.96], Math.PI));
+  geos.push(createButtressGeo([1.2, 0.16, -1.96], Math.PI));
+  geos.push(createButtressGeo([-2.46, 0.16, 0], -Math.PI / 2));
+  geos.push(createButtressGeo([2.46, 0.16, 0], Math.PI / 2));
+
+  const w1 = createLancetWindowGeo([-1.72, 1.05, 1.90], 0, 0.48, 0.78);
+  const w2 = createLancetWindowGeo([1.72, 1.05, 1.90], 0, 0.48, 0.78);
+  const w3 = createLancetWindowGeo([-2.40, 1.05, -0.9], -Math.PI / 2, 0.48, 0.78);
+  const w4 = createLancetWindowGeo([-2.40, 1.05, 0.9], -Math.PI / 2, 0.48, 0.78);
+  const w5 = createLancetWindowGeo([2.40, 1.05, -0.9], Math.PI / 2, 0.48, 0.78);
+  const w6 = createLancetWindowGeo([2.40, 1.05, 0.9], Math.PI / 2, 0.48, 0.78);
+  const w7 = createLancetWindowGeo([-1.72, 1.05, -1.90], Math.PI, 0.48, 0.78);
+  const w8 = createLancetWindowGeo([1.72, 1.05, -1.90], Math.PI, 0.48, 0.78);
+  geos.push(w1.frame, w2.frame, w3.frame, w4.frame, w5.frame, w6.frame, w7.frame, w8.frame);
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const manorGlassGeometry = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const w1 = createLancetWindowGeo([-1.72, 1.05, 1.90], 0, 0.48, 0.78);
+  const w2 = createLancetWindowGeo([1.72, 1.05, 1.90], 0, 0.48, 0.78);
+  const w3 = createLancetWindowGeo([-2.40, 1.05, -0.9], -Math.PI / 2, 0.48, 0.78);
+  const w4 = createLancetWindowGeo([-2.40, 1.05, 0.9], -Math.PI / 2, 0.48, 0.78);
+  const w5 = createLancetWindowGeo([2.40, 1.05, -0.9], Math.PI / 2, 0.48, 0.78);
+  const w6 = createLancetWindowGeo([2.40, 1.05, 0.9], Math.PI / 2, 0.48, 0.78);
+  const w7 = createLancetWindowGeo([-1.72, 1.05, -1.90], Math.PI, 0.48, 0.78);
+  const w8 = createLancetWindowGeo([1.72, 1.05, -1.90], Math.PI, 0.48, 0.78);
+  geos.push(w1.glass, w2.glass, w3.glass, w4.glass, w5.glass, w6.glass, w7.glass, w8.glass);
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const manorCorniceGeometry = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(5.06, 0.08, 0.14).translate(0, 1.86, 1.94)));
+  geos.push(toStandard(new THREE.BoxGeometry(5.06, 0.08, 0.14).translate(0, 1.86, -1.94)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.14, 0.08, 4.02).translate(-2.44, 1.86, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.14, 0.08, 4.02).translate(2.44, 1.86, 0)));
+
+  for (const cx of [-2.52, 2.52]) {
+    for (const cz of [-2.02, 2.02]) {
+      geos.push(toStandard(new THREE.BoxGeometry(0.2, 0.6, 0.2).translate(cx, 1.9 + 0.3, cz)));
+      const cone = new THREE.ConeGeometry(0.14, 0.32, 4).translate(cx, 1.9 + 0.72, cz);
+      geos.push(toStandard(cone));
+    }
+  }
+
+  for (const gx of [-2.52, 2.52]) {
+    geos.push(toStandard(new THREE.BoxGeometry(0.14, 0.6, 0.14).translate(gx, 3.44 + 0.3, 0)));
+    geos.push(toStandard(new THREE.ConeGeometry(0.11, 0.36, 4).translate(gx, 3.44 + 0.72, 0)));
+  }
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const manorRoofGeometry = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const r1 = new THREE.BoxGeometry(5.06, 2.52, 0.18);
+  r1.applyMatrix4(new THREE.Matrix4().makeRotationX(-0.679).setPosition(0, 2.62, 0.98));
+  const r2 = new THREE.BoxGeometry(5.06, 2.52, 0.18);
+  r2.applyMatrix4(new THREE.Matrix4().makeRotationX(0.679).setPosition(0, 2.62, -0.98));
+  const ridge = new THREE.BoxGeometry(5.08, 0.18, 0.2).translate(0, 3.42, 0);
+
+  const chim = new THREE.BoxGeometry(0.52, 1.45, 0.64).translate(2.28, 2.85 + 0.725, 0);
+  const chimCap = new THREE.BoxGeometry(0.60, 0.08, 0.72).translate(2.28, 2.85 + 1.49, 0);
+  const pot1 = new THREE.CylinderGeometry(0.10, 0.12, 0.30, 8).translate(2.28, 2.85 + 1.68, -0.16);
+  const pot2 = new THREE.CylinderGeometry(0.10, 0.12, 0.30, 8).translate(2.28, 2.85 + 1.68, 0.16);
+
+  geos.push(toStandard(r1), toStandard(r2), toStandard(ridge), toStandard(chim), toStandard(chimCap), toStandard(pot1), toStandard(pot2));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const manorBannersGeometry = (() => {
+  const b1 = new THREE.BoxGeometry(0.26, 0.85, 0.03).translate(-0.88, 1.15, 1.97);
+  const b2 = new THREE.BoxGeometry(0.26, 0.85, 0.03).translate(0.88, 1.15, 1.97);
+  return mergeGeometries([toStandard(b1), toStandard(b2)]) || toStandard(b1);
+})();
 
 export function ManorModel({
   isLightOn = false,
   roofRef,
+  interiorRef,
 }: {
   isLightOn?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
+  interiorRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
 
   return (
     <group>
-      <mesh material={mats.stoneDark} position={[0, 0.16, 0]} castShadow receiveShadow>
-        <boxGeometry args={[5.06, 0.32, 4.06]} />
-      </mesh>
-      <mesh material={mats.stoneMed} position={[0, 0.18, 0]} receiveShadow>
-        <boxGeometry args={[4.88, 0.04, 3.88]} />
-      </mesh>
-
+      <mesh geometry={manorBaseGeometry} material={mats.stoneDark} receiveShadow />
+      <mesh geometry={manorWallsGeometry} material={mats.stoneMed} castShadow receiveShadow />
+      <mesh geometry={manorCorniceGeometry} material={mats.stoneLight} />
+      <mesh geometry={manorBannersGeometry} material={mats.redBanner} />
+      <mesh geometry={manorGlassGeometry} material={isLightOn ? mats.windowLit : mats.windowUnlit} />
       <mesh material={mats.velvetRed} position={[0, 0.19, 0.1]} receiveShadow>
         <boxGeometry args={[1.5, 0.01, 2.9]} />
       </mesh>
-      <mesh material={mats.goldTrim} position={[-0.76, 0.192, 0.1]}>
-        <boxGeometry args={[0.03, 0.005, 2.9]} />
-      </mesh>
-      <mesh material={mats.goldTrim} position={[0.76, 0.192, 0.1]}>
-        <boxGeometry args={[0.03, 0.005, 2.9]} />
-      </mesh>
-
-      <mesh material={mats.stoneMed} position={[0, 1.0, -1.88]} castShadow receiveShadow>
-        <boxGeometry args={[4.88, 1.68, 0.16]} />
-      </mesh>
-      <mesh material={mats.stoneMed} position={[-2.38, 1.0, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.16, 1.68, 3.88]} />
-      </mesh>
-      <mesh material={mats.stoneMed} position={[2.38, 1.0, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.16, 1.68, 3.88]} />
-      </mesh>
-      <mesh material={mats.stoneMed} position={[-1.72, 1.0, 1.88]} castShadow receiveShadow>
-        <boxGeometry args={[1.28, 1.68, 0.16]} />
-      </mesh>
-      <mesh material={mats.stoneMed} position={[1.72, 1.0, 1.88]} castShadow receiveShadow>
-        <boxGeometry args={[1.28, 1.68, 0.16]} />
-      </mesh>
-      <mesh material={mats.stoneMed} position={[0, 1.72, 1.88]} castShadow receiveShadow>
-        <boxGeometry args={[2.2, 0.28, 0.16]} />
-      </mesh>
-
-      <mesh material={mats.stoneLight} position={[0, 1.86, 1.94]} castShadow>
-        <boxGeometry args={[5.06, 0.08, 0.14]} />
-      </mesh>
-      <mesh material={mats.stoneLight} position={[0, 1.86, -1.94]} castShadow>
-        <boxGeometry args={[5.06, 0.08, 0.14]} />
-      </mesh>
-      <mesh material={mats.stoneLight} position={[-2.44, 1.86, 0]} castShadow>
-        <boxGeometry args={[0.14, 0.08, 4.02]} />
-      </mesh>
-      <mesh material={mats.stoneLight} position={[2.44, 1.86, 0]} castShadow>
-        <boxGeometry args={[0.14, 0.08, 4.02]} />
-      </mesh>
-
-      <GothicButtress position={[-2.48, 0.16, 1.98]} rotation={[0, -Math.PI / 4, 0]} height={1.75} />
-      <GothicButtress position={[2.48, 0.16, 1.98]} rotation={[0, Math.PI / 4, 0]} height={1.75} />
-      <GothicButtress position={[-2.48, 0.16, -1.98]} rotation={[0, -Math.PI * 0.75, 0]} height={1.75} />
-      <GothicButtress position={[2.48, 0.16, -1.98]} rotation={[0, Math.PI * 0.75, 0]} height={1.75} />
-
-      <GothicButtress position={[-0.96, 0.16, 1.96]} rotation={[0, 0, 0]} height={1.75} />
-      <GothicButtress position={[0.96, 0.16, 1.96]} rotation={[0, 0, 0]} height={1.75} />
-      <GothicButtress position={[-1.2, 0.16, -1.96]} rotation={[0, Math.PI, 0]} height={1.75} />
-      <GothicButtress position={[1.2, 0.16, -1.96]} rotation={[0, Math.PI, 0]} height={1.75} />
-      <GothicButtress position={[-2.46, 0.16, 0]} rotation={[0, -Math.PI / 2, 0]} height={1.75} />
-      <GothicButtress position={[2.46, 0.16, 0]} rotation={[0, Math.PI / 2, 0]} height={1.75} />
-
       <GothicPortal position={[0, 0.18, 1.88]} width={1.25} height={1.42} />
 
-      <GothicLancetWindow position={[-1.72, 1.05, 1.90]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[1.72, 1.05, 1.90]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[-2.40, 1.05, -0.9]} rotation={[0, -Math.PI / 2, 0]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[-2.40, 1.05, 0.9]} rotation={[0, -Math.PI / 2, 0]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[2.40, 1.05, -0.9]} rotation={[0, Math.PI / 2, 0]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[2.40, 1.05, 0.9]} rotation={[0, Math.PI / 2, 0]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[-1.72, 1.05, -1.90]} rotation={[0, Math.PI, 0]} width={0.48} height={0.78} isLightOn={isLightOn} />
-      <GothicLancetWindow position={[1.72, 1.05, -1.90]} rotation={[0, Math.PI, 0]} width={0.48} height={0.78} isLightOn={isLightOn} />
+      <group ref={roofRef}>
+        <mesh geometry={manorRoofGeometry} material={mats.gothicSlateRoof} castShadow receiveShadow />
+        <ChimneySmoke position={[2.28, 2.85 + 1.70, 0]} />
+      </group>
 
-      <mesh material={mats.redBanner} position={[-0.88, 1.15, 1.97]} castShadow>
-        <boxGeometry args={[0.26, 0.85, 0.03]} />
-      </mesh>
-      <mesh material={mats.goldTrim} position={[-0.88, 1.55, 1.98]}>
-        <boxGeometry args={[0.3, 0.04, 0.04]} />
-      </mesh>
-      <mesh material={mats.redBanner} position={[0.88, 1.15, 1.97]} castShadow>
-        <boxGeometry args={[0.26, 0.85, 0.03]} />
-      </mesh>
-      <mesh material={mats.goldTrim} position={[0.88, 1.55, 1.98]}>
-        <boxGeometry args={[0.3, 0.04, 0.04]} />
-      </mesh>
-
-      <group position={[0, 0.18, -1.25]}>
-        <mesh material={mats.stoneDark} position={[0, 0.06, 0]} castShadow receiveShadow>
-          <boxGeometry args={[2.2, 0.12, 1.1]} />
-        </mesh>
-        <mesh material={mats.stoneLight} position={[0, 0.12, 0]} castShadow receiveShadow>
-          <boxGeometry args={[2.0, 0.04, 0.95]} />
-        </mesh>
-
-        <group position={[0, 0.14, -0.1]}>
-          <mesh material={mats.timberDark} position={[0, 0.24, 0]} castShadow>
+      <group ref={interiorRef} visible={false}>
+        <group position={[0, 0.18, -1.25]}>
+          <mesh material={mats.stoneDark} position={[0, 0.06, 0]} receiveShadow>
+            <boxGeometry args={[2.2, 0.12, 1.1]} />
+          </mesh>
+          <mesh material={mats.timberDark} position={[0, 0.24, 0]}>
             <boxGeometry args={[0.7, 0.44, 0.6]} />
           </mesh>
-          <mesh material={mats.velvetRed} position={[0, 0.47, 0.02]} castShadow>
+          <mesh material={mats.velvetRed} position={[0, 0.47, 0.02]}>
             <boxGeometry args={[0.54, 0.06, 0.48]} />
           </mesh>
-          <mesh material={mats.timberDark} position={[0, 0.82, -0.26]} castShadow>
-            <boxGeometry args={[0.7, 0.82, 0.08]} />
-          </mesh>
-          <mesh material={mats.velvetRed} position={[0, 0.8, -0.22]} castShadow>
-            <boxGeometry args={[0.52, 0.65, 0.04]} />
-          </mesh>
-          <group position={[0, 1.28, -0.26]} rotation={[0, 0, Math.PI / 4]}>
-            <mesh material={mats.timberDark} castShadow>
-              <boxGeometry args={[0.32, 0.32, 0.08]} />
-            </mesh>
-          </group>
-          <mesh material={mats.goldTrim} position={[0, 1.3, -0.21]} castShadow>
-            <dodecahedronGeometry args={[0.1, 0]} />
-          </mesh>
-          <mesh material={mats.timberDark} position={[-0.32, 0.58, 0.04]} castShadow>
-            <boxGeometry args={[0.08, 0.28, 0.48]} />
-          </mesh>
-          <mesh material={mats.timberDark} position={[0.32, 0.58, 0.04]} castShadow>
-            <boxGeometry args={[0.08, 0.28, 0.48]} />
-          </mesh>
         </group>
-      </group>
-
-      <group position={[0, 0.18, 0.35]}>
-        <mesh material={mats.timberDark} position={[0, 0.32, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.0, 0.06, 1.7]} />
-        </mesh>
-        {[-0.42, 0.42].map((tx) =>
-          [-0.75, 0.75].map((tz) => (
-            <mesh key={`ct-leg-${tx}-${tz}`} material={mats.timberDark} position={[tx, 0.16, tz]} castShadow>
-              <cylinderGeometry args={[0.04, 0.04, 0.32, 6]} />
-            </mesh>
-          ))
-        )}
-        <mesh material={mats.goldTrim} position={[0, 0.38, -0.4]} castShadow>
-          <cylinderGeometry args={[0.04, 0.06, 0.12, 6]} />
-        </mesh>
-        <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.48, -0.4]}>
-          <cylinderGeometry args={[0.015, 0.02, 0.1, 5]} />
-        </mesh>
-        <mesh material={mats.goldTrim} position={[0, 0.38, 0.4]} castShadow>
-          <cylinderGeometry args={[0.04, 0.06, 0.12, 6]} />
-        </mesh>
-        <mesh material={isLightOn ? mats.candleGlow : mats.candleUnlit} position={[0, 0.48, 0.4]}>
-          <cylinderGeometry args={[0.015, 0.02, 0.1, 5]} />
-        </mesh>
-        <mesh material={mats.flourSack} position={[-0.1, 0.36, 0]} rotation={[0, 0.4, Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[0.05, 0.05, 0.35, 6]} />
-        </mesh>
-      </group>
-
-      <GothicManorFireplace
-        position={[2.28, 0.18, 0]}
-        rotation={[0, -Math.PI / 2, 0]}
-        isLightOn={isLightOn}
-      />
-
-      <LordManorBed
-        position={[-1.55, 0.18, -0.2]}
-        rotation={[0, 0, 0]}
-      />
-
-      <group ref={roofRef}>
-        <TriangularGable
-          baseWidth={3.88}
-          height={1.58}
-          thickness={0.16}
-          position={[-2.38, 1.84, 0]}
-          rotation={[0, -Math.PI / 2, 0]}
-          material={mats.stoneMed}
-        />
-        <TriangularGable
-          baseWidth={3.88}
-          height={1.58}
-          thickness={0.16}
-          position={[2.38, 1.84, 0]}
-          rotation={[0, Math.PI / 2, 0]}
-          material={mats.stoneMed}
-        />
-
-        <mesh material={mats.gothicSlateRoof} position={[0, 2.62, 0.98]} rotation={[-0.679, 0, 0]} castShadow receiveShadow>
-          <boxGeometry args={[5.06, 2.52, 0.18]} />
-        </mesh>
-        <mesh material={mats.gothicSlateRidge} position={[0, 1.86, 1.94]} rotation={[-0.679, 0, 0]}>
-          <boxGeometry args={[5.06, 0.14, 0.2]} />
-        </mesh>
-        <mesh material={mats.gothicSlateRoof} position={[0, 2.62, -0.98]} rotation={[0.679, 0, 0]} castShadow receiveShadow>
-          <boxGeometry args={[5.06, 2.52, 0.18]} />
-        </mesh>
-        <mesh material={mats.gothicSlateRidge} position={[0, 1.86, -1.94]} rotation={[0.679, 0, 0]}>
-          <boxGeometry args={[5.06, 0.14, 0.2]} />
-        </mesh>
-        <mesh material={mats.gothicSlateRidge} position={[0, 3.42, 0]} castShadow>
-          <boxGeometry args={[5.08, 0.18, 0.2]} />
-        </mesh>
-
-        {[-2.52, 2.52].map((cx) =>
-          [-2.02, 2.02].map((cz) => (
-            <group key={`gothic-pinnacle-${cx}-${cz}`} position={[cx, 1.9, cz]}>
-              <mesh material={mats.stoneLight} position={[0, 0.3, 0]} castShadow>
-                <boxGeometry args={[0.2, 0.6, 0.2]} />
-              </mesh>
-              <mesh material={mats.stoneLight} position={[0, 0.72, 0]} castShadow>
-                <coneGeometry args={[0.14, 0.32, 4]} />
-              </mesh>
-            </group>
-          ))
-        )}
-
-        {[-2.52, 2.52].map((gx) => (
-          <group key={`m-spire-${gx}`} position={[gx, 3.44, 0]}>
-            <mesh material={mats.stoneLight} position={[0, 0.3, 0]} castShadow>
-              <boxGeometry args={[0.14, 0.6, 0.14]} />
-            </mesh>
-            <mesh material={mats.stoneLight} position={[0, 0.72, 0]} castShadow>
-              <coneGeometry args={[0.11, 0.36, 4]} />
-            </mesh>
-            <mesh material={mats.goldTrim} position={[0, 0.92, 0]} castShadow>
-              <sphereGeometry args={[0.05, 6, 6]} />
-            </mesh>
-          </group>
-        ))}
-
-        <DetailedChimney
-          position={[2.28, 2.85, 0]}
-          width={0.52}
-          depth={0.64}
-          height={1.45}
-          potCount={2}
-          hasSmoke={isLightOn}
-        />
       </group>
     </group>
   );
 }
-

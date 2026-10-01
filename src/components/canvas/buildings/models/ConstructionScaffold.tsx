@@ -38,7 +38,7 @@ export function ConstructionScaffold({
       )}
 
       {!isMinimal && (
-        <mesh material={mats.stoneMed} position={[0, 0.08, 0]} receiveShadow castShadow>
+        <mesh material={mats.stoneMed} position={[0, 0.08, 0]} receiveShadow >
           <boxGeometry args={[width * 0.88, 0.08, height * 0.88]} />
         </mesh>
       )}
@@ -50,66 +50,66 @@ export function ConstructionScaffold({
         [width * 0.42, height * 0.42],
       ].map(([px, pz], idx) => (
         <group key={`scaff-post-${idx}`} position={[px, 0.6, pz]}>
-          <mesh material={mats.timberDark} castShadow>
+          <mesh material={mats.timberDark} >
             <cylinderGeometry args={[0.04, 0.05, 1.2, 5]} />
           </mesh>
         </group>
       ))}
 
-      <mesh material={mats.timberLight} position={[0, 1.1, -height * 0.42]} castShadow>
+      <mesh material={mats.timberLight} position={[0, 1.1, -height * 0.42]} >
         <boxGeometry args={[width * 0.88, 0.05, 0.05]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[0, 1.1, height * 0.42]} castShadow>
+      <mesh material={mats.timberLight} position={[0, 1.1, height * 0.42]} >
         <boxGeometry args={[width * 0.88, 0.05, 0.05]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[-width * 0.42, 1.1, 0]} castShadow>
+      <mesh material={mats.timberLight} position={[-width * 0.42, 1.1, 0]} >
         <boxGeometry args={[0.05, 0.05, height * 0.88]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[width * 0.42, 1.1, 0]} castShadow>
+      <mesh material={mats.timberLight} position={[width * 0.42, 1.1, 0]} >
         <boxGeometry args={[0.05, 0.05, height * 0.88]} />
       </mesh>
 
-      <mesh material={mats.timberLight} position={[0, 0.55, -height * 0.42]} castShadow>
+      <mesh material={mats.timberLight} position={[0, 0.55, -height * 0.42]} >
         <boxGeometry args={[width * 0.88, 0.04, 0.04]} />
       </mesh>
-      <mesh material={mats.timberLight} position={[0, 0.55, height * 0.42]} castShadow>
+      <mesh material={mats.timberLight} position={[0, 0.55, height * 0.42]} >
         <boxGeometry args={[width * 0.88, 0.04, 0.04]} />
       </mesh>
 
-      <mesh material={mats.timberMed} position={[0, 0.58, height * 0.35]} castShadow receiveShadow>
+      <mesh material={mats.timberMed} position={[0, 0.58, height * 0.35]} receiveShadow>
         <boxGeometry args={[width * 0.75, 0.03, 0.22]} />
       </mesh>
 
       <group position={[width * 0.44, 0.5, 0]} rotation={[0, 0, -0.25]}>
-        <mesh material={mats.timberLight} position={[-0.08, 0, 0]} castShadow>
+        <mesh material={mats.timberLight} position={[-0.08, 0, 0]} >
           <boxGeometry args={[0.03, 1.1, 0.03]} />
         </mesh>
-        <mesh material={mats.timberLight} position={[0.08, 0, 0]} castShadow>
+        <mesh material={mats.timberLight} position={[0.08, 0, 0]} >
           <boxGeometry args={[0.03, 1.1, 0.03]} />
         </mesh>
         {[-0.35, -0.15, 0.05, 0.25, 0.45].map((ry, i) => (
-          <mesh key={`rung-${i}`} material={mats.timberLight} position={[0, ry, 0]} castShadow>
+          <mesh key={`rung-${i}`} material={mats.timberLight} position={[0, ry, 0]} >
             <boxGeometry args={[0.18, 0.02, 0.02]} />
           </mesh>
         ))}
       </group>
 
       {progress > 5 && (
-        <mesh material={mats.timberDark} position={[0, 0.1 + (progress / 100) * 0.3, 0]} castShadow receiveShadow>
+        <mesh material={mats.timberDark} position={[0, 0.1 + (progress / 100) * 0.3, 0]} receiveShadow>
           <boxGeometry args={[width * 0.78, Math.max(0.1, (progress / 100) * 0.6), height * 0.78]} />
         </mesh>
       )}
 
       <group position={[-width * 0.35, 0, height * 0.35]}>
-        <mesh material={mats.timberLight} position={[0, 0.06, 0]} rotation={[0, 0.15, 0]} castShadow>
+        <mesh material={mats.timberLight} position={[0, 0.06, 0]} rotation={[0, 0.15, 0]} >
           <boxGeometry args={[0.15, 0.08, 0.6]} />
         </mesh>
-        <mesh material={mats.timberLight} position={[0.08, 0.12, 0]} rotation={[0, -0.1, 0]} castShadow>
+        <mesh material={mats.timberLight} position={[0.08, 0.12, 0]} rotation={[0, -0.1, 0]} >
           <boxGeometry args={[0.15, 0.06, 0.55]} />
         </mesh>
       </group>
 
-      <mesh material={mats.timberMed} position={[width * 0.32, 0.1, -height * 0.32]} castShadow>
+      <mesh material={mats.timberMed} position={[width * 0.32, 0.1, -height * 0.32]} >
         <boxGeometry args={[0.2, 0.18, 0.2]} />
       </mesh>
 

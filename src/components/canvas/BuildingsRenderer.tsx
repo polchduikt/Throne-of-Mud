@@ -40,6 +40,7 @@ import {
   WoodenChurchModel,
   TavernModel,
 } from './buildings/models';
+import { InstancedWallsRenderer } from './buildings/InstancedWallsRenderer';
 
 const _occupiedBuildingIds = new Set<string>();
 const _sleeperBuildingIds = new Set<string>();
@@ -73,7 +74,10 @@ interface BuildingFrameState {
   centerX: number;
   centerZ: number;
   buildingId: string;
+  isSelected: boolean;
   lastRoofCheck: number;
+  currentLightOn: boolean;
+  currentNight: boolean;
   setIsLightOn: (v: boolean) => void;
   setIsNight: (v: boolean) => void;
 }
@@ -85,15 +89,40 @@ export function BuildingsRenderer() {
   const buildingVersion = useGameStore((state) => state.buildingVersion);
   const isStrategicView = useGameStore((state) => state.isStrategicView);
 
-  const buildings = useMemo(() => Array.from(buildingEntities), [buildingVersion]);
+  const { completedWoodenWalls, completedStoneWalls, standardBuildings } = useMemo(() => {
+    const wooden: GameEntity[] = [];
+    const stone: GameEntity[] = [];
+    const standard: GameEntity[] = [];
+
+    for (const b of buildingEntities) {
+      const isSelected = selectedEntityId === b.id;
+      const isCompleted = Boolean(b.isCompleted || (b.constructionProgress || 0) >= 100);
+      const isDemolishing = Boolean(b.isDemolishing);
+
+      if (b.buildingType === 'wooden_wall' && isCompleted && !isSelected && !isDemolishing) {
+        wooden.push(b);
+      } else if (b.buildingType === 'stone_wall' && isCompleted && !isSelected && !isDemolishing) {
+        stone.push(b);
+      } else {
+        standard.push(b);
+      }
+    }
+    return {
+      completedWoodenWalls: wooden,
+      completedStoneWalls: stone,
+      standardBuildings: standard,
+    };
+  }, [buildingVersion, selectedEntityId]);
   const frameCounter = useRef(0);
   const lastHeavyCheck = useRef(0);
   const lastNight = useRef(false);
 
+  const statesArrayRef = useRef<BuildingFrameState[]>([]);
+  const lastStatesSize = useRef(0);
+
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
     frameCounter.current++;
-    const fc = frameCounter.current;
 
     if (t - lastHeavyCheck.current > 0.5) {
       lastHeavyCheck.current = t;
@@ -105,31 +134,40 @@ export function BuildingsRenderer() {
       if (night !== lastNight.current) {
         lastNight.current = night;
         for (const s of _buildingFrameStates.values()) {
-          s.setIsNight(night);
+          if (s.currentNight !== night) {
+            s.currentNight = night;
+            s.setIsNight(night);
+          }
           const shouldLight = night && _sleeperBuildingIds.has(s.buildingId);
-          s.setIsLightOn(shouldLight);
+          if (s.currentLightOn !== shouldLight) {
+            s.currentLightOn = shouldLight;
+            s.setIsLightOn(shouldLight);
+          }
         }
       } else {
         for (const s of _buildingFrameStates.values()) {
           const shouldLight = night && _sleeperBuildingIds.has(s.buildingId);
-          s.setIsLightOn(shouldLight);
+          if (s.currentLightOn !== shouldLight) {
+            s.currentLightOn = shouldLight;
+            s.setIsLightOn(shouldLight);
+          }
         }
       }
     }
 
     const camTarget = (window as any).__lastCameraTarget;
     const zoom = (window as any).__lastCameraZoom || 38;
-    const maxDist = Math.min(42, Math.max(25, (33 / zoom) * 38));
+    const maxDist = Math.max(34, Math.min(48, (1000 / zoom) + 8));
     const maxDistSq = maxDist * maxDist;
 
-    const states = Array.from(_buildingFrameStates.values());
+    if (_buildingFrameStates.size !== lastStatesSize.current) {
+      statesArrayRef.current = Array.from(_buildingFrameStates.values());
+      lastStatesSize.current = _buildingFrameStates.size;
+    }
+    const states = statesArrayRef.current;
     if (states.length === 0) return;
 
-    const batchSize = Math.ceil(states.length / 3);
-    const startIdx = (fc % 3) * batchSize;
-    const endIdx = Math.min(startIdx + batchSize, states.length);
-
-    for (let i = startIdx; i < endIdx; i++) {
+    for (let i = 0; i < states.length; i++) {
       const s = states[i];
       if (!s?.groupRef.current) continue;
 
@@ -141,19 +179,17 @@ export function BuildingsRenderer() {
         }
         if (!isVisible) continue;
       }
-
-      if (t - s.lastRoofCheck > 0.9 && s.roofRef.current) {
-        s.lastRoofCheck = t;
-        const isOccupied = _occupiedBuildingIds.has(s.buildingId);
-        s.roofRef.current.visible = !isOccupied;
-        if (s.interiorRef.current) s.interiorRef.current.visible = isOccupied;
-      }
     }
   });
 
   return (
     <group visible={!isStrategicView}>
-      {buildings.map((building) => (
+      <InstancedWallsRenderer
+        woodenWalls={completedWoodenWalls}
+        stoneWalls={completedStoneWalls}
+        onSelect={setSelectedEntityId}
+      />
+      {standardBuildings.map((building) => (
         <Building3DMemo
           key={building.id}
           building={building}
@@ -216,7 +252,10 @@ function Building3D({
       centerX,
       centerZ,
       buildingId: building.id,
+      isSelected,
       lastRoofCheck: 0,
+      currentLightOn: false,
+      currentNight: isNight,
       setIsLightOn: (v) => setIsLightOnRef.current(v),
       setIsNight: (v) => setIsNightRef.current(v),
     };
@@ -225,6 +264,7 @@ function Building3D({
   frameStateRef.current.centerX = centerX;
   frameStateRef.current.centerZ = centerZ;
   frameStateRef.current.buildingId = building.id;
+  frameStateRef.current.isSelected = isSelected;
 
   useEffect(() => {
     _buildingFrameStates.set(building.id, frameStateRef.current!);
@@ -233,7 +273,21 @@ function Building3D({
     };
   }, [building.id]);
 
+  useEffect(() => {
+    if (roofRef.current) roofRef.current.visible = !isSelected;
+    if (interiorRef.current) interiorRef.current.visible = isSelected;
+  }, [isSelected]);
+
+  useEffect(() => {
+    if (completed && groupRef.current) {
+      groupRef.current.matrixAutoUpdate = false;
+      groupRef.current.updateMatrix();
+    }
+  }, [completed]);
+
   useFrame(() => {
+    if (completed && !building.isDemolishing && !isSelected) return;
+
     if (!completed && (building.isCompleted || (building.constructionProgress || 0) >= 100)) {
       setCompleted(true);
       return;
@@ -248,11 +302,6 @@ function Building3D({
       progressTextRef.current.innerText = `🔨 ${curProg}%`;
       progressBarRef.current.style.width = `${Math.max(4, curProg)}%`;
     }
-
-    if (isSelected && roofRef.current) {
-      roofRef.current.visible = false;
-      if (interiorRef.current) interiorRef.current.visible = true;
-    }
   });
 
   const posY = pos[1] !== undefined ? pos[1] : 0.05;
@@ -260,7 +309,7 @@ function Building3D({
   function renderBuildingModel() {
     switch (type) {
       case 'tent':
-        return <TentModel />;
+        return <TentModel isLightOn={isLightOn} roofRef={roofRef} />;
       case 'lumberjack_hut':
         return <LumberjackHutModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'campfire':
@@ -270,19 +319,19 @@ function Building3D({
       case 'market':
         return <MarketModel roofRef={roofRef} />;
       case 'manor':
-        return <ManorModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <ManorModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'stockpile':
-        return <StockpileModel />;
+        return <StockpileModel isLightOn={isLightOn} roofRef={roofRef} />;
       case 'wheat_farm':
         return <WheatFarmModel building={building} />;
       case 'windmill':
         return <WindmillModel isWorking={isWorking} />;
       case 'bakery':
-        return <BakeryModel isLightOn={isLightOn} isWorking={isWorking} roofRef={roofRef} />;
+        return <BakeryModel isLightOn={isLightOn} isWorking={isWorking} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'brewery':
         return <BreweryModel isLightOn={isLightOn} isWorking={isWorking} roofRef={roofRef} />;
       case 'barracks':
-        return <BarracksModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <BarracksModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'wooden_wall':
         return <WoodenWallModel />;
       case 'wooden_gate':
@@ -290,11 +339,11 @@ function Building3D({
       case 'stone_wall':
         return <StoneWallModel />;
       case 'fishermans_hut':
-        return <FishermansHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <FishermansHutModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'foragers_hut':
-        return <ForagersHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <ForagersHutModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'hunters_hut':
-        return <HuntersHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <HuntersHutModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'iron_mine':
         return <IronMineModel isLightOn={isLightOn} isWorking={isWorking} roofRef={roofRef} />;
       case 'stone_quarry':
@@ -314,15 +363,15 @@ function Building3D({
       case 'sawmill':
         return <SawmillModel isLightOn={isLightOn} roofRef={roofRef} />;
       case 'weavers_workshop':
-        return <WeaversWorkshopModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <WeaversWorkshopModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'foresters_hut':
-        return <ForestersHutModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <ForestersHutModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'wooden_church':
-        return <WoodenChurchModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <WoodenChurchModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
       case 'tavern':
-        return <TavernModel isLightOn={isLightOn} isWorking={isWorking} roofRef={roofRef} />;
+        return <TavernModel isLightOn={isLightOn} isWorking={isWorking} roofRef={roofRef} interiorRef={interiorRef} />;
       default:
-        return <PeasantHouseModel isLightOn={isLightOn} roofRef={roofRef} />;
+        return <PeasantHouseModel isLightOn={isLightOn} roofRef={roofRef} interiorRef={interiorRef} />;
     }
   }
 
@@ -358,6 +407,12 @@ function Building3D({
 
       <mesh
         position={[0, Math.max(1.0, baseH * 0.35), 0]}
+        onPointerDown={(e) => {
+          if (e.button === 0) {
+            e.stopPropagation();
+            onSelect(building.id);
+          }
+        }}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(building.id);

@@ -13,6 +13,8 @@ interface LightingKey {
   hemiGroundColor: THREE.Color;
 }
 
+const SHADOW_RECENTER_DISTANCE = 10;
+
 export function DayNightLighting() {
   const { gl } = useThree();
   const buildingVersion = useGameStore((s) => s.buildingVersion);
@@ -23,7 +25,7 @@ export function DayNightLighting() {
   const lastLightPosRef = useRef<[number, number]>([24, 24]);
 
   useEffect(() => {
-    gl.shadowMap.autoUpdate = true;
+    gl.shadowMap.autoUpdate = false;
     gl.shadowMap.needsUpdate = true;
   }, [gl]);
 
@@ -230,20 +232,20 @@ export function DayNightLighting() {
       const shouldCastShadow = camZoom > 18;
       if (sunLightRef.current.castShadow !== shouldCastShadow) {
         sunLightRef.current.castShadow = shouldCastShadow;
-      }
-      if (gl.shadowMap.autoUpdate !== shouldCastShadow) {
-        gl.shadowMap.autoUpdate = shouldCastShadow;
+        if (shouldCastShadow) {
+          gl.shadowMap.needsUpdate = true;
+        }
       }
 
       const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
       if (camTarget && shouldCastShadow) {
-        const texelSize = 60 / 1024;
-        const snappedX = Math.round(camTarget[0] / texelSize) * texelSize;
-        const snappedZ = Math.round(camTarget[1] / texelSize) * texelSize;
-        if (snappedX !== lastLightPosRef.current[0] || snappedZ !== lastLightPosRef.current[1]) {
-          lastLightPosRef.current = [snappedX, snappedZ];
-          lightTarget.position.set(snappedX, 0, snappedZ);
-          sunLightRef.current.position.set(snappedX + 18, 36, snappedZ + 20);
+        const dx = camTarget[0] - lastLightPosRef.current[0];
+        const dz = camTarget[1] - lastLightPosRef.current[1];
+        if (dx * dx + dz * dz >= SHADOW_RECENTER_DISTANCE * SHADOW_RECENTER_DISTANCE) {
+          lastLightPosRef.current = [camTarget[0], camTarget[1]];
+          lightTarget.position.set(camTarget[0], 0, camTarget[1]);
+          sunLightRef.current.position.set(camTarget[0] + 18, 36, camTarget[1] + 20);
+          gl.shadowMap.needsUpdate = true;
         }
       }
     }
@@ -277,10 +279,10 @@ export function DayNightLighting() {
         shadow-mapSize-height={1024}
         shadow-camera-near={0.5}
         shadow-camera-far={130}
-        shadow-camera-left={-30}
-        shadow-camera-right={30}
-        shadow-camera-top={30}
-        shadow-camera-bottom={-30}
+        shadow-camera-left={-22}
+        shadow-camera-right={22}
+        shadow-camera-top={22}
+        shadow-camera-bottom={-22}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
       />

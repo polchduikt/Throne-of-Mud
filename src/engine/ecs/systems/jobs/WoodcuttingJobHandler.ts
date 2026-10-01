@@ -110,7 +110,6 @@ export class WoodcuttingJobHandler {
 
       candidateTrees.sort((a, b) => a.dist - b.dist);
 
-      // Test top 3 closest candidates (was 10) to avoid dozens of heavy A* calls per tick
       for (const cand of candidateTrees.slice(0, 3)) {
         const path = AStar.findPath(grid, [ux, uz], cand.pos, true, uBounds);
         if (path && path.length > 0) {
@@ -155,7 +154,6 @@ export class WoodcuttingJobHandler {
       return true;
     }
 
-    // Set 30 ticks cooldown on failed search
     failedSearchCooldowns.set(unit.id, currentTick + 30);
     return false;
   }

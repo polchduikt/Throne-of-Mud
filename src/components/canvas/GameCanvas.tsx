@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
@@ -38,6 +38,24 @@ function GameLoopSync({ grid }: { grid: GridMap }) {
   useFrame((_, delta) => {
     loopRef.current?.step(delta);
   }, -100);
+
+  return null;
+}
+
+function RendererMetrics() {
+  const { gl } = useThree();
+  const frameRef = useRef(0);
+
+  useFrame(() => {
+    if (++frameRef.current % 30 !== 0) return;
+    (window as any).__renderMetrics = {
+      calls: gl.info.render.calls,
+      triangles: gl.info.render.triangles,
+      geometries: gl.info.memory.geometries,
+      textures: gl.info.memory.textures,
+      programs: gl.info.programs?.length ?? 0,
+    };
+  });
 
   return null;
 }
@@ -96,6 +114,7 @@ export function GameCanvas({ grid }: Props) {
         <StrategicParchmentMapRenderer grid={grid} />
         <MenuAmbientWalkers grid={grid} />
         <SpatialAudioListener />
+        <RendererMetrics />
       </Canvas>
     </div>
   );
