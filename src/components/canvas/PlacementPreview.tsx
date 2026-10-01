@@ -29,13 +29,8 @@ export function PlacementPreview({ grid }: Props) {
   const isValid = useMemo(() => {
     if (!targetCoords || !blueprint || !activeBuildType) return false;
     const pRegion = useGameStore.getState().regions.find((r) => r.id === (playerRegionId ?? 0));
-    if (pRegion?.bounds) {
-      const b = pRegion.bounds;
-      const minX = targetCoords[0];
-      const maxX = targetCoords[0] + blueprint.width - 1;
-      const minZ = targetCoords[1];
-      const maxZ = targetCoords[1] + blueprint.height - 1;
-      if (minX < b.minX || maxX > b.maxX || minZ < b.minZ || maxZ > b.maxZ) {
+    if (pRegion) {
+      if (!GridMap.isBuildingInRegion(pRegion.id, targetCoords[0], targetCoords[1], blueprint.width, blueprint.height, 3.5)) {
         return false;
       }
     }
@@ -46,7 +41,8 @@ export function PlacementPreview({ grid }: Props) {
       blueprint.width,
       blueprint.height,
       grid,
-      resourceDeposits
+      resourceDeposits,
+      pRegion?.id
     ).allowed;
   }, [targetCoords, blueprint, activeBuildType, grid, playerRegionId, resourceDeposits]);
 

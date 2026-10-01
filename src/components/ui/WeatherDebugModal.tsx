@@ -188,14 +188,20 @@ export function WeatherDebugModal() {
               {weatherList.map((w) => {
                 const Icon = w.icon;
                 const isActive = targetWeather === w.id;
+                const isAllowed = season === 'Winter'
+                  ? (w.id === 'clear' || w.id === 'snow')
+                  : (w.id !== 'snow');
                 return (
                   <button
                     key={w.id}
+                    disabled={!isAllowed}
                     onClick={() => setWeather(w.id, isWeatherLocked)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition group text-center cursor-pointer ${
-                      isActive
-                        ? 'bg-amber-600/30 border-amber-500 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.25)] ring-1 ring-amber-400'
-                        : 'bg-[#181a20] border-[#3d3222] text-slate-300 hover:border-amber-600/60 hover:bg-[#20222a]'
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition group text-center ${
+                      !isAllowed
+                        ? 'opacity-30 cursor-not-allowed bg-[#181a20]/40 border-slate-800 text-slate-500'
+                        : isActive
+                        ? 'bg-amber-600/30 border-amber-500 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.25)] ring-1 ring-amber-400 cursor-pointer'
+                        : 'bg-[#181a20] border-[#3d3222] text-slate-300 hover:border-amber-600/60 hover:bg-[#20222a] cursor-pointer'
                     }`}
                   >
                     <Icon className={`w-6 h-6 mb-1.5 ${w.color} group-hover:scale-110 transition-transform drop-shadow`} />
@@ -247,8 +253,13 @@ export function WeatherDebugModal() {
                 {dict.climate.lightningFlash}
               </span>
               <button
+                disabled={season === 'Winter'}
                 onClick={triggerLightning}
-                className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow cursor-pointer"
+                className={`px-3 py-1.5 rounded-lg text-white text-xs font-bold flex items-center gap-1.5 transition shadow ${
+                  season === 'Winter'
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                    : 'bg-amber-600 hover:bg-amber-500 cursor-pointer'
+                }`}
               >
                 <Zap className="w-3.5 h-3.5" />
                 {dict.climate.triggerFlash}

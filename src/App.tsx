@@ -44,14 +44,10 @@ export default function App() {
     async function initGameSession() {
       try {
         const hasActiveSave = localStorage.getItem('throne_of_mud_has_save') === 'true';
-        const activeSession = localStorage.getItem('throne_of_mud_active_session');
-
         if (hasActiveSave) {
           const loaded = await loadGameFromIndexedDB(grid);
           if (loaded && isMounted) {
-            if (activeSession === 'playing') {
-              useGameStore.getState().setGameMode('playing');
-            }
+            useGameStore.getState().setGameMode('menu');
             return;
           }
         }

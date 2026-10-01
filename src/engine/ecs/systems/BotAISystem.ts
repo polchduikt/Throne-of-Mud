@@ -4,7 +4,7 @@ import { useGameStore } from '../../../store/useGameStore';
 import { AStar } from '../../pathfinding/AStar';
 import { getSmartRoadPath, isRoadPathValid } from '../../grid/roadGeneration';
 import { BUILDING_BLUEPRINTS } from '../../buildings/blueprints';
-import { validateBuildingPlacement } from '../../buildings/buildingValidation';
+import { isOverlappingResourceDeposit } from '../../buildings/buildingValidation';
 import { getBuildingDoorInfo } from '../../buildings/buildingNavigation';
 import type { BuildingType, ResourceDeposit, ResourceType, RegionData } from '../../../types/game';
 import {
@@ -24,6 +24,7 @@ import {
   BOT_AI_TERRAIN_MAX_HEIGHT_DIFF,
 } from '../../../constants/ai';
 import { DEFAULT_WAGE, DEFAULT_SPEECH_BUBBLE_TICKS } from '../../../constants/economy';
+import { isNoble } from '../entityHelpers';
 
 interface BotRealmMemory {
   wood: number;
@@ -261,15 +262,10 @@ export class BotAISystem {
     let nearestRoad: [number, number] | null = null;
     let minDistSq = Infinity;
 
-    const minRX = region.bounds.minX - 10;
-    const maxRX = region.bounds.maxX + 10;
-    const minRZ = region.bounds.minZ - 10;
-    const maxRZ = region.bounds.maxZ + 10;
-
     for (const coord of grid.roadCoords) {
       const rx = Math.floor(coord / grid.width);
       const rz = coord % grid.width;
-      if (rx >= minRX && rx <= maxRX && rz >= minRZ && rz <= maxRZ) {
+      if (GridMap.isCoordInRegion(region.id, rx, rz, 0)) {
         const t = grid.getTile(rx, rz);
         if (t && t.terrain === 'road' && !t.buildingId) {
           const dSq = (rx - approachPos[0]) ** 2 + (rz - approachPos[1]) ** 2;
@@ -292,7 +288,7 @@ export class BotAISystem {
       approachPos[1],
       nearestRoad[0],
       nearestRoad[1],
-      region.bounds,
+      (px, pz) => GridMap.isCoordInRegion(region.id, px, pz, 0),
       resourceDeposits
     );
 
@@ -379,7 +375,15 @@ export class BotAISystem {
         const campRoadEntrance: [number, number] = [camp[0] + 2, camp[1]];
         const campRoadCourtyard: [number, number] = [camp[0] - 1, camp[1]];
 
-        const hPath = getSmartRoadPath(grid, targetX, targetZ, campRoadEntrance[0], campRoadEntrance[1], region.bounds, resourceDeposits);
+        const hPath = getSmartRoadPath(
+          grid,
+          targetX,
+          targetZ,
+          campRoadEntrance[0],
+          campRoadEntrance[1],
+          (px, pz) => GridMap.isCoordInRegion(region.id, px, pz, 0),
+          resourceDeposits
+        );
         let anyPaved = false;
         if (isRoadPathValid(grid, hPath, resourceDeposits)) {
           for (const [px, pz] of hPath) {
@@ -387,7 +391,15 @@ export class BotAISystem {
           }
         }
 
-        const campInternal = getSmartRoadPath(grid, campRoadEntrance[0], campRoadEntrance[1], campRoadCourtyard[0], campRoadCourtyard[1], region.bounds, resourceDeposits);
+        const campInternal = getSmartRoadPath(
+          grid,
+          campRoadEntrance[0],
+          campRoadEntrance[1],
+          campRoadCourtyard[0],
+          campRoadCourtyard[1],
+          (px, pz) => GridMap.isCoordInRegion(region.id, px, pz, 0),
+          resourceDeposits
+        );
         if (isRoadPathValid(grid, campInternal, resourceDeposits)) {
           for (const [px, pz] of campInternal) {
             if (grid.paveRoad(px, pz, resourceDeposits)) anyPaved = true;
@@ -396,7 +408,7 @@ export class BotAISystem {
 
         if (anyPaved) {
           incrementBuildingVersion();
-          incrementFoliageVersion(true);
+          incrementFoliageVersion();
         }
       }
 
@@ -430,7 +442,7 @@ export class BotAISystem {
         }
         if (anyConnected) {
           incrementBuildingVersion();
-          incrementFoliageVersion(true);
+          incrementFoliageVersion();
         }
       }
 
@@ -605,12 +617,15 @@ export class BotAISystem {
         }
       }
 
-      let wanderTriggered = false;
       for (const p of peasants) {
         const isIdleOrWandering = !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander';
 
-        if (isIdleOrWandering && incompleteBuildings.length > 0 && p.gridPosition) {
-          const targetB = incompleteBuildings[0];
+        if (!isNightTime && isIdleOrWandering && incompleteBuildings.length > 0 && p.gridPosition) {
+          const targetB = incompleteBuildings.find((b) => {
+            const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === b.id).length;
+            return buildersCount < 3;
+          }) || incompleteBuildings[0];
+
           const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === targetB.id).length;
           if (buildersCount < 3 && targetB.gridPosition) {
             const bW = targetB.buildingWidth || 2;
@@ -637,31 +652,177 @@ export class BotAISystem {
                 type: 'work',
               };
             }
+            continue;
           }
         }
 
-        if (!isRegionOffscreen && !isNightTime && !wanderTriggered && isIdleOrWandering && (!p.path || p.path.length === 0) && Math.random() < 0.05) {
-          wanderTriggered = true;
-          const camp = region.campPosition || region.center;
-          const rx = Math.round(camp[0] + (Math.random() * 8 - 4));
-          const rz = Math.round(camp[1] + (Math.random() * 8 - 4));
-          const tile = grid.getTile(rx, rz);
-          if (tile && tile.isPassable && !tile.buildingId && p.gridPosition) {
-            const path = AStar.findPath(grid, p.gridPosition, [rx, rz], false, region.bounds);
-            if (path && path.length > 0) {
-              p.path = path;
+        const pCooldown = (p as any).idleCooldownTicks ?? 0;
+        if (!isRegionOffscreen && !isNightTime && isIdleOrWandering && (!p.path || p.path.length === 0) && currentTick >= pCooldown && p.gridPosition) {
+          const curX = p.gridPosition[0];
+          const curZ = p.gridPosition[1];
+          const candidateDestinations: [number, number][] = [];
+
+          // 1. Stroll along village roads
+          if (grid.roadCoords && grid.roadCoords.size > 0) {
+            const gWidth = grid.width;
+            let sampleCount = 0;
+            for (const code of grid.roadCoords) {
+              if (++sampleCount > 40) break;
+              const rx = Math.floor(code / gWidth);
+              const rz = code % gWidth;
+              const dist = Math.hypot(rx - curX, rz - curZ);
+              if (dist >= 5 && dist <= 20 && rx >= region.bounds.minX + 1 && rx <= region.bounds.maxX - 1 && rz >= region.bounds.minZ + 1 && rz <= region.bounds.maxZ - 1) {
+                candidateDestinations.push([rx, rz]);
+                if (candidateDestinations.length >= 3) break;
+              }
             }
+          }
+
+          // 2. Visit completed village buildings
+          if (completedBuildings.length > 0) {
+            for (const b of completedBuildings) {
+              if (!b.gridPosition) continue;
+              const bx = b.gridPosition[0] + Math.floor((b.buildingWidth || 2) / 2);
+              const bz = b.gridPosition[1] + Math.floor((b.buildingHeight || 2) / 2);
+              for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) {
+                const tx = bx + ox;
+                const tz = bz + oz;
+                const dist = Math.hypot(tx - curX, tz - curZ);
+                if (dist >= 5 && dist <= 18 && tx >= region.bounds.minX + 1 && tx <= region.bounds.maxX - 1 && tz >= region.bounds.minZ + 1 && tz <= region.bounds.maxZ - 1 && grid.isWalkable(tx, tz)) {
+                  candidateDestinations.push([tx, tz]);
+                }
+              }
+            }
+          }
+
+          // 3. Wide regional roam (explore fields/forest edges)
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 6 + Math.random() * 10;
+            const candX = Math.round(curX + Math.cos(angle) * dist);
+            const candZ = Math.round(curZ + Math.sin(angle) * dist);
+            if (candX >= region.bounds.minX + 1 && candX <= region.bounds.maxX - 1 && candZ >= region.bounds.minZ + 1 && candZ <= region.bounds.maxZ - 1 && grid.isWalkable(candX, candZ)) {
+              candidateDestinations.push([candX, candZ]);
+            }
+          }
+
+          if (candidateDestinations.length > 0) {
+            const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
+            const path = AStar.findPath(grid, p.gridPosition, chosen, false, region.bounds);
+            if (path && path.length >= 3) {
+              p.path = path;
+              p.currentJob = {
+                id: `bot-wander-${p.id}-${Date.now()}`,
+                type: 'wander',
+                progress: 0,
+                totalWork: 20,
+              };
+              if (Math.random() < 0.35) {
+                const phrases = ["Розім'яти б ноги", 'Огляну володіння', 'Пройдуся селом', 'Перевірю стежки', 'Гарна нині погода'];
+                p.speechBubble = {
+                  text: phrases[Math.floor(Math.random() * phrases.length)],
+                  expiresAtTick: currentTick + 30,
+                  type: 'mood',
+                };
+              }
+            } else {
+              (p as any).idleCooldownTicks = currentTick + 25;
+            }
+          } else {
+            (p as any).idleCooldownTicks = currentTick + 25;
           }
         }
       }
 
-      if (incompleteBuildings.length > 0) {
+      const botLord = botUnits.find((u) => u.characterClass === 'lord' || isNoble(u));
+      const lordCooldown = (botLord as any)?.idleCooldownTicks ?? 0;
+      if (botLord && !isRegionOffscreen && !isNightTime && (!botLord.path || botLord.path.length === 0) && currentTick >= lordCooldown && botLord.gridPosition) {
+        const isLordIdle = !botLord.currentJob || botLord.currentJob.type === 'idle' || botLord.currentJob.type === 'wander';
+        if (isLordIdle) {
+          const curX = botLord.gridPosition[0];
+          const curZ = botLord.gridPosition[1];
+          const candidateDestinations: [number, number][] = [];
+
+          // Lord inspects roads / highway
+          if (grid.roadCoords && grid.roadCoords.size > 0) {
+            const gWidth = grid.width;
+            let sampleCount = 0;
+            for (const code of grid.roadCoords) {
+              if (++sampleCount > 50) break;
+              const rx = Math.floor(code / gWidth);
+              const rz = code % gWidth;
+              const dist = Math.hypot(rx - curX, rz - curZ);
+              if (dist >= 6 && dist <= 22 && rx >= region.bounds.minX + 1 && rx <= region.bounds.maxX - 1 && rz >= region.bounds.minZ + 1 && rz <= region.bounds.maxZ - 1) {
+                candidateDestinations.push([rx, rz]);
+                if (candidateDestinations.length >= 3) break;
+              }
+            }
+          }
+
+          // Lord visits buildings or construction site
+          if (incompleteBuildings.length > 0) {
+            const b = incompleteBuildings[0];
+            if (b.gridPosition) {
+              const bx = b.gridPosition[0] + Math.floor((b.buildingWidth || 2) / 2);
+              const bz = b.gridPosition[1] + Math.floor((b.buildingHeight || 2) / 2);
+              for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) {
+                const tx = bx + ox;
+                const tz = bz + oz;
+                if (grid.isWalkable(tx, tz) && tx >= region.bounds.minX + 1 && tx <= region.bounds.maxX - 1 && tz >= region.bounds.minZ + 1 && tz <= region.bounds.maxZ - 1) {
+                  candidateDestinations.push([tx, tz]);
+                }
+              }
+            }
+          }
+
+          // Wide patrol
+          for (let attempt = 0; attempt < 8; attempt++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 7 + Math.random() * 11;
+            const candX = Math.round(curX + Math.cos(angle) * dist);
+            const candZ = Math.round(curZ + Math.sin(angle) * dist);
+            if (candX >= region.bounds.minX + 1 && candX <= region.bounds.maxX - 1 && candZ >= region.bounds.minZ + 1 && candZ <= region.bounds.maxZ - 1 && grid.isWalkable(candX, candZ)) {
+              candidateDestinations.push([candX, candZ]);
+            }
+          }
+
+          if (candidateDestinations.length > 0) {
+            const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
+            const lordPath = AStar.findPath(grid, botLord.gridPosition, chosen, false, region.bounds);
+            if (lordPath && lordPath.length >= 3) {
+              botLord.path = lordPath;
+              botLord.currentJob = {
+                id: `bot-lord-wander-${Date.now()}`,
+                type: 'wander',
+                progress: 0,
+                totalWork: 25,
+              };
+              if (Math.random() < 0.45) {
+                const lordPhrases = ['Оглядаю володіння', 'Перевіряю стан земель', 'Село повинно процвітати', 'Огляну будівництво та дороги'];
+                botLord.speechBubble = {
+                  text: lordPhrases[Math.floor(Math.random() * lordPhrases.length)],
+                  expiresAtTick: currentTick + 35,
+                  type: 'mood',
+                };
+              }
+            } else {
+              (botLord as any).idleCooldownTicks = currentTick + 30;
+            }
+          } else {
+            (botLord as any).idleCooldownTicks = currentTick + 30;
+          }
+        }
+      }
+
+      if (!isNightTime && incompleteBuildings.length > 0) {
         const targetB = incompleteBuildings[0];
         const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === targetB.id).length;
         if (buildersCount === 0 && targetB.gridPosition) {
-          const fallbackBuilder =
-            peasants.find((p) => !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander' || p.currentJob.type === 'work_at_building') ||
-            peasants[0];
+          const fallbackBuilder = peasants.find((p) =>
+            (!p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander' || p.currentJob.type === 'work_at_building') &&
+            p.currentJob?.type !== 'sleep' &&
+            p.currentJob?.type !== 'sit_by_fire'
+          );
           if (fallbackBuilder && fallbackBuilder.gridPosition) {
             const bW = targetB.buildingWidth || 2;
             const bH = targetB.buildingHeight || 2;
@@ -711,7 +872,8 @@ export class BotAISystem {
       if (currentTick - memory.lastImmigrationTick >= BOT_AI_IMMIGRATION_INTERVAL) {
         memory.lastImmigrationTick = currentTick;
 
-        if (peasants.length < totalBeds && peasants.length < BOT_AI_MAX_PEASANTS) {
+        const lordBedsNeeded = botLord ? 1 : 0;
+        if (peasants.length + lordBedsNeeded < totalBeds && peasants.length < BOT_AI_MAX_PEASANTS) {
           const isFemale = Math.random() < 0.45;
           const namePool = isFemale ? UKRAINIAN_NAMES_FEMALE : UKRAINIAN_NAMES_MALE;
           const chosenName = namePool[Math.floor(Math.random() * namePool.length)];
@@ -794,13 +956,9 @@ export class BotAISystem {
         const canAttempt = (t: BuildingType) => (BotAISystem.failedGoals.get(`${botFactionId}-${t}`) || 0) <= currentTick;
 
         const regionalDeposits = resourceDeposits.filter((d) => {
+          if (d.regionId !== undefined) return d.regionId === region.id;
           const [dx, , dz] = d.position || [d.gridPosition[0] + 0.5, 0, d.gridPosition[1] + 0.5];
-          return (
-            dx >= region.bounds.minX &&
-            dx <= region.bounds.maxX &&
-            dz >= region.bounds.minZ &&
-            dz <= region.bounds.maxZ
-          );
+          return GridMap.isCoordInRegion(region.id, dx, dz, 0);
         });
 
         const hasStoneDeposit = regionalDeposits.some((d) => d.type === 'stone');
@@ -979,25 +1137,40 @@ export class BotAISystem {
             let placedResult: PlacementCandidate | null = null;
 
             const checkPlacementValid = (bx: number, bz: number, w: number, h: number): boolean => {
-              if (
-                bx < region.bounds.minX + 3 ||
-                bx + w > region.bounds.maxX - 3 ||
-                bz < region.bounds.minZ + 3 ||
-                bz + h > region.bounds.maxZ - 3
-              ) {
+              if (!GridMap.isBuildingInRegion(region.id, bx, bz, w, h, 4.0)) {
                 return false;
               }
 
-              const validation = validateBuildingPlacement(
-                bType,
-                bx,
-                bz,
-                w,
-                h,
-                grid,
-                resourceDeposits
-              );
-              if (!validation.allowed) return false;
+              for (let dx = 0; dx < w; dx++) {
+                for (let dz = 0; dz < h; dz++) {
+                  const tx = bx + dx;
+                  const tz = bz + dz;
+                  const t = grid.getTile(tx, tz);
+                  if (!t || t.terrain === 'water' || t.terrain === 'road' || t.buildingId) {
+                    return false;
+                  }
+                }
+              }
+
+              if (isOverlappingResourceDeposit(bx, bz, w, h, resourceDeposits)) {
+                return false;
+              }
+
+              if (bType === 'fishermans_hut') {
+                let touchesWater = false;
+                for (let dx = -1; dx <= w; dx++) {
+                  for (let dz = -1; dz <= h; dz++) {
+                    if (dx >= 0 && dx < w && dz >= 0 && dz < h) continue;
+                    const pt = grid.getTile(bx + dx, bz + dz);
+                    if (pt && pt.terrain === 'water') {
+                      touchesWater = true;
+                      break;
+                    }
+                  }
+                  if (touchesWater) break;
+                }
+                if (!touchesWater) return false;
+              }
 
               const isWall = bType === 'wooden_wall' || bType === 'stone_wall' || bType === 'wooden_gate';
               const minSpacing = isWall ? 0 : (bType === 'windmill' ? 2 : 1);
@@ -1068,7 +1241,7 @@ export class BotAISystem {
                     for (let pz = bz - 1; pz <= bz + candH; pz++) {
                       if (px >= bx && px < bx + candW && pz >= bz && pz < bz + candH) continue;
                       const pt = grid.getTile(px, pz);
-                      if (pt && pt.terrain !== 'water' && !pt.buildingId && pt.isPassable) {
+                      if (pt && pt.terrain !== 'water' && !pt.buildingId) {
                         hasPerimeterOpen = true;
                         break;
                       }
@@ -1126,7 +1299,6 @@ export class BotAISystem {
             if (!placedResult && !candidateGoal.targetDeposit) {
               const roadCoords = grid.roadCoords;
               if (roadCoords && roadCoords.size > 0) {
-                const b = region.bounds;
                 let checkedCount = 0;
                 const maxRoadChecks = 80;
                 const roadStep = Math.max(1, Math.floor(roadCoords.size / maxRoadChecks));
@@ -1138,7 +1310,10 @@ export class BotAISystem {
 
                   const rx = Math.floor(key / grid.width);
                   const rz = key % grid.width;
-                  if (rx < b.minX + 4 || rx > b.maxX - 4 || rz < b.minZ + 4 || rz > b.maxZ - 4) {
+                  if (GridMap.isTradeHighwayTile(rx, rz) || GridMap.getDistanceToHighway(rx, rz) < 6.0) {
+                    continue;
+                  }
+                  if (!GridMap.isCoordInRegion(region.id, rx, rz, 4.0)) {
                     continue;
                   }
                   const distToCamp = Math.hypot(rx - camp[0], rz - camp[1]);
@@ -1242,12 +1417,13 @@ export class BotAISystem {
 
               if (BotAISystem.connectBuildingToRoadNetwork(botBuilding, grid, region, resourceDeposits, currentTick)) {
                 incrementBuildingVersion();
-                incrementFoliageVersion(true);
+                incrementFoliageVersion();
               }
 
-              const builderPeasant =
-                peasants.find((p) => !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander') ||
-                peasants[0];
+              const builderPeasant = !isNightTime
+                ? (peasants.find((p) => (!p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander') && p.currentJob?.type !== 'sleep' && p.currentJob?.type !== 'sit_by_fire') ||
+                   peasants.find((p) => p.currentJob?.type !== 'sleep' && p.currentJob?.type !== 'sit_by_fire'))
+                : undefined;
 
               if (builderPeasant && builderPeasant.gridPosition) {
                 const buildPath = AStar.findPathToArea(grid, builderPeasant.gridPosition, bx, bz, bWidth, bHeight, region.bounds);

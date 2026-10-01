@@ -140,9 +140,9 @@ export class MovementSystem {
           stuckTracker.set(entity.id, tracker);
         } else {
           tracker.ticks++;
-          if (tracker.ticks >= 30) {
+          if (tracker.ticks >= 120) {
             const netProgress = Math.hypot(curX - tracker.anchorX, curZ - tracker.anchorZ);
-            if (netProgress < 0.2) {
+            if (netProgress < 0.25) {
               entity.path = [];
               stuckTracker.delete(entity.id);
               continue;
@@ -176,21 +176,26 @@ export class MovementSystem {
           const dz = targetZ - currentZ;
           const distance = Math.hypot(dx, dz);
 
+          const isFinalWp = entity.path.length === 1;
+          const arrivalThreshold = isFinalWp ? Math.max(remainingMove, 0.28) : Math.max(remainingMove, 0.35);
 
-
-          if (distance <= remainingMove) {
+          if (distance <= arrivalThreshold) {
             entity.position[0] = targetX;
             entity.position[2] = targetZ;
             if (entity.gridPosition) {
-              entity.gridPosition[0] = wp[0];
-              entity.gridPosition[1] = wp[1];
+              entity.gridPosition[0] = Math.floor(targetX);
+              entity.gridPosition[1] = Math.floor(targetZ);
             } else {
-              entity.gridPosition = [wp[0], wp[1]];
+              entity.gridPosition = [Math.floor(targetX), Math.floor(targetZ)];
             }
             entity.path.shift();
-            remainingMove -= distance;
+            remainingMove = Math.max(0, remainingMove - distance);
             if (entity.path.length === 0) {
               stuckTracker.delete(entity.id);
+              if (entity.currentJob?.type === 'wander') {
+                entity.currentJob = { id: `idle-${entity.id}`, type: 'idle', progress: 0, totalWork: 0 };
+                (entity as any).idleCooldownTicks = (useGameStore.getState().time.tick || 0) + Math.floor(Math.random() * 45 + 30);
+              }
               break;
             }
           } else {
@@ -305,6 +310,12 @@ export class MovementSystem {
               }
 
               if (fixedA && fixedB) {
+                continue;
+              }
+
+              const isCampfireA = entA.currentJob?.type === 'sit_by_fire';
+              const isCampfireB = entB.currentJob?.type === 'sit_by_fire';
+              if (isCampfireA && isCampfireB) {
                 continue;
               }
 

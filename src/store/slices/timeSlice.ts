@@ -13,6 +13,7 @@ import {
   DAYS_PER_MONTH,
   getDateInfo,
   timeToTicks,
+  getTargetSnowAccumulation,
 } from '../../constants/time';
 import type { GameState, TimeSlice } from '../types';
 
@@ -39,7 +40,7 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
     rainIntensity: 0,
     stormIntensity: 0,
     snowIntensity: 0,
-    snowAccumulation: 0,
+    snowAccumulation: getTargetSnowAccumulation('Spring', 1, 7, 0),
     lightningFlash: 0,
     speedMultiplier: 1,
     isPaused: false,
@@ -74,12 +75,25 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       const newDay = baseDay + currentDayInSeason;
       const newTick = timeToTicks(newDay, state.time.hour, state.time.minute);
       const dateInfo = getDateInfo(newDay);
+      const newSnowAcc = getTargetSnowAccumulation(newSeason, dateInfo.dayInSeason, state.time.hour, state.time.minute);
 
       let newTargetWeather = state.time.targetWeather || state.time.weather;
-      if (newSeason === 'Winter' && (newTargetWeather === 'rain' || newTargetWeather === 'storm')) {
-        newTargetWeather = 'snow';
-      } else if (newSeason !== 'Winter' && newTargetWeather === 'snow') {
-        newTargetWeather = 'clear';
+      let newNextWeather = state.time.nextWeather || 'clear';
+
+      if (newSeason === 'Winter') {
+        if (newTargetWeather === 'rain' || newTargetWeather === 'storm') {
+          newTargetWeather = 'snow';
+        }
+        if (newNextWeather === 'rain' || newNextWeather === 'storm') {
+          newNextWeather = 'snow';
+        }
+      } else {
+        if (newTargetWeather === 'snow') {
+          newTargetWeather = 'clear';
+        }
+        if (newNextWeather === 'snow') {
+          newNextWeather = 'clear';
+        }
       }
 
       let nextDeposits = state.resourceDeposits;
@@ -105,7 +119,13 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
           monthInSeason: dateInfo.monthInSeason,
           year: dateInfo.year,
           season: newSeason,
+          weather: newTargetWeather,
           targetWeather: newTargetWeather,
+          nextWeather: newNextWeather,
+          rainIntensity: newSeason === 'Winter' ? 0 : state.time.rainIntensity,
+          stormIntensity: newSeason === 'Winter' ? 0 : state.time.stormIntensity,
+          snowIntensity: newSeason !== 'Winter' ? 0 : state.time.snowIntensity,
+          snowAccumulation: newSnowAcc,
         },
         resourceDeposits: nextDeposits,
         foliageVersion: state.foliageVersion + 1,
@@ -122,11 +142,25 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       const dateInfo = getDateInfo(newDay);
 
       let newTargetWeather = state.time.targetWeather || state.time.weather;
-      if (dateInfo.season === 'Winter' && (newTargetWeather === 'rain' || newTargetWeather === 'storm')) {
-        newTargetWeather = 'snow';
-      } else if (dateInfo.season !== 'Winter' && newTargetWeather === 'snow') {
-        newTargetWeather = 'clear';
+      let newNextWeather = state.time.nextWeather || 'clear';
+
+      if (dateInfo.season === 'Winter') {
+        if (newTargetWeather === 'rain' || newTargetWeather === 'storm') {
+          newTargetWeather = 'snow';
+        }
+        if (newNextWeather === 'rain' || newNextWeather === 'storm') {
+          newNextWeather = 'snow';
+        }
+      } else {
+        if (newTargetWeather === 'snow') {
+          newTargetWeather = 'clear';
+        }
+        if (newNextWeather === 'snow') {
+          newNextWeather = 'clear';
+        }
       }
+
+      const newSnowAcc = getTargetSnowAccumulation(dateInfo.season, dateInfo.dayInSeason, state.time.hour, state.time.minute);
 
       return {
         time: {
@@ -139,7 +173,13 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
           monthInSeason: dateInfo.monthInSeason,
           year: dateInfo.year,
           season: dateInfo.season,
+          weather: newTargetWeather,
           targetWeather: newTargetWeather,
+          nextWeather: newNextWeather,
+          rainIntensity: dateInfo.season === 'Winter' ? 0 : state.time.rainIntensity,
+          stormIntensity: dateInfo.season === 'Winter' ? 0 : state.time.stormIntensity,
+          snowIntensity: dateInfo.season !== 'Winter' ? 0 : state.time.snowIntensity,
+          snowAccumulation: newSnowAcc,
         },
         foliageVersion: state.foliageVersion + 1,
       };
@@ -147,14 +187,31 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
   },
 
   setWeather: (newWeather: WeatherType, locked: boolean = true) => {
-    set((state) => ({
-      time: {
-        ...state.time,
-        targetWeather: newWeather,
-        isWeatherLocked: locked,
-        lightningFlash: newWeather === 'storm' ? 1.0 : 0,
-      },
-    }));
+    set((state) => {
+      let validWeather = newWeather;
+      if (state.time.season === 'Winter') {
+        if (validWeather === 'rain' || validWeather === 'storm') {
+          validWeather = 'snow';
+        }
+      } else {
+        if (validWeather === 'snow') {
+          validWeather = 'clear';
+        }
+      }
+      return {
+        time: {
+          ...state.time,
+          targetWeather: validWeather,
+          nextWeather: validWeather,
+          weather: validWeather,
+          isWeatherLocked: locked,
+          rainIntensity: validWeather === 'rain' ? 1.0 : validWeather === 'storm' ? 0.85 : 0,
+          stormIntensity: validWeather === 'storm' ? 1.0 : 0,
+          snowIntensity: validWeather === 'snow' ? 1.0 : 0,
+          lightningFlash: validWeather === 'storm' ? 1.0 : 0,
+        },
+      };
+    });
   },
 
   setWeatherLocked: (locked: boolean) => {
@@ -170,7 +227,7 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
     set((state) => ({
       time: {
         ...state.time,
-        lightningFlash: 1.0,
+        lightningFlash: state.time.season === 'Winter' ? 0 : 1.0,
       },
     }));
   },
@@ -236,6 +293,22 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       let targetWeather = state.time.targetWeather || state.time.weather || 'clear';
       let nextWeather = state.time.nextWeather || 'clear';
 
+      if (season === 'Winter') {
+        if (targetWeather === 'rain' || targetWeather === 'storm') {
+          targetWeather = 'snow';
+        }
+        if (nextWeather === 'rain' || nextWeather === 'storm') {
+          nextWeather = 'snow';
+        }
+      } else {
+        if (targetWeather === 'snow') {
+          targetWeather = 'clear';
+        }
+        if (nextWeather === 'snow') {
+          nextWeather = 'clear';
+        }
+      }
+
       if (!state.time.isWeatherLocked) {
         if (nextTick % 1080 === 0) {
           targetWeather = nextWeather;
@@ -252,13 +325,13 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
         }
       }
 
-      const targetRain = (targetWeather === 'rain' ? 1.0 : targetWeather === 'storm' ? 0.85 : 0.0);
-      const targetStorm = (targetWeather === 'storm' ? 1.0 : 0.0);
-      const targetSnow = (targetWeather === 'snow' ? 1.0 : 0.0);
+      const targetRain = season === 'Winter' ? 0.0 : (targetWeather === 'rain' ? 1.0 : targetWeather === 'storm' ? 0.85 : 0.0);
+      const targetStorm = season === 'Winter' ? 0.0 : (targetWeather === 'storm' ? 1.0 : 0.0);
+      const targetSnow = season === 'Winter' ? (targetWeather === 'snow' ? 1.0 : 0.0) : 0.0;
 
-      let curRain = state.time.rainIntensity ?? (state.time.weather === 'rain' ? 1 : 0);
-      let curStorm = state.time.stormIntensity ?? (state.time.weather === 'storm' ? 1 : 0);
-      let curSnow = state.time.snowIntensity ?? (state.time.weather === 'snow' ? 1 : 0);
+      let curRain = season === 'Winter' ? 0 : (state.time.rainIntensity ?? (state.time.weather === 'rain' ? 1 : 0));
+      let curStorm = season === 'Winter' ? 0 : (state.time.stormIntensity ?? (state.time.weather === 'storm' ? 1 : 0));
+      let curSnow = season !== 'Winter' ? 0 : (state.time.snowIntensity ?? (state.time.weather === 'snow' ? 1 : 0));
 
       if (curRain < targetRain) {
         curRain = Math.min(targetRain, curRain + 0.0035);
@@ -279,16 +352,20 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
       }
 
       let currentWeather: WeatherType = 'clear';
-      if (curRain > 0.08) {
-        currentWeather = curStorm > 0.40 ? 'storm' : 'rain';
-      } else if (curSnow > 0.08) {
-        currentWeather = 'snow';
+      if (season === 'Winter') {
+        currentWeather = curSnow > 0.08 ? 'snow' : 'clear';
       } else {
-        currentWeather = targetWeather === 'clear' ? 'clear' : state.time.weather;
+        if (curRain > 0.08) {
+          currentWeather = curStorm > 0.40 ? 'storm' : 'rain';
+        } else {
+          currentWeather = 'clear';
+        }
       }
 
       let flash = state.time.lightningFlash || 0;
-      if (curStorm > 0.45) {
+      if (season === 'Winter') {
+        flash = 0;
+      } else if (curStorm > 0.45) {
         if (Math.random() < 0.008 * curStorm) {
           flash = 1.0;
         } else if (flash > 0) {
@@ -298,16 +375,14 @@ export const createTimeSlice: StateCreator<GameState, [], [], TimeSlice> = (set)
         flash = Math.max(0, flash - 0.08);
       }
 
-      let curSnowAcc = state.time.snowAccumulation || 0;
-      if (season === 'Winter') {
-        const targetWinterSnow = Math.min(1.0, dayInSeason / (DAYS_PER_SEASON * 0.7));
-        const snowRate = curSnow > 0.1 ? 0.0003 : 0.00008;
-        curSnowAcc = Math.min(targetWinterSnow, curSnowAcc + snowRate);
-      } else if (season === 'Spring') {
-        const targetSpringSnow = Math.max(0.0, 1.0 - dayInSeason / (DAYS_PER_SEASON * 0.4));
-        curSnowAcc = Math.max(targetSpringSnow, curSnowAcc - 0.0002);
-      } else {
-        curSnowAcc = Math.max(0.0, curSnowAcc - 0.0005);
+      const targetSnowAcc = getTargetSnowAccumulation(season, dayInSeason, hour, minute);
+      let curSnowAcc = state.time.snowAccumulation ?? 0;
+      if (curSnowAcc < targetSnowAcc) {
+        const snowRate = curSnow > 0.1 ? 0.0005 : 0.0002;
+        curSnowAcc = Math.min(targetSnowAcc, curSnowAcc + snowRate);
+      } else if (curSnowAcc > targetSnowAcc) {
+        const meltRate = curRain > 0.1 ? 0.0006 : 0.00025;
+        curSnowAcc = Math.max(targetSnowAcc, curSnowAcc - meltRate);
       }
 
       state.time.tick = nextTick;

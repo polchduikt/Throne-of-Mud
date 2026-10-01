@@ -3,6 +3,8 @@ import { buildingEntities, characterEntities } from '../../world';
 import { GridMap } from '../../../grid/GridMap';
 import { getBuildingDoorInfo, createPathSafely, createPathToAreaSafely } from '../../../buildings/buildingNavigation';
 import { distance2D } from '../../../../utils/mathUtils';
+import { isNoble } from '../../entityHelpers';
+import { useGameStore } from '../../../../store/useGameStore';
 
 export class ManualJobHandler {
   public static assignPendingJob(
@@ -176,83 +178,144 @@ export class ManualJobHandler {
     unit: GameEntity,
     grid: GridMap,
     uBounds: { minX: number; maxX: number; minZ: number; maxZ: number } | undefined,
-    cx: number,
-    cz: number
+    _cx: number,
+    _cz: number,
+    currentTick?: number
   ): void {
-    if (!unit.path || unit.path.length === 0) {
-      if (Math.random() < 0.08 && unit.gridPosition) {
-        const minX = uBounds ? uBounds.minX + 2 : 2;
-        const maxX = uBounds ? uBounds.maxX - 2 : grid.width - 3;
-        const minZ = uBounds ? uBounds.minZ + 2 : 2;
-        const maxZ = uBounds ? uBounds.maxZ - 2 : grid.height - 3;
+    if (unit.path && unit.path.length > 0) return;
 
-        const playerBuildings: GameEntity[] = [];
-        for (const b of buildingEntities) {
-          if (
-            (b.factionId === 'player' || b.factionId === undefined) &&
-            b.isCompleted &&
-            b.gridPosition
-          ) {
-            playerBuildings.push(b);
-          }
+    const tick = currentTick ?? (useGameStore.getState().time.tick || 0);
+    const cooldown = (unit as any).idleCooldownTicks ?? 0;
+    if (tick < cooldown) {
+      return;
+    }
+
+    if (!unit.gridPosition) return;
+    const curX = unit.gridPosition[0];
+    const curZ = unit.gridPosition[1];
+
+    const minX = uBounds ? uBounds.minX + 2 : 2;
+    const maxX = uBounds ? uBounds.maxX - 2 : grid.width - 3;
+    const minZ = uBounds ? uBounds.minZ + 2 : 2;
+    const maxZ = uBounds ? uBounds.maxZ - 2 : grid.height - 3;
+
+    const candidateDestinations: [number, number][] = [];
+
+    // 1. Stroll along village roads if any exist nearby
+    if (grid.roadCoords && grid.roadCoords.size > 0) {
+      const gWidth = grid.width;
+      let sampleCount = 0;
+      for (const code of grid.roadCoords) {
+        if (++sampleCount > 50) break;
+        const rx = Math.floor(code / gWidth);
+        const rz = code % gWidth;
+        const dist = Math.hypot(rx - curX, rz - curZ);
+        if (dist >= 5 && dist <= 20 && rx >= minX && rx <= maxX && rz >= minZ && rz <= maxZ) {
+          candidateDestinations.push([rx, rz]);
+          if (candidateDestinations.length >= 4) break;
         }
+      }
+    }
 
-        let anchorX = cx;
-        let anchorZ = cz;
-        let wanderRange = 12;
+    // 2. Visit or pass by completed village buildings
+    const localBuildings: GameEntity[] = [];
+    for (const b of buildingEntities) {
+      if (!b.isCompleted || !b.gridPosition) continue;
+      const isSameFaction = unit.factionId ? b.factionId === unit.factionId : (b.factionId === 'player' || b.factionId === undefined);
+      const isSameRegion = unit.regionId !== undefined ? b.regionId === unit.regionId : false;
+      if (isSameFaction || isSameRegion) {
+        localBuildings.push(b);
+      }
+    }
 
-        if (playerBuildings.length > 0 && Math.random() < 0.65) {
-          const randomB = playerBuildings[Math.floor(Math.random() * playerBuildings.length)];
-          if (randomB.gridPosition) {
-            anchorX = randomB.gridPosition[0] + Math.floor((randomB.buildingWidth || 2) / 2);
-            anchorZ = randomB.gridPosition[1] + Math.floor((randomB.buildingHeight || 2) / 2);
-            wanderRange = 5;
-          }
-        }
-
-        let rx = Math.max(minX, Math.min(maxX, anchorX + Math.floor(Math.random() * (wanderRange * 2 + 1) - wanderRange)));
-        let rz = Math.max(minZ, Math.min(maxZ, anchorZ + Math.floor(Math.random() * (wanderRange * 2 + 1) - wanderRange)));
-
-        const occupiedCoords = new Set<number>();
-        for (const c of characterEntities) {
-          if (c.id !== unit.id && c.gridPosition) {
-            occupiedCoords.add((c.gridPosition[1] << 16) | (c.gridPosition[0] & 0xffff));
-          }
-        }
-
-        for (let attempt = 0; attempt < 8; attempt++) {
-          const candX = Math.max(minX, Math.min(maxX, anchorX + Math.floor(Math.random() * (wanderRange * 2 + 1) - wanderRange)));
-          const candZ = Math.max(minZ, Math.min(maxZ, anchorZ + Math.floor(Math.random() * (wanderRange * 2 + 1) - wanderRange)));
-          const key = (candZ << 16) | (candX & 0xffff);
-
-          if (!occupiedCoords.has(key) && grid.isWalkable(candX, candZ)) {
-            rx = candX;
-            rz = candZ;
-            break;
-          }
-        }
-
-        if (grid.isWalkable(rx, rz)) {
-          const wanderPath = createPathSafely(
-            grid,
-            unit.position,
-            unit.gridPosition,
-            [rx, rz],
-            buildingEntities,
-            false,
-            uBounds
-          );
-          if (wanderPath && wanderPath.length > 0) {
-            unit.path = wanderPath;
-            unit.currentJob = {
-              id: `wander-${Date.now()}`,
-              type: 'wander',
-              progress: 0,
-              totalWork: 12,
-            };
+    if (localBuildings.length > 0) {
+      for (const b of localBuildings) {
+        if (!b.gridPosition) continue;
+        const bx = b.gridPosition[0] + Math.floor((b.buildingWidth || 2) / 2);
+        const bz = b.gridPosition[1] + Math.floor((b.buildingHeight || 2) / 2);
+        for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, 2]]) {
+          const tx = bx + ox;
+          const tz = bz + oz;
+          const dist = Math.hypot(tx - curX, tz - curZ);
+          if (dist >= 5 && dist <= 20 && tx >= minX && tx <= maxX && tz >= minZ && tz <= maxZ && grid.isWalkable(tx, tz)) {
+            candidateDestinations.push([tx, tz]);
           }
         }
       }
+    }
+
+    // 3. Wide regional roam (explore forest edges, perimeter, scenic spots)
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 6 + Math.random() * 10; // 6 to 16 tiles
+      const candX = Math.round(curX + Math.cos(angle) * dist);
+      const candZ = Math.round(curZ + Math.sin(angle) * dist);
+      if (candX >= minX && candX <= maxX && candZ >= minZ && candZ <= maxZ && grid.isWalkable(candX, candZ)) {
+        candidateDestinations.push([candX, candZ]);
+      }
+    }
+
+    if (candidateDestinations.length === 0) {
+      (unit as any).idleCooldownTicks = tick + 25;
+      return;
+    }
+
+    const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
+    const wanderPath = createPathSafely(
+      grid,
+      unit.position,
+      unit.gridPosition,
+      chosen,
+      buildingEntities,
+      false,
+      uBounds
+    );
+
+    if (wanderPath && wanderPath.length >= 3) {
+      unit.path = wanderPath;
+      unit.currentJob = {
+        id: `wander-${Date.now()}`,
+        type: 'wander',
+        progress: 0,
+        totalWork: 25,
+      };
+
+      if (Math.random() < 0.40) {
+        const isLord = isNoble(unit);
+        let text = '';
+        if (isLord) {
+          const lordPhrases = [
+            'Оглядаю володіння',
+            'Село зростає на очах',
+            'Свіже повітря піде на користь',
+            'Усе йде за планом',
+            'Потрібно перевірити межі земель',
+            'Вітаю, жителі моїх земель!',
+            'Огляну дорогу до столиці',
+          ];
+          text = lordPhrases[Math.floor(Math.random() * lordPhrases.length)];
+        } else {
+          const peasantPhrases = [
+            "Розім'яти б ноги",
+            'Піду гляну, як там справи',
+            'Гарна нині погода',
+            'Час перепочити',
+            'Піду погріюся біля вогню',
+            'Наше поселення гарнішає',
+            'Стежки ведуть до вогнища',
+            'Огляну, де ростуть дерева',
+            'Пройдуся вздовж дороги',
+          ];
+          text = peasantPhrases[Math.floor(Math.random() * peasantPhrases.length)];
+        }
+        unit.speechBubble = {
+          text,
+          expiresAtTick: tick + 35,
+          type: 'mood',
+        };
+      }
+    } else {
+      (unit as any).idleCooldownTicks = tick + 25;
     }
   }
 

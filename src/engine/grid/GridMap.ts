@@ -29,6 +29,80 @@ export class GridMap {
     return 127.5 + Math.sin((x - 128) * 0.045) * 7.0 + Math.sin((x - 128) * 0.11) * 3.0;
   }
 
+  public static isTradeHighwayTile(x: number, z: number): boolean {
+    const roadX = GridMap.getHighwayX(z);
+    const distRoadX = Math.abs(x - roadX);
+    const roadZ = GridMap.getHighwayZ(x);
+    const distRoadZ = Math.abs(z - roadZ);
+    const distPlaza = Math.hypot(x - 127.5, z - 127.5);
+    return distRoadX <= 0.90 || distRoadZ <= 0.90 || distPlaza <= 2.8;
+  }
+
+  public static getDistanceToHighway(x: number, z: number): number {
+    const roadX = GridMap.getHighwayX(z);
+    const distRoadX = Math.abs(x - roadX);
+    const roadZ = GridMap.getHighwayZ(x);
+    const distRoadZ = Math.abs(z - roadZ);
+    const distPlaza = Math.hypot(x - 127.5, z - 127.5);
+    return Math.min(distRoadX, distRoadZ, distPlaza);
+  }
+
+  public static getRegionIdForCoord(x: number, z: number): number {
+    const hwX = GridMap.getHighwayX(z);
+    const hwZ = GridMap.getHighwayZ(x);
+    const isEast = x >= hwX;
+    const isSouth = z >= hwZ;
+    if (!isEast && !isSouth) return 0;
+    if (isEast && !isSouth) return 1;
+    if (!isEast && isSouth) return 2;
+    return 3;
+  }
+
+  public static isCoordInRegion(regionId: number, x: number, z: number, highwayBuffer: number = 0): boolean {
+    if (x < 2 + highwayBuffer || x > 253 - highwayBuffer || z < 2 + highwayBuffer || z > 253 - highwayBuffer) {
+      return false;
+    }
+
+    const hwX = GridMap.getHighwayX(z);
+    const hwZ = GridMap.getHighwayZ(x);
+    const distPlaza = Math.hypot(x - 127.5, z - 127.5);
+
+    if (distPlaza < 3.2 + highwayBuffer) {
+      return false;
+    }
+
+    switch (regionId) {
+      case 0:
+        return x <= hwX - highwayBuffer && z <= hwZ - highwayBuffer;
+      case 1:
+        return x >= hwX + highwayBuffer && z <= hwZ - highwayBuffer;
+      case 2:
+        return x <= hwX - highwayBuffer && z >= hwZ + highwayBuffer;
+      case 3:
+        return x >= hwX + highwayBuffer && z >= hwZ + highwayBuffer;
+      default:
+        return false;
+    }
+  }
+
+  public static isBuildingInRegion(
+    regionId: number,
+    bx: number,
+    bz: number,
+    width: number,
+    height: number,
+    highwayBuffer: number = 0
+  ): boolean {
+    for (let dx = 0; dx < width; dx++) {
+      for (let dz = 0; dz < height; dz++) {
+        if (!GridMap.isCoordInRegion(regionId, bx + dx, bz + dz, highwayBuffer)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   constructor(width = 256, height = 256, seed = 1234.56) {
     this.width = width;
     this.height = height;
@@ -481,6 +555,12 @@ export class GridMap {
     tile.movementCost = 1.0;
     this.dirtyTerrainCoords.push(x, z);
     return true;
+  }
+
+  public clearAllRoads(): void {
+    this.roadCoords.clear();
+    this.dirtyTerrainCoords = [];
+    this.isFullTerrainDirty = true;
   }
 
   public getNeighbors(x: number, z: number): TileData[] {

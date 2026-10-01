@@ -97,3 +97,32 @@ export function ticksToTime(tick: number) {
   return { day, hour, minute, ...dateInfo };
 }
 
+export function getTargetSnowAccumulation(
+  season: SeasonType,
+  dayInSeason: number,
+  hour: number = 12,
+  minute: number = 0
+): number {
+  const fractionalDay = dayInSeason + (hour * 60 + minute) / (24 * 60);
+
+  if (season === 'Winter') {
+    if (fractionalDay <= 15) {
+      return Math.min(1.0, Math.max(0.0, fractionalDay / 15));
+    } else if (fractionalDay <= 20) {
+      return 1.0;
+    } else {
+      const meltProgress = (fractionalDay - 20) / 10;
+      return Math.max(0.35, Math.min(1.0, 1.0 - meltProgress * 0.65));
+    }
+  } else if (season === 'Spring') {
+    if (fractionalDay < 5.0) {
+      const meltRatio = (5.0 - fractionalDay) / 4.0;
+      return Math.max(0.0, Math.min(0.30, 0.30 * meltRatio));
+    } else {
+      return 0.0;
+    }
+  } else {
+    return 0.0;
+  }
+}
+

@@ -133,7 +133,8 @@ export function validateRotatedBuildingPlacement(
   footprint: RotatedFootprint,
   grid: GridMap,
   resourceDeposits: ResourceDeposit[],
-  regionBounds?: { minX: number; maxX: number; minZ: number; maxZ: number }
+  regionBounds?: { minX: number; maxX: number; minZ: number; maxZ: number },
+  regionId?: number
 ): PlacementValidationResult {
   const { coveredTiles, centerX, centerZ } = footprint;
 
@@ -145,7 +146,20 @@ export function validateRotatedBuildingPlacement(
       };
     }
 
-    if (regionBounds) {
+    if (regionId !== undefined) {
+      if (!GridMap.isCoordInRegion(regionId, tx, tz, 0)) {
+        return {
+          allowed: false,
+          reason: 'Ви не маєте права будувати за межами свого володіння!',
+        };
+      }
+      if (GridMap.getDistanceToHighway(tx, tz) < 3.5) {
+        return {
+          allowed: false,
+          reason: 'Заборонено зводити споруди впритул до Королівського тракту!',
+        };
+      }
+    } else if (regionBounds) {
       if (tx < regionBounds.minX || tx > regionBounds.maxX || tz < regionBounds.minZ || tz > regionBounds.maxZ) {
         return {
           allowed: false,
@@ -353,8 +367,18 @@ export function validateBuildingPlacement(
   width: number,
   height: number,
   grid: GridMap,
-  resourceDeposits: ResourceDeposit[]
+  resourceDeposits: ResourceDeposit[],
+  regionId?: number
 ): PlacementValidationResult {
+  if (regionId !== undefined) {
+    if (!GridMap.isBuildingInRegion(regionId, x, z, width, height, 3.5)) {
+      return {
+        allowed: false,
+        reason: 'Заборонено будувати за межами володіння або впритул до Королівського тракту!',
+      };
+    }
+  }
+
   if (!grid.canPlaceBuilding(x, z, width, height)) {
     return {
       allowed: false,

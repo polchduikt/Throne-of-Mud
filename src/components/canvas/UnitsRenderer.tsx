@@ -135,11 +135,9 @@ function ActiveSpeechBubblesRenderer() {
     for (const u of characterEntities) {
       if (u.speechBubble && u.position && currentTick < u.speechBubble.expiresAtTick) {
         const isSelected = u.id === selectedId;
-        const isPlayer = !u.factionId || u.factionId === 'player';
-        if (!isSelected && !isPlayer) continue;
         if (!isSelected && camTarget) {
           const distSq = (u.position[0] - camTarget[0]) ** 2 + (u.position[2] - camTarget[1]) ** 2;
-          if (distSq > 28 * 28) continue;
+          if (distSq > 30 * 30) continue;
         }
         list.push({
           id: u.id,
@@ -148,7 +146,7 @@ function ActiveSpeechBubblesRenderer() {
           y: (u.position[1] || 0) + 1.2,
           z: u.position[2],
         });
-        if (list.length >= 3) break;
+        if (list.length >= 5) break;
       }
     }
 
@@ -283,7 +281,7 @@ function Unit3D({
 
     if (twoHandedRigRef.current) twoHandedRigRef.current.visible = isActivelyChoppingNow;
     if (standardArmsRef.current) standardArmsRef.current.visible = !isActivelyChoppingNow;
-    if (hammerRef.current) hammerRef.current.visible = isActivelyBuildingNow;
+    if (hammerRef.current) hammerRef.current.visible = isActivelyBuildingNow || curJobType === 'work_at_building';
     if (pickaxeRef.current) pickaxeRef.current.visible = isActivelyMiningNow;
     if (swordRef.current) swordRef.current.visible = isActivelyFightingNow;
     if (scepterRef.current) scepterRef.current.visible = isLord && !isMovingNow && !isSleepingNow && !isSittingNow;
@@ -415,7 +413,7 @@ function Unit3D({
       action = 'chop_standing';
     } else if (isActivelyChoppingFallenNow) {
       action = 'chop_fallen';
-    } else if (isActivelyBuildingNow || isActivelyMiningNow || curJobType === 'plant_crops' || curJobType === 'harvest_wheat') {
+    } else if (isActivelyBuildingNow || isActivelyMiningNow || curJobType === 'plant_crops' || curJobType === 'harvest_wheat' || curJobType === 'work_at_building') {
       action = 'build';
     } else {
       action = 'idle';

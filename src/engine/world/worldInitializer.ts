@@ -66,6 +66,8 @@ export function initializeWorldEntities(
         const tile = grid.getTile(px, pz);
         if (tile && tile.terrain !== 'water') {
           tile.height = campH;
+          tile.isPassable = true;
+          tile.movementCost = 1.0;
           tile.foliageType = undefined;
           tile.foliageAngle = undefined;
           tile.foliageTreeType = undefined;
@@ -124,7 +126,7 @@ export function initializeWorldEntities(
       characterClass: 'king' as const,
       avatarColor: '#f59e0b',
       gx: cx - 1,
-      gz: cz + 1,
+      gz: cz + 2,
       gold: 35,
       skills: { farming: 3, woodcutting: 2, mining: 2, building: 4, cooking: 2, brewing: 6, combat: 8, intellect: 9, charisma: 9 },
     },
@@ -134,7 +136,7 @@ export function initializeWorldEntities(
       title: 'Селянин',
       characterClass: 'peasant' as const,
       avatarColor: '#3b82f6',
-      gx: cx + 1,
+      gx: cx + 2,
       gz: cz - 1,
       gold: 3,
       skills: { farming: 8, woodcutting: 7, mining: 4, building: 6, cooking: 4, brewing: 3, combat: 4, intellect: 5, charisma: 5 },
@@ -145,8 +147,8 @@ export function initializeWorldEntities(
       title: 'Селянин',
       characterClass: 'peasant' as const,
       avatarColor: '#10b981',
-      gx: cx + 1,
-      gz: cz + 1,
+      gx: cx + 2,
+      gz: cz + 2,
       gold: 3,
       skills: { farming: 4, woodcutting: 8, mining: 6, building: 8, cooking: 2, brewing: 2, combat: 4, intellect: 4, charisma: 4 },
     },
@@ -213,7 +215,9 @@ export function initializeWorldEntities(
 
       const bCampH = clearCampArea(bx, bz);
 
-      const bCampfireId = `building-campfire-${bot.id}`;
+      const botFactionId = `bot-${regId}`;
+
+      const bCampfireId = `building-campfire-${botFactionId}`;
       grid.occupyForBuilding(bx, bz, 2, 2, bCampfireId);
       world.add({
         id: bCampfireId,
@@ -228,11 +232,11 @@ export function initializeWorldEntities(
         constructionProgress: 100,
         gridPosition: [bx, bz],
         position: [bx + 1.0, bCampH, bz + 1.0],
-        factionId: bot.id,
+        factionId: botFactionId,
         regionId: regId,
       });
 
-      const bTentId = `building-tent-${bot.id}`;
+      const bTentId = `building-tent-${botFactionId}`;
       grid.occupyForBuilding(bx - 4, bz - 1, 3, 2, bTentId);
       world.add({
         id: bTentId,
@@ -247,7 +251,7 @@ export function initializeWorldEntities(
         constructionProgress: 100,
         gridPosition: [bx - 4, bz - 1],
         position: [bx - 2.5, bCampH, bz],
-        factionId: bot.id,
+        factionId: botFactionId,
         regionId: regId,
       });
 
@@ -282,40 +286,42 @@ export function initializeWorldEntities(
       }
 
       world.add({
-        id: `unit-${bot.id}-lord`,
+        id: `unit-${botFactionId}-lord`,
         name: bot.name,
         title: bot.title,
         characterClass: 'lord',
         avatarColor: bot.avatarColor,
         isCharacter: true,
-        factionId: bot.id,
+        factionId: botFactionId,
         regionId: regId,
-        gridPosition: [bx - 1, bz + 1],
-        position: [bx - 0.5, 0.3, bz + 1.5],
+        gridPosition: [bx - 1, bz + 2],
+        position: [bx - 0.5, 0.3, bz + 2.5],
         moveSpeed: 1.35,
         gold: 50,
         needs: { hunger: 90, energy: 90, mood: 80, ale: 70, hygiene: 80 },
         skills: { farming: 2, woodcutting: 2, mining: 2, building: 4, cooking: 2, brewing: 4, combat: 8, intellect: 8, charisma: 8 },
-        currentJob: { id: `idle-bot-${bot.id}-lord`, type: 'idle', progress: 0, totalWork: 0 },
+        currentJob: { id: `idle-${botFactionId}-lord`, type: 'idle', progress: 0, totalWork: 0 },
       });
 
       for (let pIdx = 1; pIdx <= 2; pIdx++) {
+        const pgx = bx + 2;
+        const pgz = pIdx === 1 ? bz - 1 : bz + 2;
         world.add({
-          id: `unit-${bot.id}-peasant-${pIdx}`,
+          id: `unit-${botFactionId}-peasant-${pIdx}`,
           name: `${pIdx === 1 ? 'Селянин' : 'Робітник'} (${bot.name})`,
           title: 'Селянин',
           characterClass: 'peasant',
           avatarColor: bot.peasantColor,
           isCharacter: true,
-          factionId: bot.id,
+          factionId: botFactionId,
           regionId: regId,
-          gridPosition: [bx + 1, bz + (pIdx === 1 ? -1 : 1)],
-          position: [bx + 1.5, 0.3, bz + (pIdx === 1 ? -0.5 : 1.5)],
+          gridPosition: [pgx, pgz],
+          position: [pgx + 0.5, 0.3, pgz + 0.5],
           moveSpeed: 1.35,
           gold: 5,
           needs: { hunger: 85, energy: 90, mood: 75, ale: 60, hygiene: 80 },
           skills: { farming: 6, woodcutting: 6, mining: 5, building: 6, cooking: 3, brewing: 3, combat: 3, intellect: 4, charisma: 4 },
-          currentJob: { id: `idle-${bot.id}-p${pIdx}`, type: 'idle', progress: 0, totalWork: 0 },
+          currentJob: { id: `idle-${botFactionId}-p${pIdx}`, type: 'idle', progress: 0, totalWork: 0 },
         });
       }
 

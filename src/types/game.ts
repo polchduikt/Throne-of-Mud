@@ -282,7 +282,7 @@ export interface RegionData {
   name: string;
   ukrName: string;
   description: string;
-  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number; regionId?: number };
   center: [number, number];
   owner: 'player' | 'bot' | 'unclaimed';
   lordName: string;

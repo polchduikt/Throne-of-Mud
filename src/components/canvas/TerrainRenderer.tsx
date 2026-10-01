@@ -44,6 +44,7 @@ export function TerrainRenderer({ grid }: Props) {
   const roadEraseMode = useGameStore((s) => s.roadEraseMode);
   const setRoadEraseMode = useGameStore((s) => s.setRoadEraseMode);
   const buildRotation = useGameStore((s) => s.buildRotation);
+  const gameMode = useGameStore((s) => s.gameMode);
 
   const [roadStartPoint, setRoadStartPoint] = useState<[number, number] | null>(null);
   const [roadPreviewPath, setRoadPreviewPath] = useState<[number, number][]>([]);
@@ -498,6 +499,14 @@ export function TerrainRenderer({ grid }: Props) {
     }
   }, [terrainVersion, buildingVersion, grid, gridTexture]);
 
+  useEffect(() => {
+    if (!gridTexture.image?.data) return;
+    grid.syncToDataTexture(gridTexture);
+    setRoadStartPoint(null);
+    setRoadPreviewPath([]);
+    setCurrentSnapTarget(null);
+  }, [gameMode, grid, gridTexture]);
+
   const allBuildingSnapNodes = useMemo(() => {
     if (activeTool !== 'road') return [];
     const nodes: BuildingSnapNode[] = [];
@@ -579,7 +588,8 @@ export function TerrainRenderer({ grid }: Props) {
       footprint,
       grid,
       resourceDeposits,
-      pRegion?.bounds
+      pRegion?.bounds,
+      pRegion?.id
     );
 
     const allowed = validation.allowed;
@@ -657,22 +667,12 @@ export function TerrainRenderer({ grid }: Props) {
     const { playerRegionId, regions } = useGameStore.getState();
     const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
     if (!pRegion?.bounds) return true;
-    const b = pRegion.bounds;
-
-    if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) return true;
+    if (GridMap.isCoordInRegion(pRegion.id, x, z, 0)) return true;
 
     const tile = grid.getTile(x, z);
     if (tile?.terrain === 'road') return true;
 
-    const isHighway = (
-      Math.abs(x - GridMap.getHighwayX(z)) <= 2.5 ||
-      Math.abs(z - GridMap.getHighwayZ(x)) <= 2.5 ||
-      Math.hypot(x - 127.5, z - 127.5) <= 4.2
-    );
-    if (isHighway) return true;
-
-    const distToBorder = Math.max(0, b.minX - x, x - b.maxX, b.minZ - z, z - b.maxZ);
-    if (distToBorder <= 4) return true;
+    if (GridMap.getDistanceToHighway(x, z) <= 2.8) return true;
 
     return false;
   };
@@ -720,11 +720,7 @@ export function TerrainRenderer({ grid }: Props) {
           }
           const d = Math.hypot(tx - rawX, tz - rawZ);
           if (d <= 1.85) {
-            const isHighway = (
-              Math.abs(tx - GridMap.getHighwayX(tz)) <= 1.2 ||
-              Math.abs(tz - GridMap.getHighwayZ(tx)) <= 1.2 ||
-              Math.hypot(tx - 127.5, tz - 127.5) <= 3.2
-            );
+            const isHighway = GridMap.isTradeHighwayTile(tx, tz);
             candidates.push({
               x: tx,
               z: tz,
@@ -1051,7 +1047,8 @@ export function TerrainRenderer({ grid }: Props) {
         footprint,
         grid,
         resourceDeposits,
-        pRegion?.bounds
+        pRegion?.bounds,
+        pRegion?.id
       );
 
       if (!validation.allowed) {

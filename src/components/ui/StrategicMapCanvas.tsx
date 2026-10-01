@@ -507,7 +507,7 @@ export function StrategicMapCanvas({
     const clickX = ((e.clientX - rect.left) / rect.width) * grid.width;
     const clickZ = ((e.clientY - rect.top) / rect.height) * grid.height;
 
-    const quadrantId = (clickX < 128 ? 0 : 1) + (clickZ < 128 ? 0 : 2);
+    const quadrantId = GridMap.getRegionIdForCoord(clickX, clickZ);
 
     if (mode === 'setup') {
       const currentReg = regions.find((r) => r.id === activeRegionId);
@@ -547,7 +547,7 @@ export function StrategicMapCanvas({
 
     setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
-    const qId = (mouseGx < 128 ? 0 : 1) + (mouseGz < 128 ? 0 : 2);
+    const qId = GridMap.getRegionIdForCoord(mouseGx, mouseGz);
     setHoveredRegionId(qId);
 
     if (mode === 'setup') {

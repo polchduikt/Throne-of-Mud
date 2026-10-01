@@ -5,6 +5,7 @@ export interface RegionBounds {
   maxX: number;
   minZ: number;
   maxZ: number;
+  regionId?: number;
 }
 
 const MAX_GRID_CELLS = 256 * 256;
@@ -141,7 +142,11 @@ export class AStar {
           const pz = areaZ + dz;
 
           if (regionBounds) {
-            if (px < regionBounds.minX || px > regionBounds.maxX || pz < regionBounds.minZ || pz > regionBounds.maxZ) {
+            if (regionBounds.regionId !== undefined) {
+              if (!GridMap.isCoordInRegion(regionBounds.regionId, px, pz, 0)) {
+                continue;
+              }
+            } else if (px < regionBounds.minX || px > regionBounds.maxX || pz < regionBounds.minZ || pz > regionBounds.maxZ) {
               continue;
             }
           }
@@ -288,7 +293,11 @@ export class AStar {
         const nz = cz + dirDz[i];
 
         if (regionBounds) {
-          if (nx < regionBounds.minX || nx > regionBounds.maxX || nz < regionBounds.minZ || nz > regionBounds.maxZ) {
+          if (regionBounds.regionId !== undefined) {
+            if (!GridMap.isCoordInRegion(regionBounds.regionId, nx, nz, 0)) {
+              continue;
+            }
+          } else if (nx < regionBounds.minX || nx > regionBounds.maxX || nz < regionBounds.minZ || nz > regionBounds.maxZ) {
             continue;
           }
         }

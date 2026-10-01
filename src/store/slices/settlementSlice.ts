@@ -11,12 +11,14 @@ import {
   MAX_BUILDING_WAGE,
 } from '../../constants/economy';
 import { DEFAULT_REGIONS } from '../../constants/world';
+import { getTargetSnowAccumulation } from '../../constants/time';
 import { INITIAL_RESOURCE_DEPOSITS } from '../../engine/resources/ResourceDeposits';
 import {
   assignWorkerToBuilding as assignWorkerHelper,
   dismissWorkerFromBuilding as dismissWorkerHelper,
 } from '../../engine/ecs/entityHelpers';
 import { initializeWorldEntities } from '../../engine/world/worldInitializer';
+import { BotAISystem } from '../../engine/ecs/systems/BotAISystem';
 import type { GameState, SettlementSlice } from '../types';
 
 export type { SettlementSlice };
@@ -456,6 +458,7 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
 
   isInitialized: false,
   initWorld: (grid: GridMap, config?: WorldSetupConfig) => {
+    BotAISystem.reset();
     const result = initializeWorldEntities(grid, config, get().playerRegionId, get().botCount);
 
     set({
@@ -476,6 +479,8 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
   },
 
   resetWorld: (grid: GridMap, config?: WorldSetupConfig) => {
+    BotAISystem.reset();
+    grid.clearAllRoads();
     grid.generate(Date.now() % 100000 + Math.random() * 500);
     grid.isFullTerrainDirty = true;
     grid.dirtyTerrainCoords = [];
@@ -500,7 +505,7 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
         rainIntensity: 0,
         stormIntensity: 0,
         snowIntensity: 0,
-        snowAccumulation: 0,
+        snowAccumulation: getTargetSnowAccumulation('Spring', 1, 7, 0),
         lightningFlash: 0,
         speedMultiplier: 1,
         isPaused: false,

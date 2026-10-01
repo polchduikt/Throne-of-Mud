@@ -71,20 +71,18 @@ export class JobSystem {
       const isCriticallyExhausted = Boolean(unit.needs && unit.needs.energy <= CRITICAL_EXHAUSTION_ENERGY);
       const isAlreadySleeping = unit.currentJob?.type === 'sleep';
       const isAlreadySitting = unit.currentJob?.type === 'sit_by_fire';
-      const isMidManualJob =
-        unit.currentJob?.type === 'fight' ||
-        unit.currentJob?.type === 'chop_tree' ||
-        unit.currentJob?.type === 'wait_tree_fall' ||
-        unit.currentJob?.type === 'chop_fallen_log' ||
-        unit.currentJob?.type === 'mine_rock' ||
-        unit.currentJob?.type === 'build_structure' ||
-        unit.currentJob?.type === 'demolish_structure';
+      const isMidManualJob = unit.currentJob?.type === 'fight';
+
+      if (isNightTime && unit.currentJob && unit.currentJob.type !== 'fight' && !isAlreadySleeping && !isAlreadySitting) {
+        // Night has fallen: cancel daytime tasks and send unit to sleep/rest
+        unit.currentJob = { id: `idle-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
+        unit.path = [];
+      }
 
       if (!isNightTime && (isAlreadySleeping || isAlreadySitting)) {
-        const isRested =
-          !unit.needs ||
-          (isAlreadySitting ? unit.needs.energy >= 40 : unit.needs.energy >= RESTED_ENERGY_THRESHOLD) ||
-          time.hour >= NIGHT_END_HOUR;
+        const isRested = isAlreadySleeping
+          ? (!unit.needs || unit.needs.energy >= RESTED_ENERGY_THRESHOLD || time.hour >= NIGHT_END_HOUR)
+          : (!isNightTime || time.hour >= NIGHT_END_HOUR);
         if (isRested) {
           RestJobHandler.handleMorningWakeUp(
             unit,
@@ -101,7 +99,7 @@ export class JobSystem {
       }
 
       if ((isNightTime || isCriticallyExhausted) && !isMidManualJob) {
-        const handledRest = RestJobHandler.handleNightAndExhaustion(
+        RestJobHandler.handleNightAndExhaustion(
           unit,
           isPlayerUnit,
           isNoble,
@@ -115,9 +113,7 @@ export class JobSystem {
           playerRegionId,
           _buildingMap
         );
-        if (handledRest) {
-          continue;
-        }
+        continue;
       }
 
       if (!isNoble && unit.workBuildingId && !isMidManualJob) {
@@ -139,23 +135,31 @@ export class JobSystem {
             } else {
               assigned = WorkstationJobHandler.assignWorkstationJob(unit, building, grid, uBounds, currentTick);
             }
-            if (!assigned && (!unit.currentJob || unit.currentJob.type === 'idle') && (!unit.path || unit.path.length === 0)) {
-              ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz);
+            if (!assigned && (!unit.currentJob || unit.currentJob.type === 'idle' || unit.currentJob.type === 'wander') && (!unit.path || unit.path.length === 0)) {
+              ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz, currentTick);
             }
           }
-        } else {
+        } else if (!isNightTime) {
           WorkstationJobHandler.handleOffWorkHours(unit, grid, uBounds, cx, cz);
+          if ((!unit.currentJob || unit.currentJob.type === 'idle' || unit.currentJob.type === 'wander') && (!unit.path || unit.path.length === 0)) {
+            ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz, currentTick);
+          }
         }
       }
 
       if (
-        isPlayerUnit &&
+        !isNightTime &&
         !unit.workBuildingId &&
-        (!unit.currentJob || unit.currentJob.type === 'idle' || unit.currentJob.type === 'wander')
+        (!unit.currentJob || unit.currentJob.type === 'idle' || unit.currentJob.type === 'wander') &&
+        (!unit.path || unit.path.length === 0)
       ) {
-        const assigned = ManualJobHandler.assignPendingJob(unit, pendingJobs, grid, uBounds, currentTick);
-        if (!assigned) {
-          ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz);
+        if (isPlayerUnit) {
+          const assigned = ManualJobHandler.assignPendingJob(unit, pendingJobs, grid, uBounds, currentTick);
+          if (!assigned) {
+            ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz, currentTick);
+          }
+        } else {
+          ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz, currentTick);
         }
       }
 

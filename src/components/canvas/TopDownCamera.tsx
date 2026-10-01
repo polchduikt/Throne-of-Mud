@@ -33,8 +33,9 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
   const initZoom = stateAtMount.cameraZoomTarget ?? DEFAULT_CAMERA_ZOOM;
   const initAngle = stateAtMount.cameraAngleTarget ?? (Math.PI / 4);
 
-  const startX = initFocus ? initFocus[0] : initialCenter[0];
-  const startZ = initFocus ? initFocus[1] : initialCenter[1];
+  const isMenuMode = stateAtMount.gameMode === 'menu';
+  const startX = isMenuMode ? (mapWidth / 2) : (initFocus ? initFocus[0] : initialCenter[0]);
+  const startZ = isMenuMode ? (mapHeight / 2) : (initFocus ? initFocus[1] : initialCenter[1]);
 
   const targetPos = useRef(new THREE.Vector3(startX, 0, startZ));
   const currentPos = useRef(new THREE.Vector3(startX, 0, startZ));
@@ -298,10 +299,8 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
       }
       (window as any).__lastCameraZoom = orthoCam.zoom;
 
-      if (currentGameMode === 'playing') {
-        (window as any).__lastCameraTarget = [curX, curZ];
-        (window as any).__lastCameraAngle = curAngle;
-      }
+      (window as any).__lastCameraTarget = [curX, curZ];
+      (window as any).__lastCameraAngle = curAngle;
 
       const currentStrat = isStrategicRef.current;
       const isStrat = currentStrat ? orthoCam.zoom < 18.0 : orthoCam.zoom <= 17.0;

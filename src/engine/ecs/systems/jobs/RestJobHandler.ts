@@ -58,6 +58,7 @@ export class RestJobHandler {
       progress: 0,
       totalWork: 0,
     };
+    (unit as any).idleCooldownTicks = currentTick + Math.floor(Math.random() * 25 + 15);
 
     if (unit.needs) {
       if (wasSleeping) {
@@ -291,9 +292,12 @@ export class RestJobHandler {
     }
 
     const isCriticallyExhausted = Boolean(unit.needs && unit.needs.energy <= 5);
-    const unitHash = (unit.id.charCodeAt(unit.id.length - 1) + (unit.id.charCodeAt(0) || 0));
-    if (!isCriticallyExhausted && (unitHash % 4) !== (currentTick % 4)) {
-      return false;
+    const hasRestJob = unit.currentJob?.type === 'sleep' || unit.currentJob?.type === 'sit_by_fire';
+    if (hasRestJob) {
+      const unitHash = (unit.id.charCodeAt(unit.id.length - 1) + (unit.id.charCodeAt(0) || 0));
+      if (!isCriticallyExhausted && (unitHash % 4) !== (currentTick % 4)) {
+        return false;
+      }
     }
 
     const completedBuildings: GameEntity[] = [];
@@ -346,6 +350,33 @@ export class RestJobHandler {
           }
         }
         if (chosenBuilding) break;
+      }
+
+      if (!chosenBuilding) {
+        const tents = completedBuildings.filter((b: GameEntity) => b.buildingType === 'tent');
+        for (const t of tents) {
+          const occupied = buildingOccupiedBeds.get(t.id) || new Set<number>();
+          if (!occupied.has(0)) {
+            chosenBuilding = t;
+            chosenBedIndex = 0;
+            break;
+          }
+        }
+      }
+
+      if (!chosenBuilding) {
+        const houses = completedBuildings.filter((b: GameEntity) => b.buildingType === 'peasant_house');
+        for (const h of houses) {
+          const occupied = buildingOccupiedBeds.get(h.id) || new Set<number>();
+          for (let i = 0; i < 2; i++) {
+            if (!occupied.has(i)) {
+              chosenBuilding = h;
+              chosenBedIndex = i;
+              break;
+            }
+          }
+          if (chosenBuilding) break;
+        }
       }
     }
 
@@ -419,11 +450,15 @@ export class RestJobHandler {
 
       if (sleepPath && sleepPath.length > 0) {
         unit.path = sleepPath;
+      } else {
+        unit.position = [spot.bedWorldPos[0], spot.bedY, spot.bedWorldPos[1]];
+        unit.gridPosition = [Math.floor(spot.bedWorldPos[0]), Math.floor(spot.bedWorldPos[1])];
+        unit.path = [];
       }
 
       setEntitySpeech(
         unit,
-        isNoble ? 'Час відпочити у палатах...' : 'Йду спати у теплий дім...',
+        isNoble ? 'Час відпочити у покоях...' : 'Йду спати у теплий дім...',
         'mood',
         currentTick,
         DEFAULT_SPEECH_DURATION_TICKS
@@ -490,6 +525,10 @@ export class RestJobHandler {
       if (sitPath && sitPath.length > 0) {
         sitPath.push([sitSpot.position[0] - 0.5, sitSpot.position[1] - 0.5]);
         unit.path = sitPath;
+      } else {
+        unit.position = [sitSpot.position[0], sitSpot.spotY, sitSpot.position[1]];
+        unit.gridPosition = [Math.floor(sitSpot.position[0]), Math.floor(sitSpot.position[1])];
+        unit.path = [];
       }
 
       setEntitySpeech(

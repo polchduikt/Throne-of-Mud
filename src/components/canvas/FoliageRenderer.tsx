@@ -3,7 +3,6 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GridMap } from '../../engine/grid/GridMap';
 import { useGameStore } from '../../store/useGameStore';
-import { buildingEntities } from '../../engine/ecs/world';
 import { getTreeProceduralData } from '../../engine/world/foliageGeneration';
 import { pseudoRandom, distanceSq2D } from '../../utils/mathUtils';
 
@@ -379,48 +378,38 @@ export function FoliageRenderer({ grid }: Props) {
   const cols = Math.ceil(grid.width / BUCKET_SIZE);
   const rows = Math.ceil(grid.height / BUCKET_SIZE);
 
-  const buckets = useMemo(() => {
-    void foliageVersion;
+  const staticClutter = useMemo(() => {
+    const list: Array<{
+      tallGrass: THREE.Matrix4[];
+      medGrass: THREE.Matrix4[];
+      shortGrass: THREE.Matrix4[];
+      reeds: THREE.Matrix4[];
+      lilies: THREE.Matrix4[];
+      flowers: THREE.Matrix4[];
+      flowerColors: number[];
+      pebbles: THREE.Matrix4[];
+      mushrooms: THREE.Matrix4[];
+    }> = [];
 
-    const bucketList: FoliageBucket[] = [];
-    for (let bz = 0; bz < rows; bz++) {
-      for (let bx = 0; bx < cols; bx++) {
-        bucketList.push({
-          cx: (bx + 0.5) * BUCKET_SIZE,
-          cz: (bz + 0.5) * BUCKET_SIZE,
-          bareTrees: [],
-          treeTrunks: [],
-          oakCanopies: [],
-          autumnCanopies: [],
-          pineTrunks: [],
-          pineCanopies: [],
-          stumps: [],
-          fallenLogs: [],
-          fallenOakCanopies: [],
-          fallenAutumnCanopies: [],
-          fallenPineCanopies: [],
-          rocks: [],
-          bareBushes: [],
-          bushes: [],
-          tallGrass: [],
-          medGrass: [],
-          shortGrass: [],
-          reeds: [],
-          lilies: [],
-          flowers: [],
-          flowerColors: [],
-          pebbles: [],
-          mushrooms: [],
-        });
-      }
+    for (let i = 0; i < cols * rows; i++) {
+      list.push({
+        tallGrass: [],
+        medGrass: [],
+        shortGrass: [],
+        reeds: [],
+        lilies: [],
+        flowers: [],
+        flowerColors: [],
+        pebbles: [],
+        mushrooms: [],
+      });
     }
 
     const dummy = new THREE.Object3D();
-
-    const getBucket = (x: number, z: number): FoliageBucket => {
+    const getClutterBucket = (x: number, z: number) => {
       const bx = Math.min(cols - 1, Math.max(0, Math.floor(x / BUCKET_SIZE)));
       const bz = Math.min(rows - 1, Math.max(0, Math.floor(z / BUCKET_SIZE)));
-      return bucketList[bz * cols + bx];
+      return list[bz * cols + bx];
     };
 
     const depositClearings: Array<{ gx: number; gz: number; rSq: number }> = [];
@@ -428,146 +417,6 @@ export function FoliageRenderer({ grid }: Props) {
       for (const dep of resourceDeposits) {
         const r = dep.type === 'berries' ? 1.4 : 2.7;
         depositClearings.push({ gx: dep.gridPosition[0], gz: dep.gridPosition[1], rSq: r * r });
-      }
-    }
-
-    const processTile = (x: number, z: number) => {
-      const tile = grid.tiles[x]?.[z];
-      if (!tile || !tile.foliageType || tile.buildingId) return;
-
-      const bucket = getBucket(x, z);
-      const tileH = tile.height || 0.05;
-      const jitterX = (pseudoRandom(x, z) - 0.5) * 0.35;
-      const jitterZ = (pseudoRandom(z, x + 37) - 0.5) * 0.35;
-      const posX = x + 0.5 + jitterX;
-      const posZ = z + 0.5 + jitterZ;
-      const rotY = pseudoRandom(x + 17, z + 53) * Math.PI * 2;
-
-      if (tile.foliageType === 'tree') {
-        const { treeType, sc } = getTreeProceduralData(x, z);
-        if (treeType === 'pine') {
-          dummy.position.set(posX, tileH + 0.32 * sc, posZ);
-          dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.pineTrunks.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH, posZ);
-          dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.pineCanopies.push(dummy.matrix.clone());
-        } else if (treeType === 'oak') {
-          dummy.position.set(posX, tileH + 0.42 * sc, posZ);
-          dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.treeTrunks.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH + 1.25 * sc, posZ);
-          dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
-          dummy.updateMatrix();
-          bucket.oakCanopies.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH, posZ);
-          dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.bareTrees.push(dummy.matrix.clone());
-        } else {
-          dummy.position.set(posX, tileH + 0.42 * sc, posZ);
-          dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.treeTrunks.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH + 1.25 * sc, posZ);
-          dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
-          dummy.updateMatrix();
-          bucket.autumnCanopies.push(dummy.matrix.clone());
-
-          dummy.position.set(posX, tileH, posZ);
-          dummy.rotation.set(0, rotY, 0);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.bareTrees.push(dummy.matrix.clone());
-        }
-      } else if (tile.foliageType === 'fallen_tree') {
-        const proc = getTreeProceduralData(x, z);
-        const treeType = tile.foliageTreeType || proc.treeType;
-        const sc = proc.sc;
-        const logAngle = tile.foliageAngle !== undefined ? tile.foliageAngle : rotY;
-        const sinA = Math.sin(logAngle);
-        const cosA = Math.cos(logAngle);
-
-        dummy.position.set(posX, tileH + 0.08 * sc, posZ);
-        dummy.rotation.set(0, logAngle, 0);
-        dummy.scale.set(sc, sc, sc);
-        dummy.updateMatrix();
-        bucket.stumps.push(dummy.matrix.clone());
-
-        dummy.position.set(posX + sinA * 0.42 * sc, tileH + 0.09 * sc, posZ + cosA * 0.42 * sc);
-        dummy.rotation.set(0, logAngle, 0);
-        dummy.rotateX(Math.PI / 2);
-        dummy.scale.set(sc, sc, sc);
-        dummy.updateMatrix();
-        bucket.fallenLogs.push(dummy.matrix.clone());
-
-        if (treeType === 'pine') {
-          dummy.position.set(posX, tileH + 0.16 * sc, posZ);
-          dummy.rotation.set(0, logAngle, 0);
-          dummy.rotateX(Math.PI / 2);
-          dummy.scale.set(sc, sc, sc);
-          dummy.updateMatrix();
-          bucket.fallenPineCanopies.push(dummy.matrix.clone());
-        } else if (treeType === 'oak') {
-          dummy.position.set(posX + sinA * 1.25 * sc, tileH + 0.32 * sc, posZ + cosA * 1.25 * sc);
-          dummy.rotation.set(0, logAngle, 0);
-          dummy.rotateX(Math.PI / 2);
-          dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
-          dummy.updateMatrix();
-          bucket.fallenOakCanopies.push(dummy.matrix.clone());
-        } else {
-          dummy.position.set(posX + sinA * 1.25 * sc, tileH + 0.32 * sc, posZ + cosA * 1.25 * sc);
-          dummy.rotation.set(0, logAngle, 0);
-          dummy.rotateX(Math.PI / 2);
-          dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
-          dummy.updateMatrix();
-          bucket.fallenAutumnCanopies.push(dummy.matrix.clone());
-        }
-      } else if (tile.foliageType === 'rock') {
-        const sc = 0.95 + (pseudoRandom(x + 13, z + 7) - 0.5) * 0.25;
-        dummy.position.set(posX, tileH + 0.18 * sc, posZ);
-        dummy.rotation.set(0.1, rotY, 0.05);
-        dummy.scale.set(sc * 1.2, sc * 0.8, sc * 1.05);
-        dummy.updateMatrix();
-        bucket.rocks.push(dummy.matrix.clone());
-      } else if (tile.foliageType === 'bush') {
-        const sc = 0.85 + (pseudoRandom(x * 7, z * 13) - 0.5) * 0.35;
-        dummy.position.set(posX, tileH + 0.15 * sc, posZ);
-        dummy.rotation.set(0, rotY, 0);
-        dummy.scale.set(sc, sc, sc);
-        dummy.updateMatrix();
-        bucket.bushes.push(dummy.matrix.clone());
-
-        dummy.position.set(posX, tileH, posZ);
-        dummy.rotation.set(0, rotY, 0);
-        dummy.scale.set(sc, sc, sc);
-        dummy.updateMatrix();
-        bucket.bareBushes.push(dummy.matrix.clone());
-      }
-    };
-
-    if (grid.foliageCoords && grid.foliageCoords.length > 0) {
-      const coords = grid.foliageCoords;
-      for (let i = 0; i < coords.length; i += 2) {
-        processTile(coords[i], coords[i + 1]);
-      }
-    } else {
-      for (let x = 0; x < grid.width; x++) {
-        for (let z = 0; z < grid.height; z++) {
-          processTile(x, z);
-        }
       }
     }
 
@@ -586,20 +435,7 @@ export function FoliageRenderer({ grid }: Props) {
         }
         if (inDeposit) continue;
 
-        let inBuilding = false;
-        for (const b of buildingEntities) {
-          if (!b.gridPosition) continue;
-          const [gx, gz] = b.gridPosition;
-          const bw = b.buildingWidth || 1;
-          const bh = b.buildingHeight || 1;
-          if (x >= gx - 0.25 && x < gx + bw + 0.25 && z >= gz - 0.25 && z <= gz + bh + 0.25) {
-            inBuilding = true;
-            break;
-          }
-        }
-        if (inBuilding) continue;
-
-        const bucket = getBucket(x, z);
+        const bucket = getClutterBucket(x, z);
         const tileH = tile.height || 0.05;
         const jitterX = (pseudoRandom(x, z) - 0.5) * 0.35;
         const jitterZ = (pseudoRandom(z, x + 37) - 0.5) * 0.35;
@@ -721,8 +557,197 @@ export function FoliageRenderer({ grid }: Props) {
       }
     }
 
+    return list;
+  }, [grid, cols, rows, resourceDeposits]);
+
+  const buckets = useMemo(() => {
+    void foliageVersion;
+
+    const bucketList: FoliageBucket[] = [];
+    for (let bz = 0; bz < rows; bz++) {
+      for (let bx = 0; bx < cols; bx++) {
+        const idx = bz * cols + bx;
+        const clutter = staticClutter[idx];
+        bucketList.push({
+          cx: (bx + 0.5) * BUCKET_SIZE,
+          cz: (bz + 0.5) * BUCKET_SIZE,
+          bareTrees: [],
+          treeTrunks: [],
+          oakCanopies: [],
+          autumnCanopies: [],
+          pineTrunks: [],
+          pineCanopies: [],
+          stumps: [],
+          fallenLogs: [],
+          fallenOakCanopies: [],
+          fallenAutumnCanopies: [],
+          fallenPineCanopies: [],
+          rocks: [],
+          bareBushes: [],
+          bushes: [],
+          tallGrass: clutter ? clutter.tallGrass : [],
+          medGrass: clutter ? clutter.medGrass : [],
+          shortGrass: clutter ? clutter.shortGrass : [],
+          reeds: clutter ? clutter.reeds : [],
+          lilies: clutter ? clutter.lilies : [],
+          flowers: clutter ? clutter.flowers : [],
+          flowerColors: clutter ? clutter.flowerColors : [],
+          pebbles: clutter ? clutter.pebbles : [],
+          mushrooms: clutter ? clutter.mushrooms : [],
+        });
+      }
+    }
+
+    const dummy = new THREE.Object3D();
+
+    const getBucket = (x: number, z: number): FoliageBucket => {
+      const bx = Math.min(cols - 1, Math.max(0, Math.floor(x / BUCKET_SIZE)));
+      const bz = Math.min(rows - 1, Math.max(0, Math.floor(z / BUCKET_SIZE)));
+      return bucketList[bz * cols + bx];
+    };
+
+    const processTile = (x: number, z: number) => {
+      const tile = grid.tiles[x]?.[z];
+      if (!tile || !tile.foliageType || tile.buildingId) return;
+
+      const bucket = getBucket(x, z);
+      const tileH = tile.height || 0.05;
+      const jitterX = (pseudoRandom(x, z) - 0.5) * 0.35;
+      const jitterZ = (pseudoRandom(z, x + 37) - 0.5) * 0.35;
+      const posX = x + 0.5 + jitterX;
+      const posZ = z + 0.5 + jitterZ;
+      const rotY = pseudoRandom(x + 17, z + 53) * Math.PI * 2;
+
+      if (tile.foliageType === 'tree') {
+        const { treeType, sc } = getTreeProceduralData(x, z);
+        if (treeType === 'pine') {
+          dummy.position.set(posX, tileH + 0.32 * sc, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.pineTrunks.push(dummy.matrix.clone());
+
+          dummy.position.set(posX, tileH, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.pineCanopies.push(dummy.matrix.clone());
+        } else if (treeType === 'oak') {
+          dummy.position.set(posX, tileH + 0.42 * sc, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.treeTrunks.push(dummy.matrix.clone());
+
+          dummy.position.set(posX, tileH + 1.25 * sc, posZ);
+          dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
+          dummy.updateMatrix();
+          bucket.oakCanopies.push(dummy.matrix.clone());
+
+          dummy.position.set(posX, tileH, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.bareTrees.push(dummy.matrix.clone());
+        } else {
+          dummy.position.set(posX, tileH + 0.42 * sc, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.treeTrunks.push(dummy.matrix.clone());
+
+          dummy.position.set(posX, tileH + 1.25 * sc, posZ);
+          dummy.scale.set(sc * 1.1, sc * 1.1, sc * 1.1);
+          dummy.updateMatrix();
+          bucket.autumnCanopies.push(dummy.matrix.clone());
+
+          dummy.position.set(posX, tileH, posZ);
+          dummy.rotation.set(0, rotY, 0);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.bareTrees.push(dummy.matrix.clone());
+        }
+      } else if (tile.foliageType === 'fallen_tree') {
+        const proc = getTreeProceduralData(x, z);
+        const treeType = tile.foliageTreeType || proc.treeType;
+        const sc = proc.sc;
+        const logAngle = tile.foliageAngle !== undefined ? tile.foliageAngle : rotY;
+        const sinA = Math.sin(logAngle);
+        const cosA = Math.cos(logAngle);
+
+        dummy.position.set(posX, tileH + 0.08 * sc, posZ);
+        dummy.rotation.set(0, logAngle, 0);
+        dummy.scale.set(sc, sc, sc);
+        dummy.updateMatrix();
+        bucket.stumps.push(dummy.matrix.clone());
+
+        dummy.position.set(posX + sinA * 0.42 * sc, tileH + 0.09 * sc, posZ + cosA * 0.42 * sc);
+        dummy.rotation.set(0, logAngle, 0);
+        dummy.rotateX(Math.PI / 2);
+        dummy.scale.set(sc, sc, sc);
+        dummy.updateMatrix();
+        bucket.fallenLogs.push(dummy.matrix.clone());
+
+        if (treeType === 'pine') {
+          dummy.position.set(posX, tileH + 0.16 * sc, posZ);
+          dummy.rotation.set(0, logAngle, 0);
+          dummy.rotateX(Math.PI / 2);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.fallenPineCanopies.push(dummy.matrix.clone());
+        } else if (treeType === 'oak') {
+          dummy.position.set(posX + sinA * 1.25 * sc, tileH + 0.32 * sc, posZ + cosA * 1.25 * sc);
+          dummy.rotation.set(0, logAngle, 0);
+          dummy.rotateX(Math.PI / 2);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.fallenOakCanopies.push(dummy.matrix.clone());
+        } else {
+          dummy.position.set(posX + sinA * 1.25 * sc, tileH + 0.32 * sc, posZ + cosA * 1.25 * sc);
+          dummy.rotation.set(0, logAngle, 0);
+          dummy.rotateX(Math.PI / 2);
+          dummy.scale.set(sc, sc, sc);
+          dummy.updateMatrix();
+          bucket.fallenAutumnCanopies.push(dummy.matrix.clone());
+        }
+      } else if (tile.foliageType === 'rock') {
+        const sc = 0.95 + (pseudoRandom(x + 13, z + 7) - 0.5) * 0.25;
+        dummy.position.set(posX, tileH + 0.18 * sc, posZ);
+        dummy.rotation.set(0.1, rotY, 0.05);
+        dummy.scale.set(sc * 1.2, sc * 0.8, sc * 1.05);
+        dummy.updateMatrix();
+        bucket.rocks.push(dummy.matrix.clone());
+      } else if (tile.foliageType === 'bush') {
+        const sc = 0.85 + (pseudoRandom(x * 7, z * 13) - 0.5) * 0.35;
+        dummy.position.set(posX, tileH + 0.15 * sc, posZ);
+        dummy.rotation.set(0, rotY, 0);
+        dummy.scale.set(sc, sc, sc);
+        dummy.updateMatrix();
+        bucket.bushes.push(dummy.matrix.clone());
+
+        dummy.position.set(posX, tileH, posZ);
+        dummy.rotation.set(0, rotY, 0);
+        dummy.scale.set(sc, sc, sc);
+        dummy.updateMatrix();
+        bucket.bareBushes.push(dummy.matrix.clone());
+      }
+    };
+
+    if (grid.foliageCoords && grid.foliageCoords.length > 0) {
+      const coords = grid.foliageCoords;
+      for (let i = 0; i < coords.length; i += 2) {
+        processTile(coords[i], coords[i + 1]);
+      }
+    } else {
+      for (let x = 0; x < grid.width; x++) {
+        for (let z = 0; z < grid.height; z++) {
+          processTile(x, z);
+        }
+      }
+    }
+
     return bucketList;
-  }, [grid, foliageVersion, resourceDeposits, cols, rows]);
+  }, [grid, foliageVersion, staticClutter, cols, rows]);
 
   const geos = useMemo(() => ({
     trunkGeo: new THREE.CylinderGeometry(0.12, 0.22, 0.85, 6),

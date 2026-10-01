@@ -82,6 +82,41 @@ export function MenuAmbientWalkers({ grid }: Props) {
     },
   ]);
 
+  const spawnWalker = (w: WalkerConfig) => {
+    let ent = world.entities.find((e) => e.id === w.id);
+    if (!ent) {
+      let initialX = 128;
+      let initialZ = 128;
+      if (w.type === 'NS') {
+        initialZ = w.currentDirection === 1 ? w.minCoord + 6 : w.maxCoord - 6;
+        initialX = Math.round(GridMap.getHighwayX(initialZ));
+      } else {
+        initialX = w.currentDirection === 1 ? w.minCoord + 6 : w.maxCoord - 6;
+        initialZ = Math.round(GridMap.getHighwayZ(initialX));
+      }
+
+      const tileH = grid.getTile(initialX, initialZ)?.height || 0.1;
+      const initialPath = w.type === 'NS'
+        ? generateHighwayPath('NS', initialZ, w.currentDirection === 1 ? w.maxCoord : w.minCoord)
+        : generateHighwayPath('WE', initialX, w.currentDirection === 1 ? w.maxCoord : w.minCoord);
+
+      const newEnt: GameEntity = {
+        id: w.id,
+        name: w.name,
+        isCharacter: true,
+        characterClass: w.characterClass,
+        avatarColor: w.avatarColor,
+        gridPosition: [initialX, initialZ],
+        position: [initialX + 0.5, tileH + 0.2, initialZ + 0.5],
+        path: initialPath,
+        moveSpeed: w.moveSpeed,
+        needs: { hunger: 100, energy: 100, mood: 100, ale: 100, hygiene: 100 },
+        currentJob: { id: `walk-${w.id}`, type: 'idle', progress: 0, totalWork: 0 },
+      };
+      world.add(newEnt);
+    }
+  };
+
   useEffect(() => {
     if (gameMode !== 'menu') {
       for (const w of walkersRef.current) {
@@ -92,38 +127,7 @@ export function MenuAmbientWalkers({ grid }: Props) {
     }
 
     for (const w of walkersRef.current) {
-      let ent = world.entities.find((e) => e.id === w.id);
-      if (!ent) {
-        let initialX = 128;
-        let initialZ = 128;
-        if (w.type === 'NS') {
-          initialZ = w.currentDirection === 1 ? w.minCoord + 6 : w.maxCoord - 6;
-          initialX = Math.round(GridMap.getHighwayX(initialZ));
-        } else {
-          initialX = w.currentDirection === 1 ? w.minCoord + 6 : w.maxCoord - 6;
-          initialZ = Math.round(GridMap.getHighwayZ(initialX));
-        }
-
-        const tileH = grid.getTile(initialX, initialZ)?.height || 0.1;
-        const initialPath = w.type === 'NS'
-          ? generateHighwayPath('NS', initialZ, w.currentDirection === 1 ? w.maxCoord : w.minCoord)
-          : generateHighwayPath('WE', initialX, w.currentDirection === 1 ? w.maxCoord : w.minCoord);
-
-        const newEnt: GameEntity = {
-          id: w.id,
-          name: w.name,
-          isCharacter: true,
-          characterClass: w.characterClass,
-          avatarColor: w.avatarColor,
-          gridPosition: [initialX, initialZ],
-          position: [initialX + 0.5, tileH + 0.2, initialZ + 0.5],
-          path: initialPath,
-          moveSpeed: w.moveSpeed,
-          needs: { hunger: 100, energy: 100, mood: 100, ale: 100, hygiene: 100 },
-          currentJob: { id: `walk-${w.id}`, type: 'idle', progress: 0, totalWork: 0 },
-        };
-        world.add(newEnt);
-      }
+      spawnWalker(w);
     }
 
     return () => {
@@ -136,6 +140,12 @@ export function MenuAmbientWalkers({ grid }: Props) {
 
   useFrame((_, delta) => {
     if (gameMode !== 'menu') return;
+
+    for (const w of walkersRef.current) {
+      if (!world.entities.some((e) => e.id === w.id)) {
+        spawnWalker(w);
+      }
+    }
 
     const clampedDelta = Math.min(delta, 0.1);
 
