@@ -258,6 +258,56 @@ const churchAltarCandlesGeometry = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
+export const churchGothicDoorStoneGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(1.28, 0.08, 0.28).translate(0, -0.04, 0.08)));
+
+  for (const cx of [-0.52, 0.52]) {
+    geos.push(toStandard(new THREE.BoxGeometry(0.14, 0.08, 0.14).translate(cx, 0.04, 0.06)));
+    geos.push(toStandard(new THREE.CylinderGeometry(0.05, 0.055, 1.04, 8).translate(cx, 0.60, 0.06)));
+    geos.push(toStandard(new THREE.BoxGeometry(0.14, 0.08, 0.14).translate(cx, 1.15, 0.06)));
+  }
+
+  const archL = new THREE.BoxGeometry(0.10, 0.62, 0.12);
+  archL.applyMatrix4(new THREE.Matrix4().makeRotationZ(-0.52).setPosition(-0.26, 1.28, 0.06));
+  geos.push(toStandard(archL));
+
+  const archR = new THREE.BoxGeometry(0.10, 0.62, 0.12);
+  archR.applyMatrix4(new THREE.Matrix4().makeRotationZ(0.52).setPosition(0.26, 1.28, 0.06));
+  geos.push(toStandard(archR));
+
+  geos.push(toStandard(new THREE.BoxGeometry(0.76, 0.26, 0.06).translate(0, 1.24, 0.02)));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const churchGothicDoorGoldGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(0.04, 0.18, 0.02).translate(0, 1.25, 0.06)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.12, 0.04, 0.02).translate(0, 1.27, 0.06)));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const churchGothicDoorLeftLeafGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(0.44, 1.10, 0.05).translate(0.22, 0.55, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.38, 0.035, 0.015).translate(0.22, 0.90, 0.03)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.38, 0.035, 0.015).translate(0.22, 0.20, 0.03)));
+  geos.push(toStandard(new THREE.TorusGeometry(0.035, 0.008, 6, 10).translate(0.36, 0.55, 0.04)));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const churchGothicDoorRightLeafGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  geos.push(toStandard(new THREE.BoxGeometry(0.44, 1.10, 0.05).translate(-0.22, 0.55, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.38, 0.035, 0.015).translate(-0.22, 0.90, 0.03)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.38, 0.035, 0.015).translate(-0.22, 0.20, 0.03)));
+  geos.push(toStandard(new THREE.TorusGeometry(0.035, 0.008, 6, 10).translate(-0.36, 0.55, 0.04)));
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const churchCarpetGeo = toStandard(new THREE.BoxGeometry(0.85, 0.005, 2.35).translate(0, 0.155, 0.15));
+
 function ChurchGothicDoor({
   position = [0, 0.14, 1.36],
 }: {
@@ -275,7 +325,7 @@ function ChurchGothicDoor({
     if (!rootRef.current || !leftLeafRef.current || !rightLeafRef.current) return;
     if (!isObjectEffectivelyVisible(rootRef.current)) return;
     const currentZoom = (window as any).__lastCameraZoom ?? 38;
-    if (currentZoom < 26) return;
+    if (currentZoom < 30) return;
 
     if (!cachedPos.current) {
       rootRef.current.getWorldPosition(worldPos);
@@ -302,70 +352,15 @@ function ChurchGothicDoor({
 
   return (
     <group ref={rootRef} position={position}>
-      <mesh material={mats.stoneDark} position={[0, -0.04, 0.08]} receiveShadow>
-        <boxGeometry args={[1.28, 0.08, 0.28]} />
-      </mesh>
-      {[-0.52, 0.52].map((cx) => (
-        <group key={`ch-col-${cx}`} position={[cx, 0, 0.06]}>
-          <mesh material={mats.stoneLight} position={[0, 0.04, 0]}>
-            <boxGeometry args={[0.14, 0.08, 0.14]} />
-          </mesh>
-          <mesh material={mats.stoneLight} position={[0, 0.60, 0]}>
-            <cylinderGeometry args={[0.05, 0.055, 1.04, 8]} />
-          </mesh>
-          <mesh material={mats.stoneLight} position={[0, 1.15, 0]}>
-            <boxGeometry args={[0.14, 0.08, 0.14]} />
-          </mesh>
-        </group>
-      ))}
-      <group position={[-0.26, 1.28, 0.06]} rotation={[0, 0, -0.52]}>
-        <mesh material={mats.stoneLight}>
-          <boxGeometry args={[0.10, 0.62, 0.12]} />
-        </mesh>
-      </group>
-      <group position={[0.26, 1.28, 0.06]} rotation={[0, 0, 0.52]}>
-        <mesh material={mats.stoneLight}>
-          <boxGeometry args={[0.10, 0.62, 0.12]} />
-        </mesh>
-      </group>
-      <mesh material={mats.stoneMed} position={[0, 1.24, 0.02]}>
-        <boxGeometry args={[0.76, 0.26, 0.06]} />
-      </mesh>
-      <mesh material={mats.goldTrim} position={[0, 1.25, 0.06]}>
-        <boxGeometry args={[0.04, 0.18, 0.02]} />
-      </mesh>
-      <mesh material={mats.goldTrim} position={[0, 1.27, 0.06]}>
-        <boxGeometry args={[0.12, 0.04, 0.02]} />
-      </mesh>
+      <mesh geometry={churchGothicDoorStoneGeo} material={mats.stoneLight} receiveShadow />
+      <mesh geometry={churchGothicDoorGoldGeo} material={mats.goldTrim} />
 
       <group ref={leftLeafRef} position={[-0.44, 0, 0.02]}>
-        <mesh material={mats.timberDark} position={[0.22, 0.55, 0]} receiveShadow>
-          <boxGeometry args={[0.44, 1.10, 0.05]} />
-        </mesh>
-        <mesh material={mats.ironHardware} position={[0.22, 0.90, 0.03]}>
-          <boxGeometry args={[0.38, 0.035, 0.015]} />
-        </mesh>
-        <mesh material={mats.ironHardware} position={[0.22, 0.20, 0.03]}>
-          <boxGeometry args={[0.38, 0.035, 0.015]} />
-        </mesh>
-        <mesh material={mats.ironHardware} position={[0.36, 0.55, 0.04]}>
-          <torusGeometry args={[0.035, 0.008, 6, 10]} />
-        </mesh>
+        <mesh geometry={churchGothicDoorLeftLeafGeo} material={mats.timberDark} receiveShadow />
       </group>
 
       <group ref={rightLeafRef} position={[0.44, 0, 0.02]}>
-        <mesh material={mats.timberDark} position={[-0.22, 0.55, 0]} receiveShadow>
-          <boxGeometry args={[0.44, 1.10, 0.05]} />
-        </mesh>
-        <mesh material={mats.ironHardware} position={[-0.22, 0.90, 0.03]}>
-          <boxGeometry args={[0.38, 0.035, 0.015]} />
-        </mesh>
-        <mesh material={mats.ironHardware} position={[-0.22, 0.20, 0.03]}>
-          <boxGeometry args={[0.38, 0.035, 0.015]} />
-        </mesh>
-        <mesh material={mats.ironHardware} position={[-0.36, 0.55, 0.04]}>
-          <torusGeometry args={[0.035, 0.008, 6, 10]} />
-        </mesh>
+        <mesh geometry={churchGothicDoorRightLeafGeo} material={mats.timberDark} receiveShadow />
       </group>
     </group>
   );
@@ -386,9 +381,7 @@ export function WoodenChurchModel({
     <group>
       <mesh geometry={churchStoneGeometry} material={mats.stoneLight} castShadow receiveShadow />
       <mesh geometry={churchGlassGeometry} material={isLightOn ? mats.windowLit : mats.windowUnlit} />
-      <mesh material={mats.velvetRed} position={[0, 0.155, 0.15]} receiveShadow>
-        <boxGeometry args={[0.85, 0.005, 2.35]} />
-      </mesh>
+      <mesh geometry={churchCarpetGeo} material={mats.velvetRed} receiveShadow />
       <ChurchGothicDoor position={[0, 0.14, 1.36]} />
 
       <group ref={interiorRef} visible={false}>

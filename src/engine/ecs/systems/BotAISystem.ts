@@ -329,6 +329,7 @@ export class BotAISystem {
     const botRegions = regions.filter((r) => r.owner === 'bot');
 
     const camTarget = (typeof window !== 'undefined' ? (window as any).__lastCameraTarget : null) as [number, number] | null;
+    let wanderingPathBudget = 1;
 
     for (const region of botRegions) {
       const regCenter = region.campPosition || region.center;
@@ -466,6 +467,13 @@ export class BotAISystem {
       const completedBuildingMap = new Map<string, typeof completedBuildings[0]>();
       for (const b of completedBuildings) {
         completedBuildingMap.set(b.id, b);
+      }
+
+      const builderCounts = new Map<string, number>();
+      for (const p of peasants) {
+        if (p.currentJob?.targetBuildingId) {
+          builderCounts.set(p.currentJob.targetBuildingId, (builderCounts.get(p.currentJob.targetBuildingId) || 0) + 1);
+        }
       }
 
       for (const p of peasants) {
@@ -606,7 +614,7 @@ export class BotAISystem {
             b.assignedWorkers.push(availablePeasant.id);
             const prof = PROFESSION_TITLES[b.buildingType] || 'Робітник';
             availablePeasant.title = prof;
-            if (!isRegionOffscreen) {
+            if (!isRegionOffscreen && Math.random() < 0.2) {
               availablePeasant.speechBubble = {
                 text: `Працюю у ${b.name || def.name}! (${prof})`,
                 expiresAtTick: currentTick + DEFAULT_SPEECH_BUBBLE_TICKS,
@@ -617,17 +625,17 @@ export class BotAISystem {
         }
       }
 
+      let assignedBuilderThisTick = false;
       for (const p of peasants) {
         const isIdleOrWandering = !p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander';
 
-        if (!isNightTime && isIdleOrWandering && incompleteBuildings.length > 0 && p.gridPosition) {
-          const targetB = incompleteBuildings.find((b) => {
-            const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === b.id).length;
-            return buildersCount < 3;
-          }) || incompleteBuildings[0];
+        if (!isNightTime && isIdleOrWandering && incompleteBuildings.length > 0 && p.gridPosition && !assignedBuilderThisTick) {
+          const targetB = incompleteBuildings.find((b) => (builderCounts.get(b.id) || 0) < 3) || incompleteBuildings[0];
+          const curBuilders = builderCounts.get(targetB.id) || 0;
 
-          const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === targetB.id).length;
-          if (buildersCount < 3 && targetB.gridPosition) {
+          if (curBuilders < 3 && targetB.gridPosition) {
+            builderCounts.set(targetB.id, curBuilders + 1);
+            assignedBuilderThisTick = true;
             const bW = targetB.buildingWidth || 2;
             const bH = targetB.buildingHeight || 2;
             const buildPath = isRegionOffscreen ? null : AStar.findPathToArea(grid, p.gridPosition, targetB.gridPosition[0], targetB.gridPosition[1], bW, bH, region.bounds);
@@ -645,7 +653,7 @@ export class BotAISystem {
               p.gridPosition = [targetB.gridPosition[0], targetB.gridPosition[1]];
               p.position = [targetB.gridPosition[0] + 0.5, 0.05, targetB.gridPosition[1] + 0.5];
             }
-            if (!isRegionOffscreen) {
+            if (!isRegionOffscreen && Math.random() < 0.2) {
               p.speechBubble = {
                 text: `Зводжу ${targetB.name || 'споруду'}!`,
                 expiresAtTick: currentTick + 30,
@@ -658,27 +666,30 @@ export class BotAISystem {
 
         const pCooldown = (p as any).idleCooldownTicks ?? 0;
         if (!isRegionOffscreen && !isNightTime && isIdleOrWandering && (!p.path || p.path.length === 0) && currentTick >= pCooldown && p.gridPosition) {
+          if (wanderingPathBudget <= 0) {
+            (p as any).idleCooldownTicks = currentTick + 20;
+            continue;
+          }
+
           const curX = p.gridPosition[0];
           const curZ = p.gridPosition[1];
           const candidateDestinations: [number, number][] = [];
 
-          // 1. Stroll along village roads
           if (grid.roadCoords && grid.roadCoords.size > 0) {
             const gWidth = grid.width;
             let sampleCount = 0;
             for (const code of grid.roadCoords) {
-              if (++sampleCount > 40) break;
+              if (++sampleCount > 30) break;
               const rx = Math.floor(code / gWidth);
               const rz = code % gWidth;
               const dist = Math.hypot(rx - curX, rz - curZ);
-              if (dist >= 5 && dist <= 20 && rx >= region.bounds.minX + 1 && rx <= region.bounds.maxX - 1 && rz >= region.bounds.minZ + 1 && rz <= region.bounds.maxZ - 1) {
+              if (dist >= 5 && dist <= 18 && rx >= region.bounds.minX + 1 && rx <= region.bounds.maxX - 1 && rz >= region.bounds.minZ + 1 && rz <= region.bounds.maxZ - 1) {
                 candidateDestinations.push([rx, rz]);
-                if (candidateDestinations.length >= 3) break;
+                if (candidateDestinations.length >= 2) break;
               }
             }
           }
 
-          // 2. Visit completed village buildings
           if (completedBuildings.length > 0) {
             for (const b of completedBuildings) {
               if (!b.gridPosition) continue;
@@ -688,28 +699,33 @@ export class BotAISystem {
                 const tx = bx + ox;
                 const tz = bz + oz;
                 const dist = Math.hypot(tx - curX, tz - curZ);
-                if (dist >= 5 && dist <= 18 && tx >= region.bounds.minX + 1 && tx <= region.bounds.maxX - 1 && tz >= region.bounds.minZ + 1 && tz <= region.bounds.maxZ - 1 && grid.isWalkable(tx, tz)) {
+                if (dist >= 5 && dist <= 16 && tx >= region.bounds.minX + 1 && tx <= region.bounds.maxX - 1 && tz >= region.bounds.minZ + 1 && tz <= region.bounds.maxZ - 1 && grid.isWalkable(tx, tz)) {
                   candidateDestinations.push([tx, tz]);
+                  if (candidateDestinations.length >= 3) break;
                 }
+              }
+              if (candidateDestinations.length >= 3) break;
+            }
+          }
+
+          if (candidateDestinations.length === 0) {
+            for (let attempt = 0; attempt < 5; attempt++) {
+              const angle = Math.random() * Math.PI * 2;
+              const dist = 6 + Math.random() * 8;
+              const candX = Math.round(curX + Math.cos(angle) * dist);
+              const candZ = Math.round(curZ + Math.sin(angle) * dist);
+              if (candX >= region.bounds.minX + 1 && candX <= region.bounds.maxX - 1 && candZ >= region.bounds.minZ + 1 && candZ <= region.bounds.maxZ - 1 && grid.isWalkable(candX, candZ)) {
+                candidateDestinations.push([candX, candZ]);
+                break;
               }
             }
           }
 
-          // 3. Wide regional roam (explore fields/forest edges)
-          for (let attempt = 0; attempt < 8; attempt++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 6 + Math.random() * 10;
-            const candX = Math.round(curX + Math.cos(angle) * dist);
-            const candZ = Math.round(curZ + Math.sin(angle) * dist);
-            if (candX >= region.bounds.minX + 1 && candX <= region.bounds.maxX - 1 && candZ >= region.bounds.minZ + 1 && candZ <= region.bounds.maxZ - 1 && grid.isWalkable(candX, candZ)) {
-              candidateDestinations.push([candX, candZ]);
-            }
-          }
-
           if (candidateDestinations.length > 0) {
+            wanderingPathBudget--;
             const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
             const path = AStar.findPath(grid, p.gridPosition, chosen, false, region.bounds);
-            if (path && path.length >= 3) {
+            if (path && path.length >= 2) {
               p.path = path;
               p.currentJob = {
                 id: `bot-wander-${p.id}-${Date.now()}`,
@@ -717,7 +733,8 @@ export class BotAISystem {
                 progress: 0,
                 totalWork: 20,
               };
-              if (Math.random() < 0.35) {
+              (p as any).idleCooldownTicks = currentTick + 80 + Math.floor(Math.random() * 40);
+              if (Math.random() < 0.1) {
                 const phrases = ["Розім'яти б ноги", 'Огляну володіння', 'Пройдуся селом', 'Перевірю стежки', 'Гарна нині погода'];
                 p.speechBubble = {
                   text: phrases[Math.floor(Math.random() * phrases.length)],
@@ -726,10 +743,10 @@ export class BotAISystem {
                 };
               }
             } else {
-              (p as any).idleCooldownTicks = currentTick + 25;
+              (p as any).idleCooldownTicks = currentTick + 60;
             }
           } else {
-            (p as any).idleCooldownTicks = currentTick + 25;
+            (p as any).idleCooldownTicks = currentTick + 60;
           }
         }
       }
@@ -739,84 +756,91 @@ export class BotAISystem {
       if (botLord && !isRegionOffscreen && !isNightTime && (!botLord.path || botLord.path.length === 0) && currentTick >= lordCooldown && botLord.gridPosition) {
         const isLordIdle = !botLord.currentJob || botLord.currentJob.type === 'idle' || botLord.currentJob.type === 'wander';
         if (isLordIdle) {
-          const curX = botLord.gridPosition[0];
-          const curZ = botLord.gridPosition[1];
-          const candidateDestinations: [number, number][] = [];
+          if (wanderingPathBudget <= 0) {
+            (botLord as any).idleCooldownTicks = currentTick + 25;
+          } else {
+            const curX = botLord.gridPosition[0];
+            const curZ = botLord.gridPosition[1];
+            const candidateDestinations: [number, number][] = [];
 
-          // Lord inspects roads / highway
-          if (grid.roadCoords && grid.roadCoords.size > 0) {
-            const gWidth = grid.width;
-            let sampleCount = 0;
-            for (const code of grid.roadCoords) {
-              if (++sampleCount > 50) break;
-              const rx = Math.floor(code / gWidth);
-              const rz = code % gWidth;
-              const dist = Math.hypot(rx - curX, rz - curZ);
-              if (dist >= 6 && dist <= 22 && rx >= region.bounds.minX + 1 && rx <= region.bounds.maxX - 1 && rz >= region.bounds.minZ + 1 && rz <= region.bounds.maxZ - 1) {
-                candidateDestinations.push([rx, rz]);
-                if (candidateDestinations.length >= 3) break;
-              }
-            }
-          }
-
-          // Lord visits buildings or construction site
-          if (incompleteBuildings.length > 0) {
-            const b = incompleteBuildings[0];
-            if (b.gridPosition) {
-              const bx = b.gridPosition[0] + Math.floor((b.buildingWidth || 2) / 2);
-              const bz = b.gridPosition[1] + Math.floor((b.buildingHeight || 2) / 2);
-              for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) {
-                const tx = bx + ox;
-                const tz = bz + oz;
-                if (grid.isWalkable(tx, tz) && tx >= region.bounds.minX + 1 && tx <= region.bounds.maxX - 1 && tz >= region.bounds.minZ + 1 && tz <= region.bounds.maxZ - 1) {
-                  candidateDestinations.push([tx, tz]);
+            if (grid.roadCoords && grid.roadCoords.size > 0) {
+              const gWidth = grid.width;
+              let sampleCount = 0;
+              for (const code of grid.roadCoords) {
+                if (++sampleCount > 30) break;
+                const rx = Math.floor(code / gWidth);
+                const rz = code % gWidth;
+                const dist = Math.hypot(rx - curX, rz - curZ);
+                if (dist >= 6 && dist <= 20 && rx >= region.bounds.minX + 1 && rx <= region.bounds.maxX - 1 && rz >= region.bounds.minZ + 1 && rz <= region.bounds.maxZ - 1) {
+                  candidateDestinations.push([rx, rz]);
+                  if (candidateDestinations.length >= 2) break;
                 }
               }
             }
-          }
 
-          // Wide patrol
-          for (let attempt = 0; attempt < 8; attempt++) {
-            const angle = Math.random() * Math.PI * 2;
-            const dist = 7 + Math.random() * 11;
-            const candX = Math.round(curX + Math.cos(angle) * dist);
-            const candZ = Math.round(curZ + Math.sin(angle) * dist);
-            if (candX >= region.bounds.minX + 1 && candX <= region.bounds.maxX - 1 && candZ >= region.bounds.minZ + 1 && candZ <= region.bounds.maxZ - 1 && grid.isWalkable(candX, candZ)) {
-              candidateDestinations.push([candX, candZ]);
+            if (candidateDestinations.length === 0 && incompleteBuildings.length > 0) {
+              const b = incompleteBuildings[0];
+              if (b.gridPosition) {
+                const bx = b.gridPosition[0] + Math.floor((b.buildingWidth || 2) / 2);
+                const bz = b.gridPosition[1] + Math.floor((b.buildingHeight || 2) / 2);
+                for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) {
+                  const tx = bx + ox;
+                  const tz = bz + oz;
+                  if (grid.isWalkable(tx, tz) && tx >= region.bounds.minX + 1 && tx <= region.bounds.maxX - 1 && tz >= region.bounds.minZ + 1 && tz <= region.bounds.maxZ - 1) {
+                    candidateDestinations.push([tx, tz]);
+                    break;
+                  }
+                }
+              }
             }
-          }
 
-          if (candidateDestinations.length > 0) {
-            const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
-            const lordPath = AStar.findPath(grid, botLord.gridPosition, chosen, false, region.bounds);
-            if (lordPath && lordPath.length >= 3) {
-              botLord.path = lordPath;
-              botLord.currentJob = {
-                id: `bot-lord-wander-${Date.now()}`,
-                type: 'wander',
-                progress: 0,
-                totalWork: 25,
-              };
-              if (Math.random() < 0.45) {
-                const lordPhrases = ['Оглядаю володіння', 'Перевіряю стан земель', 'Село повинно процвітати', 'Огляну будівництво та дороги'];
-                botLord.speechBubble = {
-                  text: lordPhrases[Math.floor(Math.random() * lordPhrases.length)],
-                  expiresAtTick: currentTick + 35,
-                  type: 'mood',
+            if (candidateDestinations.length === 0) {
+              for (let attempt = 0; attempt < 5; attempt++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 7 + Math.random() * 9;
+                const candX = Math.round(curX + Math.cos(angle) * dist);
+                const candZ = Math.round(curZ + Math.sin(angle) * dist);
+                if (candX >= region.bounds.minX + 1 && candX <= region.bounds.maxX - 1 && candZ >= region.bounds.minZ + 1 && candZ <= region.bounds.maxZ - 1 && grid.isWalkable(candX, candZ)) {
+                  candidateDestinations.push([candX, candZ]);
+                  break;
+                }
+              }
+            }
+
+            if (candidateDestinations.length > 0) {
+              wanderingPathBudget--;
+              const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
+              const lordPath = AStar.findPath(grid, botLord.gridPosition, chosen, false, region.bounds);
+              if (lordPath && lordPath.length >= 2) {
+                botLord.path = lordPath;
+                botLord.currentJob = {
+                  id: `bot-lord-wander-${Date.now()}`,
+                  type: 'wander',
+                  progress: 0,
+                  totalWork: 25,
                 };
+                (botLord as any).idleCooldownTicks = currentTick + 100 + Math.floor(Math.random() * 50);
+                if (Math.random() < 0.15) {
+                  const lordPhrases = ['Оглядаю володіння', 'Перевіряю стан земель', 'Село повинно процвітати', 'Огляну будівництво та дороги'];
+                  botLord.speechBubble = {
+                    text: lordPhrases[Math.floor(Math.random() * lordPhrases.length)],
+                    expiresAtTick: currentTick + 35,
+                    type: 'mood',
+                  };
+                }
+              } else {
+                (botLord as any).idleCooldownTicks = currentTick + 70;
               }
             } else {
-              (botLord as any).idleCooldownTicks = currentTick + 30;
+              (botLord as any).idleCooldownTicks = currentTick + 70;
             }
-          } else {
-            (botLord as any).idleCooldownTicks = currentTick + 30;
           }
         }
       }
 
       if (!isNightTime && incompleteBuildings.length > 0) {
         const targetB = incompleteBuildings[0];
-        const buildersCount = peasants.filter((other) => other.currentJob?.targetBuildingId === targetB.id).length;
+        const buildersCount = builderCounts.get(targetB.id) || 0;
         if (buildersCount === 0 && targetB.gridPosition) {
           const fallbackBuilder = peasants.find((p) =>
             (!p.currentJob || p.currentJob.type === 'idle' || p.currentJob.type === 'wander' || p.currentJob.type === 'work_at_building') &&
@@ -827,6 +851,7 @@ export class BotAISystem {
             const bW = targetB.buildingWidth || 2;
             const bH = targetB.buildingHeight || 2;
             const buildPath = isRegionOffscreen ? null : AStar.findPathToArea(grid, fallbackBuilder.gridPosition, targetB.gridPosition[0], targetB.gridPosition[1], bW, bH, region.bounds);
+            builderCounts.set(targetB.id, 1);
             fallbackBuilder.currentJob = {
               id: `bot-build-${targetB.id}-${Date.now()}`,
               type: 'build_structure',
@@ -841,7 +866,7 @@ export class BotAISystem {
               fallbackBuilder.gridPosition = [targetB.gridPosition[0], targetB.gridPosition[1]];
               fallbackBuilder.position = [targetB.gridPosition[0] + 0.5, 0.05, targetB.gridPosition[1] + 0.5];
             }
-            if (!isRegionOffscreen) {
+            if (!isRegionOffscreen && Math.random() < 0.2) {
               fallbackBuilder.speechBubble = {
                 text: `Зводжу ${targetB.name || 'споруду'}!`,
                 expiresAtTick: currentTick + 30,

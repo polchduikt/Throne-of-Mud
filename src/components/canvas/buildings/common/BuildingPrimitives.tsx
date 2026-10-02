@@ -443,9 +443,8 @@ export function ChimneySmoke({
   const frameCount = useRef(0);
   const worldPos = useMemo(() => new THREE.Vector3(), []);
   const cachedPos = useRef<[number, number] | null>(null);
-  const materials = useMemo(() => {
-    return Array.from({ length: 2 }, () => mats.smokeWhite.clone());
-  }, [mats.smokeWhite]);
+
+  const materials = [mats.smokeWhite, mats.smokeWhite];
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
@@ -1739,4 +1738,3 @@ export function RusticChest({
     </group>
   );
 }
-

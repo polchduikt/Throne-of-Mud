@@ -55,6 +55,26 @@ export const scarecrowDetailsGeo = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
+export const fenceSideXGeo = (() => {
+  const g = new THREE.BoxGeometry(0.08, 0.22, 4.0);
+  return toStandard(g);
+})();
+
+export const fenceSideZGeo = (() => {
+  const g = new THREE.BoxGeometry(4.0, 0.22, 0.08);
+  return toStandard(g);
+})();
+
+export const scarecrowHatGeo = (() => {
+  const g = new THREE.ConeGeometry(0.18, 0.12, 6);
+  return toStandard(g);
+})();
+
+export const scarecrowCoatGeo = (() => {
+  const g = new THREE.BoxGeometry(0.22, 0.25, 0.12);
+  return toStandard(g);
+})();
+
 export function WheatFarmModel({
   building,
 }: {
@@ -67,11 +87,29 @@ export function WheatFarmModel({
 
   const bx = building.gridPosition ? building.gridPosition[0] : pos[0] - width / 2;
   const bz = building.gridPosition ? building.gridPosition[1] : pos[2] - height / 2;
-  const allBuildings = Array.from(buildingEntities);
-  const hasNorth = allBuildings.some(b => b.buildingType === 'wheat_farm' && b.id !== building.id && Math.abs((b.gridPosition?.[0] ?? (b.position?.[0] ?? 0) - (b.buildingWidth || 4)/2) - bx) < 0.5 && Math.abs((b.gridPosition?.[1] ?? (b.position?.[2] ?? 0) - (b.buildingHeight || 4)/2) - (bz - (b.buildingHeight || 4))) < 0.5);
-  const hasSouth = allBuildings.some(b => b.buildingType === 'wheat_farm' && b.id !== building.id && Math.abs((b.gridPosition?.[0] ?? (b.position?.[0] ?? 0) - (b.buildingWidth || 4)/2) - bx) < 0.5 && Math.abs((b.gridPosition?.[1] ?? (b.position?.[2] ?? 0) - (b.buildingHeight || 4)/2) - (bz + height)) < 0.5);
-  const hasWest = allBuildings.some(b => b.buildingType === 'wheat_farm' && b.id !== building.id && Math.abs((b.gridPosition?.[0] ?? (b.position?.[0] ?? 0) - (b.buildingWidth || 4)/2) - (bx - (b.buildingWidth || 4))) < 0.5 && Math.abs((b.gridPosition?.[1] ?? (b.position?.[2] ?? 0) - (b.buildingHeight || 4)/2) - bz) < 0.5);
-  const hasEast = allBuildings.some(b => b.buildingType === 'wheat_farm' && b.id !== building.id && Math.abs((b.gridPosition?.[0] ?? (b.position?.[0] ?? 0) - (b.buildingWidth || 4)/2) - (bx + width)) < 0.5 && Math.abs((b.gridPosition?.[1] ?? (b.position?.[2] ?? 0) - (b.buildingHeight || 4)/2) - bz) < 0.5);
+
+  let hasNorth = false;
+  let hasSouth = false;
+  let hasWest = false;
+  let hasEast = false;
+
+  for (const b of buildingEntities) {
+    if (b.buildingType !== 'wheat_farm' || b.id === building.id) continue;
+    const otherBx = b.gridPosition ? b.gridPosition[0] : (b.position?.[0] ?? 0) - (b.buildingWidth || 4) / 2;
+    const otherBz = b.gridPosition ? b.gridPosition[1] : (b.position?.[2] ?? 0) - (b.buildingHeight || 4) / 2;
+    const otherW = b.buildingWidth || 4;
+    const otherH = b.buildingHeight || 4;
+
+    if (Math.abs(otherBx - bx) < 0.5) {
+      if (Math.abs(otherBz - (bz - otherH)) < 0.5) hasNorth = true;
+      if (Math.abs(otherBz - (bz + height)) < 0.5) hasSouth = true;
+    }
+    if (Math.abs(otherBz - bz) < 0.5) {
+      if (Math.abs(otherBx - (bx - otherW)) < 0.5) hasWest = true;
+      if (Math.abs(otherBx - (bx + width)) < 0.5) hasEast = true;
+    }
+    if (hasNorth && hasSouth && hasWest && hasEast) break;
+  }
 
   const wheatProg = building.productionProgress || 0;
   const wheatScale = Math.min(1.0, Math.max(0.2, wheatProg / 100));
@@ -82,24 +120,16 @@ export function WheatFarmModel({
       <mesh geometry={wheatFurrowsGeo} material={mats.soilFurrow} receiveShadow />
 
       {!hasWest && (
-        <mesh material={mats.timberDark} position={[-1.95, 0.18, 0]}>
-          <boxGeometry args={[0.08, 0.22, 4.0]} />
-        </mesh>
+        <mesh geometry={fenceSideXGeo} material={mats.timberDark} position={[-1.95, 0.18, 0]} />
       )}
       {!hasEast && (
-        <mesh material={mats.timberDark} position={[1.95, 0.18, 0]}>
-          <boxGeometry args={[0.08, 0.22, 4.0]} />
-        </mesh>
+        <mesh geometry={fenceSideXGeo} material={mats.timberDark} position={[1.95, 0.18, 0]} />
       )}
       {!hasNorth && (
-        <mesh material={mats.timberDark} position={[0, 0.18, -1.95]}>
-          <boxGeometry args={[4.0, 0.22, 0.08]} />
-        </mesh>
+        <mesh geometry={fenceSideZGeo} material={mats.timberDark} position={[0, 0.18, -1.95]} />
       )}
       {!hasSouth && (
-        <mesh material={mats.timberDark} position={[0, 0.18, 1.95]}>
-          <boxGeometry args={[4.0, 0.22, 0.08]} />
-        </mesh>
+        <mesh geometry={fenceSideZGeo} material={mats.timberDark} position={[0, 0.18, 1.95]} />
       )}
 
       {wheatProg >= 5 && (
@@ -112,12 +142,8 @@ export function WheatFarmModel({
 
       <mesh geometry={scarecrowWoodGeo} material={mats.timberDark} />
       <mesh geometry={scarecrowDetailsGeo} material={mats.goldWheat} />
-      <mesh material={mats.thatchRoof} position={[0, 0.88, 0]}>
-        <coneGeometry args={[0.18, 0.12, 6]} />
-      </mesh>
-      <mesh material={mats.redBanner} position={[0, 0.6, 0]}>
-        <boxGeometry args={[0.22, 0.25, 0.12]} />
-      </mesh>
+      <mesh geometry={scarecrowHatGeo} material={mats.thatchRoof} position={[0, 0.88, 0]} />
+      <mesh geometry={scarecrowCoatGeo} material={mats.redBanner} position={[0, 0.6, 0]} />
     </group>
   );
 }

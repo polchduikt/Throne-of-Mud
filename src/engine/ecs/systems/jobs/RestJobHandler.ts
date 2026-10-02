@@ -38,6 +38,14 @@ export function getEntityRegionId(entity: GameEntity, regions: RegionData[], def
 
 const _failedRestCooldowns = new Map<string, number>();
 
+function findBuilding(id: string, buildingMap?: Map<string, GameEntity>): GameEntity | undefined {
+  if (buildingMap) return buildingMap.get(id);
+  for (const b of buildingEntities) {
+    if (b.id === id) return b;
+  }
+  return undefined;
+}
+
 export class RestJobHandler {
   public static handleMorningWakeUp(
     unit: GameEntity,
@@ -83,9 +91,7 @@ export class RestJobHandler {
     );
 
     if (prevSleepingBuildingId && wasSleeping) {
-      const b = buildingMap
-        ? buildingMap.get(prevSleepingBuildingId)
-        : Array.from(buildingEntities).find((e: GameEntity) => e.id === prevSleepingBuildingId);
+      const b = findBuilding(prevSleepingBuildingId, buildingMap);
       if (b && b.buildingType !== 'campfire') {
         const sleepSpot = getBuildingSleepSpot(b);
         const exitPath = createPathFromInterior(
@@ -151,9 +157,7 @@ export class RestJobHandler {
         const [bedX, bedZ] = targetPos;
         let targetY = sleepJob.targetY;
         if (sleepJob.targetBuildingId && (targetY === undefined || targetY < 0.16 || sleepJob.targetAngle === undefined)) {
-          const b = buildingMap
-            ? buildingMap.get(sleepJob.targetBuildingId)
-            : Array.from(buildingEntities).find((ent: GameEntity) => ent.id === sleepJob.targetBuildingId);
+          const b = findBuilding(sleepJob.targetBuildingId, buildingMap);
           if (b) {
             const spot = getBuildingSleepSpot(b, sleepJob.bedIndex ?? 0);
             targetY = spot.bedY;
@@ -169,7 +173,7 @@ export class RestJobHandler {
         const distToBed = distance2D(currentUPos[0], currentUPos[2], bedX, bedZ);
 
         if (!unit.path || unit.path.length === 0) {
-          if (distToBed <= 2.0) {
+          if (distToBed <= 0.45) {
             unit.position = [bedX, targetY, bedZ];
             unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
             if (unit.needs) {
@@ -179,9 +183,7 @@ export class RestJobHandler {
             const nextAllowedPath = _failedRestCooldowns.get(unit.id) || 0;
             if (currentTick >= nextAllowedPath) {
               if (sleepJob.targetBuildingId) {
-                const b = buildingMap
-                  ? buildingMap.get(sleepJob.targetBuildingId)
-                  : Array.from(buildingEntities).find((ent: GameEntity) => ent.id === sleepJob.targetBuildingId);
+                const b = findBuilding(sleepJob.targetBuildingId, buildingMap);
                 if (b) {
                   const spot = getBuildingSleepSpot(b, sleepJob.bedIndex ?? 0);
                   const sleepPath = createPathToInterior(
@@ -198,9 +200,7 @@ export class RestJobHandler {
                   if (sleepPath && sleepPath.length > 0) {
                     unit.path = sleepPath;
                   } else {
-                    _failedRestCooldowns.set(unit.id, currentTick + 40);
-                    unit.position = [bedX, targetY, bedZ];
-                    unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
+                    _failedRestCooldowns.set(unit.id, currentTick + 30);
                   }
                 }
               } else {
@@ -216,9 +216,7 @@ export class RestJobHandler {
                 if (sleepPath && sleepPath.length > 0) {
                   unit.path = sleepPath;
                 } else {
-                  _failedRestCooldowns.set(unit.id, currentTick + 40);
-                  unit.position = [bedX, targetY, bedZ];
-                  unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
+                  _failedRestCooldowns.set(unit.id, currentTick + 30);
                 }
               }
             }
@@ -238,13 +236,11 @@ export class RestJobHandler {
         const distToSit = distance2D(currentUPos[0], currentUPos[2], sitX, sitZ);
 
         if (!unit.path || unit.path.length === 0) {
-          if (distToSit <= 2.2) {
+          if (distToSit <= 0.6) {
             unit.position = [sitX, targetY, sitZ];
             unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
             if (sitJob.targetAngle === undefined && sitJob.targetBuildingId) {
-              const camp = buildingMap
-                ? buildingMap.get(sitJob.targetBuildingId)
-                : Array.from(buildingEntities).find((b: GameEntity) => b.id === sitJob.targetBuildingId);
+              const camp = findBuilding(sitJob.targetBuildingId, buildingMap);
               if (camp?.gridPosition) {
                 const cx = camp.gridPosition[0] + 1.0;
                 const cz = camp.gridPosition[1] + 1.0;
@@ -277,12 +273,9 @@ export class RestJobHandler {
                 uBounds
               );
               if (sitPath && sitPath.length > 0) {
-                sitPath.push([sitX - 0.5, sitZ - 0.5]);
                 unit.path = sitPath;
               } else {
-                _failedRestCooldowns.set(unit.id, currentTick + 40);
-                unit.position = [sitX, targetY, sitZ];
-                unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
+                _failedRestCooldowns.set(unit.id, currentTick + 30);
               }
             }
           }
@@ -450,10 +443,6 @@ export class RestJobHandler {
 
       if (sleepPath && sleepPath.length > 0) {
         unit.path = sleepPath;
-      } else {
-        unit.position = [spot.bedWorldPos[0], spot.bedY, spot.bedWorldPos[1]];
-        unit.gridPosition = [Math.floor(spot.bedWorldPos[0]), Math.floor(spot.bedWorldPos[1])];
-        unit.path = [];
       }
 
       setEntitySpeech(
@@ -523,12 +512,7 @@ export class RestJobHandler {
       };
 
       if (sitPath && sitPath.length > 0) {
-        sitPath.push([sitSpot.position[0] - 0.5, sitSpot.position[1] - 0.5]);
         unit.path = sitPath;
-      } else {
-        unit.position = [sitSpot.position[0], sitSpot.spotY, sitSpot.position[1]];
-        unit.gridPosition = [Math.floor(sitSpot.position[0]), Math.floor(sitSpot.position[1])];
-        unit.path = [];
       }
 
       setEntitySpeech(

@@ -71,10 +71,13 @@ export class JobSystem {
       const isCriticallyExhausted = Boolean(unit.needs && unit.needs.energy <= CRITICAL_EXHAUSTION_ENERGY);
       const isAlreadySleeping = unit.currentJob?.type === 'sleep';
       const isAlreadySitting = unit.currentJob?.type === 'sit_by_fire';
-      const isMidManualJob = unit.currentJob?.type === 'fight';
+      const isMidManualJob =
+        unit.currentJob?.type === 'fight' ||
+        unit.currentJob?.type === 'build_structure' ||
+        unit.currentJob?.type === 'demolish_structure';
 
       if (isNightTime && unit.currentJob && unit.currentJob.type !== 'fight' && !isAlreadySleeping && !isAlreadySitting) {
-        // Night has fallen: cancel daytime tasks and send unit to sleep/rest
+
         unit.currentJob = { id: `idle-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
         unit.path = [];
       }

@@ -1,4 +1,4 @@
-import { useRef, useState, memo, useMemo } from 'react';
+import { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -77,17 +77,20 @@ export function UnitsRenderer({ grid }: { grid?: GridMap }) {
   const selectedEntityId = useGameStore((state) => state.selectedEntityId);
   const setSelectedEntityId = useGameStore((state) => state.setSelectedEntityId);
   const previewAnimation = useGameStore((state) => state.previewAnimation);
+  const buildingVersion = useGameStore((state) => state.buildingVersion);
+  const isGamePaused = useGameStore((state) => state.time.isPaused || state.time.speedMultiplier === 0);
 
   const isStrategicView = useGameStore((state) => state.isStrategicView);
-  const isGamePausedRef = useRef(false);
 
   const [units, setUnits] = useState<GameEntity[]>(() => Array.from(characterEntities));
   const lastUnitCountRef = useRef<number>(characterEntities.size);
 
-  useFrame(() => {
-    const { time } = useGameStore.getState();
-    isGamePausedRef.current = time.isPaused || time.speedMultiplier === 0;
+  useEffect(() => {
+    lastUnitCountRef.current = characterEntities.size;
+    setUnits(Array.from(characterEntities));
+  }, [buildingVersion]);
 
+  useFrame(() => {
     if (characterEntities.size !== lastUnitCountRef.current) {
       lastUnitCountRef.current = characterEntities.size;
       setUnits(Array.from(characterEntities));
@@ -102,7 +105,7 @@ export function UnitsRenderer({ grid }: { grid?: GridMap }) {
           unit={unit}
           grid={grid}
           isSelected={selectedEntityId === unit.id}
-          isGamePaused={isGamePausedRef.current}
+          isGamePaused={isGamePaused}
           previewAnimation={previewAnimation?.entityId === unit.id ? previewAnimation : null}
           onSelect={() => setSelectedEntityId(unit.id)}
         />
@@ -119,7 +122,7 @@ function ActiveSpeechBubblesRenderer() {
 
   useFrame(() => {
     const currentZoom = (window as any).__lastCameraZoom ?? 38;
-    if (isStrategicView || currentZoom <= 18.5) {
+    if (isStrategicView || currentZoom <= 22) {
       if (activeBubbles.length > 0) setActiveBubbles([]);
       return;
     }
@@ -128,27 +131,43 @@ function ActiveSpeechBubblesRenderer() {
     if (currentTick === lastCheckTick.current) return;
     lastCheckTick.current = currentTick;
 
-    const camTarget = (window as any).__lastCameraTarget;
+    const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
     const selectedId = useGameStore.getState().selectedEntityId;
 
-    const list: Array<{ id: string; text: string; x: number; y: number; z: number }> = [];
+    const candidateList: Array<{ id: string; text: string; x: number; y: number; z: number; distSq: number; isSelected: boolean }> = [];
     for (const u of characterEntities) {
       if (u.speechBubble && u.position && currentTick < u.speechBubble.expiresAtTick) {
         const isSelected = u.id === selectedId;
-        if (!isSelected && camTarget) {
-          const distSq = (u.position[0] - camTarget[0]) ** 2 + (u.position[2] - camTarget[1]) ** 2;
-          if (distSq > 30 * 30) continue;
-        }
-        list.push({
+        const distSq = camTarget
+          ? (u.position[0] - camTarget[0]) ** 2 + (u.position[2] - camTarget[1]) ** 2
+          : 0;
+        if (!isSelected && distSq > 24 * 24) continue;
+
+        candidateList.push({
           id: u.id,
           text: u.speechBubble.text,
           x: u.position[0],
           y: (u.position[1] || 0) + 1.2,
           z: u.position[2],
+          distSq,
+          isSelected,
         });
-        if (list.length >= 5) break;
       }
     }
+
+    candidateList.sort((a, b) => {
+      if (a.isSelected && !b.isSelected) return -1;
+      if (!a.isSelected && b.isSelected) return 1;
+      return a.distSq - b.distSq;
+    });
+
+    const list = candidateList.slice(0, 2).map((c) => ({
+      id: c.id,
+      text: c.text,
+      x: c.x,
+      y: c.y,
+      z: c.z,
+    }));
 
     if (list.length !== activeBubbles.length || list.some((b, i) => b.id !== activeBubbles[i]?.id || b.text !== activeBubbles[i]?.text)) {
       setActiveBubbles(list);
@@ -707,147 +726,87 @@ function Unit3D({
 
           {isLord && (
             <group position={[0, 0.72, 0]}>
-              <mesh material={app.hairMat} position={[0, 0.115, -0.02]}>
-                <boxGeometry args={[0.225, 0.04, 0.18]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0, 0.02, -0.10]}>
-                <boxGeometry args={[0.225, 0.14, 0.035]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[-0.105, 0.03, -0.01]}>
-                <boxGeometry args={[0.025, 0.12, 0.16]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0.105, 0.03, -0.01]}>
-                <boxGeometry args={[0.025, 0.12, 0.16]} />
-              </mesh>
+              <mesh material={app.hairMat} position={[0, 0.115, -0.02]} geometry={SHARED_GEOS.hairTop} />
+              <mesh material={app.hairMat} position={[0, 0.02, -0.10]} geometry={SHARED_GEOS.hairBackShort} />
+              <mesh material={app.hairMat} position={[-0.105, 0.03, -0.01]} geometry={SHARED_GEOS.hairSide} />
+              <mesh material={app.hairMat} position={[0.105, 0.03, -0.01]} geometry={SHARED_GEOS.hairSide} />
               <group position={[0, 0.14, 0]}>
-                <mesh material={staticMats.crownGold}>
-                  <cylinderGeometry args={[0.13, 0.13, 0.08, 6]} />
-                </mesh>
-                <mesh material={staticMats.rubyGem} position={[0, 0.05, 0.13]}>
-                  <dodecahedronGeometry args={[0.03, 0]} />
-                </mesh>
+                <mesh material={staticMats.crownGold} geometry={SHARED_GEOS.crownCylinder} />
+                <mesh material={staticMats.rubyGem} position={[0, 0.05, 0.13]} geometry={SHARED_GEOS.rubyGem} />
               </group>
             </group>
           )}
 
           {isLady && (
             <group position={[0, 0.72, 0]}>
-              <mesh material={app.hairMat} position={[0, 0.115, -0.02]}>
-                <boxGeometry args={[0.225, 0.04, 0.18]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0, 0.01, -0.105]}>
-                <boxGeometry args={[0.225, 0.18, 0.035]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0, 0.02, -0.13]}>
-                <sphereGeometry args={[0.065, 6, 6]} />
-              </mesh>
-              <mesh material={staticMats.goldTrim} position={[0, 0.04, -0.13]}>
-                <cylinderGeometry args={[0.01, 0.01, 0.14, 4]} />
-              </mesh>
+              <mesh material={app.hairMat} position={[0, 0.115, -0.02]} geometry={SHARED_GEOS.hairTop} />
+              <mesh material={app.hairMat} position={[0, 0.01, -0.105]} geometry={SHARED_GEOS.hairBackMed} />
+              <mesh material={app.hairMat} position={[0, 0.02, -0.13]} geometry={SHARED_GEOS.ladyHairBun} />
+              <mesh material={staticMats.goldTrim} position={[0, 0.04, -0.13]} geometry={SHARED_GEOS.goldTrimPin} />
             </group>
           )}
 
           {isKnight && (
             <group position={[0, 0.75, 0]}>
-              <mesh material={staticMats.knightHelm}>
-                <boxGeometry args={[0.26, 0.26, 0.26]} />
-              </mesh>
-              <mesh material={staticMats.ironSteel} position={[0, -0.02, 0.135]}>
-                <boxGeometry args={[0.18, 0.06, 0.03]} />
-              </mesh>
+              <mesh material={staticMats.knightHelm} geometry={SHARED_GEOS.knightHelm} />
+              <mesh material={staticMats.ironSteel} position={[0, -0.02, 0.135]} geometry={SHARED_GEOS.knightVisor} />
             </group>
           )}
 
           {isPeasant && app.headwearType === 'straw_hat' && app.hatMat && (
             <group position={[0, 0.72, 0]}>
-              <mesh material={app.hairMat} position={[0, 0.02, -0.10]}>
-                <boxGeometry args={[0.225, 0.12, 0.035]} />
-              </mesh>
+              <mesh material={app.hairMat} position={[0, 0.02, -0.10]} geometry={SHARED_GEOS.hairBackShort} />
               <group position={[0, 0.12, 0]}>
-                <mesh material={app.hatMat}>
-                  <cylinderGeometry args={[0.25, 0.27, 0.03, 8]} />
-                </mesh>
-                <mesh material={app.hatMat} position={[0, 0.07, 0]}>
-                  <coneGeometry args={[0.15, 0.13, 8]} />
-                </mesh>
+                <mesh material={app.hatMat} geometry={SHARED_GEOS.strawBrim} />
+                <mesh material={app.hatMat} position={[0, 0.07, 0]} geometry={SHARED_GEOS.strawCone} />
               </group>
             </group>
           )}
 
           {isPeasant && app.headwearType === 'hood' && app.hatMat && (
             <group position={[0, 0.77, -0.04]}>
-              <mesh material={app.hatMat}>
-                <boxGeometry args={[0.25, 0.22, 0.18]} />
-              </mesh>
-              <mesh material={app.hatMat} position={[0, -0.08, -0.08]}>
-                <coneGeometry args={[0.15, 0.12, 6]} />
-              </mesh>
+              <mesh material={app.hatMat} geometry={SHARED_GEOS.hoodBox} />
+              <mesh material={app.hatMat} position={[0, -0.08, -0.08]} geometry={SHARED_GEOS.hoodCone} />
             </group>
           )}
 
           {isPeasant && app.headwearType === 'cap' && app.hatMat && (
             <group position={[0, 0.72, 0]}>
-              <mesh material={app.hairMat} position={[0, 0.02, -0.10]}>
-                <boxGeometry args={[0.225, 0.12, 0.035]} />
-              </mesh>
+              <mesh material={app.hairMat} position={[0, 0.02, -0.10]} geometry={SHARED_GEOS.hairBackShort} />
               <group position={[0, 0.12, 0]}>
-                <mesh material={app.hatMat}>
-                  <cylinderGeometry args={[0.16, 0.16, 0.06, 6]} />
-                </mesh>
-                <mesh material={app.hatMat} position={[0, -0.02, 0.12]}>
-                  <boxGeometry args={[0.14, 0.02, 0.08]} />
-                </mesh>
+                <mesh material={app.hatMat} geometry={SHARED_GEOS.capCylinder} />
+                <mesh material={app.hatMat} position={[0, -0.02, 0.12]} geometry={SHARED_GEOS.capVisor} />
               </group>
             </group>
           )}
 
           {isPeasant && app.headwearType === 'headscarf' && app.hatMat && (
             <group position={[0, 0.80, -0.04]}>
-              <mesh material={app.hatMat}>
-                <boxGeometry args={[0.24, 0.13, 0.18]} />
-              </mesh>
-              <mesh material={app.hatMat} position={[0, -0.06, -0.10]}>
-                <dodecahedronGeometry args={[0.04, 0]} />
-              </mesh>
+              <mesh material={app.hatMat} geometry={SHARED_GEOS.headscarfBox} />
+              <mesh material={app.hatMat} position={[0, -0.06, -0.10]} geometry={SHARED_GEOS.headscarfKnot} />
             </group>
           )}
 
           {isPeasant && app.headwearType === 'wimple' && app.hatMat && (
             <group position={[0, 0.76, -0.04]}>
-              <mesh material={app.hatMat}>
-                <boxGeometry args={[0.24, 0.18, 0.16]} />
-              </mesh>
+              <mesh material={app.hatMat} geometry={SHARED_GEOS.wimpleBox} />
             </group>
           )}
 
           {isPeasant && app.headwearType === 'bun' && (
             <group position={[0, 0.72, 0]}>
-              <mesh material={app.hairMat} position={[0, 0.115, -0.02]}>
-                <boxGeometry args={[0.225, 0.04, 0.18]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0, 0.02, -0.105]}>
-                <boxGeometry args={[0.225, 0.16, 0.035]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0, 0.04, -0.13]}>
-                <sphereGeometry args={[0.065, 6, 6]} />
-              </mesh>
+              <mesh material={app.hairMat} position={[0, 0.115, -0.02]} geometry={SHARED_GEOS.hairTop} />
+              <mesh material={app.hairMat} position={[0, 0.02, -0.105]} geometry={SHARED_GEOS.hairBackMed} />
+              <mesh material={app.hairMat} position={[0, 0.04, -0.13]} geometry={SHARED_GEOS.ladyHairBun} />
             </group>
           )}
 
           {isPeasant && app.headwearType === 'braids' && (
             <group position={[0, 0.72, 0]}>
-              <mesh material={app.hairMat} position={[0, 0.115, -0.02]}>
-                <boxGeometry args={[0.225, 0.04, 0.18]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0, 0.02, -0.105]}>
-                <boxGeometry args={[0.225, 0.16, 0.035]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[-0.105, -0.08, 0.06]}>
-                <cylinderGeometry args={[0.025, 0.02, 0.22, 5]} />
-              </mesh>
-              <mesh material={app.hairMat} position={[0.105, -0.08, 0.06]}>
-                <cylinderGeometry args={[0.025, 0.02, 0.22, 5]} />
-              </mesh>
+              <mesh material={app.hairMat} position={[0, 0.115, -0.02]} geometry={SHARED_GEOS.hairTop} />
+              <mesh material={app.hairMat} position={[0, 0.02, -0.105]} geometry={SHARED_GEOS.hairBackMed} />
+              <mesh material={app.hairMat} position={[-0.105, -0.08, 0.06]} geometry={SHARED_GEOS.braidCylinder} />
+              <mesh material={app.hairMat} position={[0.105, -0.08, 0.06]} geometry={SHARED_GEOS.braidCylinder} />
             </group>
           )}
 
@@ -855,33 +814,17 @@ function Unit3D({
             <group position={[0, 0.72, 0]}>
               {app.hairStyle % 3 === 0 ? (
                 <group>
-                  <mesh material={app.hairMat} position={[0, 0.115, -0.02]}>
-                    <boxGeometry args={[0.225, 0.04, 0.18]} />
-                  </mesh>
-                  <mesh material={app.hairMat} position={[0, 0.02, -0.10]}>
-                    <boxGeometry args={[0.225, 0.14, 0.035]} />
-                  </mesh>
-                  <mesh material={app.hairMat} position={[-0.105, 0.03, -0.01]}>
-                    <boxGeometry args={[0.025, 0.12, 0.16]} />
-                  </mesh>
-                  <mesh material={app.hairMat} position={[0.105, 0.03, -0.01]}>
-                    <boxGeometry args={[0.025, 0.12, 0.16]} />
-                  </mesh>
+                  <mesh material={app.hairMat} position={[0, 0.115, -0.02]} geometry={SHARED_GEOS.hairTop} />
+                  <mesh material={app.hairMat} position={[0, 0.02, -0.10]} geometry={SHARED_GEOS.hairBackShort} />
+                  <mesh material={app.hairMat} position={[-0.105, 0.03, -0.01]} geometry={SHARED_GEOS.hairSide} />
+                  <mesh material={app.hairMat} position={[0.105, 0.03, -0.01]} geometry={SHARED_GEOS.hairSide} />
                 </group>
               ) : app.hairStyle % 3 === 1 ? (
                 <group>
-                  <mesh material={app.hairMat} position={[0, 0.115, -0.02]}>
-                    <boxGeometry args={[0.225, 0.04, 0.18]} />
-                  </mesh>
-                  <mesh material={app.hairMat} position={[0, -0.01, -0.10]}>
-                    <boxGeometry args={[0.225, 0.19, 0.035]} />
-                  </mesh>
-                  <mesh material={app.hairMat} position={[-0.108, -0.01, 0]}>
-                    <boxGeometry args={[0.025, 0.17, 0.16]} />
-                  </mesh>
-                  <mesh material={app.hairMat} position={[0.108, -0.01, 0]}>
-                    <boxGeometry args={[0.025, 0.17, 0.16]} />
-                  </mesh>
+                  <mesh material={app.hairMat} position={[0, 0.115, -0.02]} geometry={SHARED_GEOS.hairTop} />
+                  <mesh material={app.hairMat} position={[0, -0.01, -0.10]} geometry={SHARED_GEOS.hairBackLong} />
+                  <mesh material={app.hairMat} position={[-0.108, -0.01, 0]} geometry={SHARED_GEOS.hairSideLong} />
+                  <mesh material={app.hairMat} position={[0.108, -0.01, 0]} geometry={SHARED_GEOS.hairSideLong} />
                 </group>
               ) : (
                 <group>
@@ -902,22 +845,12 @@ function Unit3D({
 
           <group ref={twoHandedRigRef} position={[0, 0.46, 0]} visible={false}>
             <group position={[0.02, -0.04, 0.20]} rotation={[-0.28, 0, 0.12]}>
-              <mesh material={staticMats.woodHandle}>
-                <cylinderGeometry args={[0.018, 0.022, 0.58, 6]} />
-              </mesh>
-              <mesh material={app.bootsMat} position={[0, 0.06, 0]}>
-                <cylinderGeometry args={[0.024, 0.024, 0.10, 6]} />
-              </mesh>
-              <mesh material={app.bootsMat} position={[0, -0.12, 0]}>
-                <cylinderGeometry args={[0.024, 0.024, 0.10, 6]} />
-              </mesh>
+              <mesh material={staticMats.woodHandle} geometry={SHARED_GEOS.twoHandedHandle} />
+              <mesh material={app.bootsMat} position={[0, 0.06, 0]} geometry={SHARED_GEOS.twoHandedGrip} />
+              <mesh material={app.bootsMat} position={[0, -0.12, 0]} geometry={SHARED_GEOS.twoHandedGrip} />
               <group position={[0, 0.24, 0.04]}>
-                <mesh material={staticMats.ironSteel}>
-                  <boxGeometry args={[0.036, 0.10, 0.11]} />
-                </mesh>
-                <mesh material={staticMats.ironSteel} position={[0, 0, 0.06]}>
-                  <boxGeometry args={[0.012, 0.11, 0.02]} />
-                </mesh>
+                <mesh material={staticMats.ironSteel} geometry={SHARED_GEOS.twoHandedBlade} />
+                <mesh material={staticMats.ironSteel} position={[0, 0, 0.06]} geometry={SHARED_GEOS.twoHandedSpike} />
               </group>
             </group>
 
@@ -948,40 +881,24 @@ function Unit3D({
               <mesh material={app.skinMat} position={[0, -0.18, 0]} geometry={SHARED_GEOS.armHandStandard} />
 
               <group ref={hammerRef} position={[0, -0.2, 0.12]} rotation={[-Math.PI / 5, 0, 0]} visible={false}>
-                <mesh material={staticMats.woodHandle}>
-                  <cylinderGeometry args={[0.02, 0.025, 0.35, 4]} />
-                </mesh>
-                <mesh material={staticMats.ironSteel} position={[0, 0.14, 0]}>
-                  <boxGeometry args={[0.1, 0.07, 0.06]} />
-                </mesh>
+                <mesh material={staticMats.woodHandle} geometry={SHARED_GEOS.hammerHandle} />
+                <mesh material={staticMats.ironSteel} position={[0, 0.14, 0]} geometry={SHARED_GEOS.hammerHead} />
               </group>
 
               <group ref={pickaxeRef} position={[0, -0.22, 0.12]} rotation={[-Math.PI / 5, 0, 0]} visible={false}>
-                <mesh material={staticMats.woodHandle}>
-                  <cylinderGeometry args={[0.02, 0.025, 0.42, 4]} />
-                </mesh>
-                <mesh material={staticMats.ironSteel} position={[0, 0.15, 0]}>
-                  <boxGeometry args={[0.18, 0.04, 0.04]} />
-                </mesh>
+                <mesh material={staticMats.woodHandle} geometry={SHARED_GEOS.pickaxeHandle} />
+                <mesh material={staticMats.ironSteel} position={[0, 0.15, 0]} geometry={SHARED_GEOS.pickaxeHead} />
               </group>
 
               <group ref={swordRef} position={[0, -0.22, 0.15]} rotation={[-Math.PI / 4, 0, 0]} visible={false}>
-                <mesh material={staticMats.ironSteel}>
-                  <boxGeometry args={[0.04, 0.45, 0.02]} />
-                </mesh>
-                <mesh material={staticMats.goldTrim} position={[0, -0.18, 0]}>
-                  <boxGeometry args={[0.12, 0.03, 0.04]} />
-                </mesh>
+                <mesh material={staticMats.ironSteel} geometry={SHARED_GEOS.swordBlade} />
+                <mesh material={staticMats.goldTrim} position={[0, -0.18, 0]} geometry={SHARED_GEOS.swordGuard} />
               </group>
 
               {isLord && (
                 <group ref={scepterRef} position={[0, -0.2, 0.1]} rotation={[-0.3, 0, 0]} visible={false}>
-                  <mesh material={staticMats.goldTrim}>
-                    <cylinderGeometry args={[0.02, 0.02, 0.35, 4]} />
-                  </mesh>
-                  <mesh material={staticMats.rubyGem} position={[0, 0.18, 0]}>
-                    <dodecahedronGeometry args={[0.05, 0]} />
-                  </mesh>
+                  <mesh material={staticMats.goldTrim} geometry={SHARED_GEOS.scepterHandle} />
+                  <mesh material={staticMats.rubyGem} position={[0, 0.18, 0]} geometry={SHARED_GEOS.scepterHead} />
                 </group>
               )}
             </group>
@@ -1011,7 +928,8 @@ function Unit3D({
 
 const Unit3DMemo = memo(Unit3D, (prev, next) => {
   return (
-    prev.unit.id === next.unit.id &&
+
+    prev.unit === next.unit &&
     prev.isSelected === next.isSelected &&
     prev.isGamePaused === next.isGamePaused &&
     prev.previewAnimation === next.previewAnimation &&
@@ -1019,4 +937,3 @@ const Unit3DMemo = memo(Unit3D, (prev, next) => {
     prev.grid === next.grid
   );
 });
-

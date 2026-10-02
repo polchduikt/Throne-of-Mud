@@ -549,6 +549,7 @@ export function findBuildingContainingPos(
 ): GameEntity | undefined {
   for (const b of buildings) {
     if (!b.isCompleted) continue;
+    if (b.buildingType === 'campfire') continue;
     const [defW, defH] = getBuildingDimensions(b.buildingType);
     if (b.position) {
       const cx = b.position[0];

@@ -178,19 +178,17 @@ export class ManualJobHandler {
     unit: GameEntity,
     grid: GridMap,
     uBounds: { minX: number; maxX: number; minZ: number; maxZ: number } | undefined,
-    _cx: number,
-    _cz: number,
+    cx: number,
+    cz: number,
     currentTick?: number
   ): void {
     if (unit.path && unit.path.length > 0) return;
+    if (!unit.gridPosition) return;
 
     const tick = currentTick ?? (useGameStore.getState().time.tick || 0);
-    const cooldown = (unit as any).idleCooldownTicks ?? 0;
-    if (tick < cooldown) {
-      return;
-    }
 
-    if (!unit.gridPosition) return;
+    if (Math.random() > 0.08) return;
+
     const curX = unit.gridPosition[0];
     const curZ = unit.gridPosition[1];
 
@@ -200,65 +198,73 @@ export class ManualJobHandler {
     const maxZ = uBounds ? uBounds.maxZ - 2 : grid.height - 3;
 
     const candidateDestinations: [number, number][] = [];
+    const isValidDestination = (x: number, z: number): boolean => {
+      if (x < minX || x > maxX || z < minZ || z > maxZ) return false;
+      if (Math.hypot(x - curX, z - curZ) < 3) return false;
+      if (!grid.isWalkable(x, z)) return false;
 
-    // 1. Stroll along village roads if any exist nearby
+      return !Array.from(characterEntities).some(
+        (other) =>
+          other.id !== unit.id &&
+          other.gridPosition &&
+          other.gridPosition[0] === x &&
+          other.gridPosition[1] === z
+      );
+    };
+
     if (grid.roadCoords && grid.roadCoords.size > 0) {
       const gWidth = grid.width;
       let sampleCount = 0;
       for (const code of grid.roadCoords) {
-        if (++sampleCount > 50) break;
+        if (++sampleCount > 30) break;
         const rx = Math.floor(code / gWidth);
         const rz = code % gWidth;
         const dist = Math.hypot(rx - curX, rz - curZ);
-        if (dist >= 5 && dist <= 20 && rx >= minX && rx <= maxX && rz >= minZ && rz <= maxZ) {
+        if (dist <= 16 && isValidDestination(rx, rz)) {
           candidateDestinations.push([rx, rz]);
-          if (candidateDestinations.length >= 4) break;
+          if (candidateDestinations.length >= 3) break;
         }
       }
     }
 
-    // 2. Visit or pass by completed village buildings
     const localBuildings: GameEntity[] = [];
     for (const b of buildingEntities) {
       if (!b.isCompleted || !b.gridPosition) continue;
       const isSameFaction = unit.factionId ? b.factionId === unit.factionId : (b.factionId === 'player' || b.factionId === undefined);
-      const isSameRegion = unit.regionId !== undefined ? b.regionId === unit.regionId : false;
+      const isSameRegion = unit.regionId !== undefined ? b.regionId === unit.regionId : true;
       if (isSameFaction || isSameRegion) {
         localBuildings.push(b);
       }
     }
 
-    if (localBuildings.length > 0) {
-      for (const b of localBuildings) {
-        if (!b.gridPosition) continue;
+    if (localBuildings.length > 0 && Math.random() < 0.6) {
+      const b = localBuildings[Math.floor(Math.random() * localBuildings.length)];
+      if (b.gridPosition) {
         const bx = b.gridPosition[0] + Math.floor((b.buildingWidth || 2) / 2);
         const bz = b.gridPosition[1] + Math.floor((b.buildingHeight || 2) / 2);
-        for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, 2]]) {
+        for (const [ox, oz] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, 1]]) {
           const tx = bx + ox;
           const tz = bz + oz;
-          const dist = Math.hypot(tx - curX, tz - curZ);
-          if (dist >= 5 && dist <= 20 && tx >= minX && tx <= maxX && tz >= minZ && tz <= maxZ && grid.isWalkable(tx, tz)) {
+          if (isValidDestination(tx, tz)) {
             candidateDestinations.push([tx, tz]);
           }
         }
       }
     }
 
-    // 3. Wide regional roam (explore forest edges, perimeter, scenic spots)
-    for (let attempt = 0; attempt < 10; attempt++) {
+    const anchorX = cx || curX;
+    const anchorZ = cz || curZ;
+    for (let attempt = 0; attempt < 8; attempt++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = 6 + Math.random() * 10; // 6 to 16 tiles
-      const candX = Math.round(curX + Math.cos(angle) * dist);
-      const candZ = Math.round(curZ + Math.sin(angle) * dist);
-      if (candX >= minX && candX <= maxX && candZ >= minZ && candZ <= maxZ && grid.isWalkable(candX, candZ)) {
+      const dist = 4 + Math.random() * 8;
+      const candX = Math.round(anchorX + Math.cos(angle) * dist);
+      const candZ = Math.round(anchorZ + Math.sin(angle) * dist);
+      if (isValidDestination(candX, candZ)) {
         candidateDestinations.push([candX, candZ]);
       }
     }
 
-    if (candidateDestinations.length === 0) {
-      (unit as any).idleCooldownTicks = tick + 25;
-      return;
-    }
+    if (candidateDestinations.length === 0) return;
 
     const chosen = candidateDestinations[Math.floor(Math.random() * candidateDestinations.length)];
     const wanderPath = createPathSafely(
@@ -271,16 +277,18 @@ export class ManualJobHandler {
       uBounds
     );
 
-    if (wanderPath && wanderPath.length >= 3) {
-      unit.path = wanderPath;
+    const movementPath = wanderPath?.filter(([x, z]) => x !== curX || z !== curZ) ?? [];
+
+    if (movementPath.length > 0) {
+      unit.path = movementPath;
       unit.currentJob = {
         id: `wander-${Date.now()}`,
         type: 'wander',
         progress: 0,
-        totalWork: 25,
+        totalWork: 12,
       };
 
-      if (Math.random() < 0.40) {
+      if (Math.random() < 0.25) {
         const isLord = isNoble(unit);
         let text = '';
         if (isLord) {
@@ -291,7 +299,6 @@ export class ManualJobHandler {
             'Усе йде за планом',
             'Потрібно перевірити межі земель',
             'Вітаю, жителі моїх земель!',
-            'Огляну дорогу до столиці',
           ];
           text = lordPhrases[Math.floor(Math.random() * lordPhrases.length)];
         } else {
@@ -302,9 +309,6 @@ export class ManualJobHandler {
             'Час перепочити',
             'Піду погріюся біля вогню',
             'Наше поселення гарнішає',
-            'Стежки ведуть до вогнища',
-            'Огляну, де ростуть дерева',
-            'Пройдуся вздовж дороги',
           ];
           text = peasantPhrases[Math.floor(Math.random() * peasantPhrases.length)];
         }
@@ -314,8 +318,6 @@ export class ManualJobHandler {
           type: 'mood',
         };
       }
-    } else {
-      (unit as any).idleCooldownTicks = tick + 25;
     }
   }
 
@@ -345,4 +347,3 @@ export class ManualJobHandler {
     }
   }
 }
-

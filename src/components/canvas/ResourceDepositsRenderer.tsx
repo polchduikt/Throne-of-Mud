@@ -398,8 +398,9 @@ function DepositNode({
   const stagHeadRef = useRef<THREE.Group>(null);
   const doe1HeadRef = useRef<THREE.Group>(null);
   const doe2HeadRef = useRef<THREE.Group>(null);
-  const [inView, setInView] = useState(false);
+  const [showBadge, setShowBadge] = useState(false);
   const inViewRef = useRef(false);
+  const showBadgeRef = useRef(false);
   const frameCount = useRef(0);
 
   const [x, , z] = deposit.position;
@@ -420,9 +421,11 @@ function DepositNode({
       const distSq = (x - targetX) * (x - targetX) + (z - targetZ) * (z - targetZ);
       const maxDist = Math.max(22, (800 / zoom) + 6);
       const shouldBeInView = zoom >= 16 && distSq < maxDist * maxDist;
-      if (shouldBeInView !== inViewRef.current) {
-        inViewRef.current = shouldBeInView;
-        setInView(shouldBeInView);
+      inViewRef.current = shouldBeInView;
+      const shouldShowBadge = isSelected || (shouldBeInView && zoom >= 32 && distSq < 16 * 16);
+      if (shouldShowBadge !== showBadgeRef.current) {
+        showBadgeRef.current = shouldShowBadge;
+        setShowBadge(shouldShowBadge);
       }
       if (nodeRef.current && nodeRef.current.visible !== shouldBeInView) {
         nodeRef.current.visible = shouldBeInView;
@@ -779,7 +782,7 @@ function DepositNode({
         </mesh>
       )}
 
-      {inView && (
+      {showBadge && (
         <Html
           position={[0, badgeY, 0]}
           center

@@ -195,7 +195,11 @@ export class AStar {
     const tz = Math.floor(target[1]);
 
     if (regionBounds) {
-      if (tx < regionBounds.minX || tx > regionBounds.maxX || tz < regionBounds.minZ || tz > regionBounds.maxZ) {
+      if (regionBounds.regionId !== undefined) {
+        if (!GridMap.isCoordInRegion(regionBounds.regionId, tx, tz, 0)) {
+          return null;
+        }
+      } else if (tx < regionBounds.minX || tx > regionBounds.maxX || tz < regionBounds.minZ || tz > regionBounds.maxZ) {
         return null;
       }
     }

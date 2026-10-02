@@ -1,7 +1,11 @@
-import type { RefObject } from 'react';
+import { useState, useRef, type RefObject } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import * as THREE from 'three';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
 import { useGameStore } from '../../../../store/useGameStore';
+
+const _tempVec = new THREE.Vector3();
 
 interface ConstructionScaffoldProps {
   type: string;
@@ -20,7 +24,6 @@ export function ConstructionScaffold({
   progressTextRef,
   progressBarRef,
 }: ConstructionScaffoldProps) {
-  const isStrategicView = useGameStore((s) => s.isStrategicView);
   const mats = SHARED_BUILDING_MATS;
   const isMinimal =
     type === 'wooden_wall' ||
@@ -123,22 +126,76 @@ export function ConstructionScaffold({
         <boxGeometry args={[width * 0.85, height * 0.55, 0.05]} />
       </mesh>
 
-      {!isStrategicView && (
-        <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-          <div className="bg-slate-950 text-amber-300 text-[11px] px-3 py-1.5 rounded-xl border border-amber-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
-            <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-amber-400">
-              🔨 {Math.round(progress)}%
-            </span>
-            <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
-              <div
-                ref={progressBarRef}
-                className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-200 shadow-sm"
-                style={{ width: `${Math.max(4, progress)}%` }}
-              />
-            </div>
+      <ConstructionHUD
+        progress={progress}
+        progressTextRef={progressTextRef}
+        progressBarRef={progressBarRef}
+      />
+    </group>
+  );
+}
+
+function ConstructionHUD({
+  progress,
+  progressTextRef,
+  progressBarRef,
+}: {
+  progress: number;
+  progressTextRef: RefObject<HTMLSpanElement | null>;
+  progressBarRef: RefObject<HTMLDivElement | null>;
+}) {
+  const isStrategicView = useGameStore((s) => s.isStrategicView);
+  const [inView, setInView] = useState(true);
+  const frameCount = useRef(0);
+  const inViewRef = useRef(true);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame(({ camera }) => {
+    if (isStrategicView) {
+      if (inViewRef.current) {
+        inViewRef.current = false;
+        setInView(false);
+      }
+      return;
+    }
+
+    frameCount.current++;
+    if (frameCount.current % 12 === 0 || frameCount.current === 1) {
+      const zoom = (window as any).__lastCameraZoom ?? (camera as THREE.OrthographicCamera).zoom ?? 38;
+      const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
+      if (camTarget && groupRef.current) {
+        groupRef.current.getWorldPosition(_tempVec);
+        const distSq = (_tempVec.x - camTarget[0]) ** 2 + (_tempVec.z - camTarget[1]) ** 2;
+        const maxDist = Math.max(22, (800 / zoom) + 8);
+        const shouldBeInView = zoom >= 16 && distSq < maxDist * maxDist;
+        if (shouldBeInView !== inViewRef.current) {
+          inViewRef.current = shouldBeInView;
+          setInView(shouldBeInView);
+        }
+      }
+    }
+  });
+
+  if (isStrategicView || !inView) {
+    return <group ref={groupRef} />;
+  }
+
+  return (
+    <group ref={groupRef}>
+      <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <div className="bg-slate-950 text-amber-300 text-[11px] px-3 py-1.5 rounded-xl border border-amber-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
+          <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-amber-400">
+            🔨 {Math.round(progress)}%
+          </span>
+          <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
+            <div
+              ref={progressBarRef}
+              className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-200 shadow-sm"
+              style={{ width: `${Math.max(4, progress)}%` }}
+            />
           </div>
-        </Html>
-      )}
+        </div>
+      </Html>
     </group>
   );
 }
@@ -155,23 +212,57 @@ export function DemolitionHUD({
   progressBarRef,
 }: DemolitionHUDProps) {
   const isStrategicView = useGameStore((s) => s.isStrategicView);
-  if (isStrategicView) return null;
+  const [inView, setInView] = useState(true);
+  const frameCount = useRef(0);
+  const inViewRef = useRef(true);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame(({ camera }) => {
+    if (isStrategicView) {
+      if (inViewRef.current) {
+        inViewRef.current = false;
+        setInView(false);
+      }
+      return;
+    }
+
+    frameCount.current++;
+    if (frameCount.current % 12 === 0 || frameCount.current === 1) {
+      const zoom = (window as any).__lastCameraZoom ?? (camera as THREE.OrthographicCamera).zoom ?? 38;
+      const camTarget = (window as any).__lastCameraTarget as [number, number] | undefined;
+      if (camTarget && groupRef.current) {
+        groupRef.current.getWorldPosition(_tempVec);
+        const distSq = (_tempVec.x - camTarget[0]) ** 2 + (_tempVec.z - camTarget[1]) ** 2;
+        const maxDist = Math.max(22, (800 / zoom) + 8);
+        const shouldBeInView = zoom >= 16 && distSq < maxDist * maxDist;
+        if (shouldBeInView !== inViewRef.current) {
+          inViewRef.current = shouldBeInView;
+          setInView(shouldBeInView);
+        }
+      }
+    }
+  });
+
+  if (isStrategicView || !inView) {
+    return <group ref={groupRef} />;
+  }
 
   return (
-    <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-      <div className="bg-slate-950 text-rose-300 text-[11px] px-3 py-1.5 rounded-xl border border-rose-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
-        <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-rose-400">
-          💣 {Math.round(demolitionProgress)}%
-        </span>
-        <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
-          <div
-            ref={progressBarRef}
-            className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-200 shadow-sm"
-            style={{ width: `${Math.max(4, demolitionProgress)}%` }}
-          />
+    <group ref={groupRef}>
+      <Html position={[0, 1.45, 0]} center zIndexRange={[10, 0]} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+        <div className="bg-slate-950 text-rose-300 text-[11px] px-3 py-1.5 rounded-xl border border-rose-500/70 shadow-2xl font-mono flex items-center gap-2 whitespace-nowrap pointer-events-none">
+          <span ref={progressTextRef} className="font-bold flex items-center gap-1 text-rose-400">
+            💣 {Math.round(demolitionProgress)}%
+          </span>
+          <div className="w-16 h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/60 p-0.5">
+            <div
+              ref={progressBarRef}
+              className="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-200 shadow-sm"
+              style={{ width: `${Math.max(4, demolitionProgress)}%` }}
+            />
+          </div>
         </div>
-      </div>
-    </Html>
+      </Html>
+    </group>
   );
 }
-

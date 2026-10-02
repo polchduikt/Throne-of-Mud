@@ -1,5 +1,5 @@
 import type { GameEntity, Job } from '../../world';
-import { buildingEntities } from '../../world';
+import { buildingEntities, characterEntities } from '../../world';
 import { GridMap } from '../../../grid/GridMap';
 import { AStar } from '../../../pathfinding/AStar';
 import { getTreeProceduralData } from '../../../world/foliageGeneration';
@@ -85,6 +85,18 @@ export class WoodcuttingJobHandler {
       const hutPos = building.gridPosition || [cx, cz];
       const candidateTrees: Array<{ pos: [number, number]; dist: number; isFallen: boolean }> = [];
 
+      const takenTreePositions = new Set<number>();
+      for (const c of characterEntities) {
+        if (c.id === unit.id || !c.currentJob) continue;
+        const oj = c.currentJob;
+        if (
+          (oj.type === 'chop_tree' || oj.type === 'wait_tree_fall' || oj.type === 'chop_fallen_log') &&
+          oj.targetPosition
+        ) {
+          takenTreePositions.add((Math.floor(oj.targetPosition[1]) << 16) | Math.floor(oj.targetPosition[0]));
+        }
+      }
+
       const minSearchX = uBounds ? Math.max(uBounds.minX, hutPos[0] - WOODCUTTING_SEARCH_RADIUS) : Math.max(0, hutPos[0] - WOODCUTTING_SEARCH_RADIUS);
       const maxSearchX = uBounds ? Math.min(uBounds.maxX, hutPos[0] + WOODCUTTING_SEARCH_RADIUS) : Math.min(grid.width - 1, hutPos[0] + WOODCUTTING_SEARCH_RADIUS);
       const minSearchZ = uBounds ? Math.max(uBounds.minZ, hutPos[1] - WOODCUTTING_SEARCH_RADIUS) : Math.max(0, hutPos[1] - WOODCUTTING_SEARCH_RADIUS);
@@ -92,6 +104,9 @@ export class WoodcuttingJobHandler {
 
       for (let x = minSearchX; x <= maxSearchX; x++) {
         for (let z = minSearchZ; z <= maxSearchZ; z++) {
+          const key = (z << 16) | x;
+          if (takenTreePositions.has(key)) continue;
+
           const tile = grid.tiles[x]?.[z];
           if (tile && !tile.buildingId && (tile.foliageType === 'fallen_tree' || tile.foliageType === 'tree')) {
             const distFromHut = distance2D(x, z, hutPos[0], hutPos[1]);
