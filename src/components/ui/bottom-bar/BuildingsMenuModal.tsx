@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useGameStore } from '../../../store/useGameStore';
 import { BUILDING_BLUEPRINTS } from '../../../engine/buildings/blueprints';
 import type { BuildingType } from '../../../types/game';
@@ -9,12 +9,13 @@ import {
   BreadIcon,
   ShieldIcon,
   GoldIcon,
-  StoneIcon,
   CrossCloseIcon,
   PeasantsIcon,
+  RoadIcon,
 } from '../MedievalIcons';
 import { audioManager } from '../../../engine/audio/AudioManager';
 import { useTranslation } from '../../../i18n';
+import { BuildingCard } from './BuildingCard';
 
 interface BuildingsMenuModalProps {
   onClose: () => void;
@@ -26,18 +27,48 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
   const activeBuildType = useGameStore((s) => s.activeBuildType);
   const setActiveBuildType = useGameStore((s) => s.setActiveBuildType);
   const setActiveTool = useGameStore((s) => s.setActiveTool);
-  const resources = useGameStore((s) => s.resources);
 
-  const [activeCategory, setActiveCategory] = useState<'housing' | 'gathering' | 'farming' | 'industry' | 'community' | 'military' | 'trade'>('housing');
+  const [activeCategory, setActiveCategory] = useState<'gathering' | 'housing' | 'farming' | 'industry' | 'community' | 'military' | 'trade'>('housing');
+  const [roadSnapEnabled, setRoadSnapEnabled] = useState(true);
+
+  const cardsContainerRef = useRef<HTMLDivElement>(null);
 
   const categories = [
-    { id: 'housing', label: dict.buildings.categories.housing, icon: TownCenterIcon },
-    { id: 'gathering', label: dict.buildings.categories.gathering, icon: WoodIcon },
-    { id: 'farming', label: dict.buildings.categories.farming, icon: WheatIcon },
-    { id: 'industry', label: dict.buildings.categories.industry, icon: BreadIcon },
-    { id: 'community', label: dict.buildings.categories.community, icon: PeasantsIcon },
-    { id: 'military', label: dict.buildings.categories.military, icon: ShieldIcon },
-    { id: 'trade', label: dict.buildings.categories.trade, icon: GoldIcon },
+    {
+      id: 'gathering',
+      label: dict.buildings.categories.gathering,
+      icon: (props: any) => <WoodIcon {...props} />,
+    },
+    {
+      id: 'housing',
+      label: dict.buildings.categories.housing,
+      icon: (props: any) => <TownCenterIcon {...props} />,
+    },
+    {
+      id: 'farming',
+      label: dict.buildings.categories.farming,
+      icon: (props: any) => <WheatIcon {...props} />,
+    },
+    {
+      id: 'industry',
+      label: dict.buildings.categories.industry,
+      icon: (props: any) => <BreadIcon {...props} />,
+    },
+    {
+      id: 'community',
+      label: dict.buildings.categories.community,
+      icon: (props: any) => <PeasantsIcon {...props} />,
+    },
+    {
+      id: 'military',
+      label: dict.buildings.categories.military,
+      icon: (props: any) => <ShieldIcon {...props} />,
+    },
+    {
+      id: 'trade',
+      label: dict.buildings.categories.trade,
+      icon: (props: any) => <GoldIcon {...props} />,
+    },
   ] as const;
 
   const categoryBlueprints: Record<typeof activeCategory, (typeof BUILDING_BLUEPRINTS[BuildingType])[]> = {
@@ -47,15 +78,15 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
       BUILDING_BLUEPRINTS.manor,
     ].filter(Boolean),
     gathering: [
+      BUILDING_BLUEPRINTS.lumberjack_hut,
+      BUILDING_BLUEPRINTS.foresters_hut,
+      BUILDING_BLUEPRINTS.stone_quarry,
+      BUILDING_BLUEPRINTS.iron_mine,
+      BUILDING_BLUEPRINTS.clay_pit,
+      BUILDING_BLUEPRINTS.salt_works,
       BUILDING_BLUEPRINTS.fishermans_hut,
       BUILDING_BLUEPRINTS.foragers_hut,
       BUILDING_BLUEPRINTS.hunters_hut,
-      BUILDING_BLUEPRINTS.lumberjack_hut,
-      BUILDING_BLUEPRINTS.iron_mine,
-      BUILDING_BLUEPRINTS.stone_quarry,
-      BUILDING_BLUEPRINTS.clay_pit,
-      BUILDING_BLUEPRINTS.salt_works,
-      BUILDING_BLUEPRINTS.foresters_hut,
       BUILDING_BLUEPRINTS.stockpile,
       BUILDING_BLUEPRINTS.campfire,
     ].filter(Boolean),
@@ -88,10 +119,77 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
     ].filter(Boolean),
   };
 
+  const handleSelectBuilding = (type: BuildingType) => {
+    setActiveBuildType(type);
+    setActiveTool('build');
+  };
+
+  const handleScrollLeft = () => {
+    audioManager.playUIClick();
+    if (cardsContainerRef.current) {
+      cardsContainerRef.current.scrollBy({ left: -228, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollRight = () => {
+    audioManager.playUIClick();
+    if (cardsContainerRef.current) {
+      cardsContainerRef.current.scrollBy({ left: 228, behavior: 'smooth' });
+    }
+  };
+
+  const currentBlueprints = categoryBlueprints[activeCategory];
+  const hasOverflow = currentBlueprints.length > 8;
+
   return (
-    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#121418] p-4 rounded-2xl border-2 border-[#5a4830] shadow-[0_12px_40px_rgba(0,0,0,0.95)] flex flex-col gap-3 w-[860px] max-w-[96vw] pointer-events-auto z-50 animate-in fade-in slide-in-from-bottom-3 duration-200">
-      <div className="flex items-center justify-between border-b border-[#3d3222] pb-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-40 max-w-[98vw] animate-in fade-in slide-in-from-bottom-2 duration-200 select-none">
+      <div className="relative w-full flex items-center justify-center mb-0.5 px-3">
+        {hasOverflow && (
+          <button
+            onClick={handleScrollLeft}
+            className="absolute -left-2 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full manor-circle-btn text-amber-200 hover:text-amber-100 flex items-center justify-center shadow-[0_4px_16px_rgba(0,0,0,0.85)] hover:scale-110 active:scale-95 transition cursor-pointer"
+            title="Прокрутити вліво"
+          >
+            <svg className="w-4 h-4 drop-shadow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
+
+        <div
+          ref={cardsContainerRef}
+          onWheel={(e) => {
+            if (cardsContainerRef.current) {
+              cardsContainerRef.current.scrollLeft += e.deltaY;
+            }
+          }}
+          className="flex items-center gap-2.5 overflow-x-auto px-4 pt-4 pb-2 max-w-[936px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden scroll-smooth"
+        >
+          {currentBlueprints.map((b) => (
+            <BuildingCard
+              key={b.type}
+              blueprint={b}
+              isSelected={activeBuildType === b.type}
+              onSelect={handleSelectBuilding}
+            />
+          ))}
+        </div>
+
+        {hasOverflow && (
+          <button
+            onClick={handleScrollRight}
+            className="absolute -right-2 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full manor-circle-btn text-amber-200 hover:text-amber-100 flex items-center justify-center shadow-[0_4px_16px_rgba(0,0,0,0.85)] hover:scale-110 active:scale-95 transition cursor-pointer"
+            title="Прокрутити вправо"
+          >
+            <svg className="w-4 h-4 drop-shadow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-center bg-gradient-to-r from-[#121418]/98 via-[#1a1d24]/98 to-[#121418]/98 border border-[#52422d] px-3 py-1.5 rounded-xl shadow-[0_10px_35px_rgba(0,0,0,0.9)] backdrop-blur-md gap-1 max-w-[94vw] overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-1">
           {categories.map((cat) => {
             const Icon = cat.icon;
             const isActive = activeCategory === cat.id;
@@ -101,95 +199,66 @@ export const BuildingsMenuModal: React.FC<BuildingsMenuModalProps> = React.memo(
                 onClick={() => {
                   audioManager.playUIClick();
                   setActiveCategory(cat.id);
+                  setActiveBuildType(null);
+                  setActiveTool('select');
                 }}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-cinzel font-bold transition whitespace-nowrap cursor-pointer ${
+                title={cat.label}
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all cursor-pointer relative ${
                   isActive
-                    ? 'bg-gradient-to-b from-[#8c6b38] to-[#422d10] text-amber-100 border border-[#d4af37] shadow-md'
-                    : 'text-slate-400 hover:text-amber-200 hover:bg-[#1f222a]'
+                    ? 'bg-gradient-to-b from-[#6b4e23] to-[#36230b] border border-[#d4af37] text-amber-100 shadow-[0_0_12px_rgba(212,175,55,0.4)]'
+                    : 'text-stone-400 hover:text-amber-200 hover:bg-[#222630]/80 border border-transparent'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span>{cat.label}</span>
+                <Icon className="w-5 h-5" />
+                {isActive && (
+                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#d4af37] rotate-45" />
+                )}
               </button>
             );
           })}
         </div>
 
+        <div className="w-px h-6 bg-[#3d3222] mx-2" />
+
+        <div
+          onClick={() => {
+            audioManager.playUIClick();
+            setRoadSnapEnabled(!roadSnapEnabled);
+          }}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-cinzel cursor-pointer transition select-none ${
+            roadSnapEnabled
+              ? 'bg-[#1e2318] border-emerald-700/60 text-emerald-300'
+              : 'bg-[#15171c] border-stone-800 text-stone-400 hover:text-stone-200'
+          }`}
+          title={language === 'uk' ? 'Прив\'язка споруд до доріг та сітки' : 'Snap buildings to roads & grid'}
+        >
+          <RoadIcon className="w-4 h-4" />
+          <span className="text-[11px] font-bold whitespace-nowrap">
+            {language === 'uk' ? 'Прив\'язка до дороги' : 'Snap to road'}
+          </span>
+          <div
+            className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+              roadSnapEnabled ? 'bg-emerald-600 border-emerald-400' : 'bg-black/40 border-stone-600'
+            }`}
+          >
+            {roadSnapEnabled && (
+              <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </div>
+        </div>
+
         <button
           onClick={onClose}
-          className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0 ml-2"
+          className="w-8 h-8 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800/80 transition flex items-center justify-center cursor-pointer ml-1"
           title={dict.common.close}
         >
           <CrossCloseIcon className="w-4 h-4" />
         </button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[55vh] overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {categoryBlueprints[activeCategory].map((b) => {
-          const isSelected = activeBuildType === b.type;
-          const bTrans = dict.buildings.items[b.type] || { name: b.name, description: b.description };
-
-          let canAfford = true;
-          if (b.cost.wood && resources.wood < b.cost.wood) canAfford = false;
-          if (b.cost.stone && resources.stone < b.cost.stone) canAfford = false;
-          if (b.cost.gold && resources.gold < b.cost.gold) canAfford = false;
-
-          return (
-            <button
-              key={b.type}
-              onClick={() => {
-                audioManager.playUIClick();
-                setActiveBuildType(b.type);
-                setActiveTool('build');
-              }}
-              className={`flex flex-col p-3 rounded-xl text-left transition border relative cursor-pointer ${
-                isSelected
-                  ? 'bg-gradient-to-br from-[#3b2a15] to-[#1a1208] border-[#d4af37] ring-1 ring-amber-400 shadow-xl'
-                  : canAfford
-                  ? 'bg-[#181a20] border-[#3a3224] hover:border-[#8c6b38] hover:bg-[#20232b]'
-                  : 'bg-[#121317]/60 border-slate-800/80 opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="font-cinzel font-bold text-xs text-amber-100 truncate">
-                  {bTrans.name}
-                </span>
-                <span className="text-[10px] text-amber-400/90 font-mono px-1.5 py-0.2 rounded bg-black/40 border border-amber-900/40">
-                  {b.width}x{b.height}
-                </span>
-              </div>
-
-              <p className="text-[10px] text-slate-300 line-clamp-2 mb-2 leading-relaxed font-sans">
-                {bTrans.description}
-              </p>
-
-              <div className="flex items-center gap-2.5 mt-auto pt-1.5 border-t border-[#2e261b] text-[10px] font-mono">
-                {b.cost.wood && (
-                  <span className="flex items-center gap-1 text-emerald-400 font-bold">
-                    <WoodIcon className="w-3 h-3" />
-                    {b.cost.wood} {language === 'uk' ? 'дер.' : 'log'}
-                  </span>
-                )}
-                {b.cost.stone && (
-                  <span className="flex items-center gap-1 text-slate-300 font-bold">
-                    <StoneIcon className="w-3 h-3" />
-                    {b.cost.stone} {language === 'uk' ? 'кам.' : 'st.'}
-                  </span>
-                )}
-                {b.cost.gold && (
-                  <span className="flex items-center gap-1 text-amber-400 font-bold">
-                    <GoldIcon className="w-3 h-3" />
-                    {b.cost.gold} {language === 'uk' ? 'зол.' : 'g.'}
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
       </div>
     </div>
   );
 });
 
 BuildingsMenuModal.displayName = 'BuildingsMenuModal';
-

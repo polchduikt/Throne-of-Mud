@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -211,15 +211,16 @@ export const peasantHouseChimneyGeometry = (() => {
   geos.push(toStandard(new THREE.BoxGeometry(0.42, 1.05, 0.42).translate(0, 1.95, -0.42)));
   geos.push(toStandard(new THREE.BoxGeometry(0.50, 0.06, 0.50).translate(0, 2.505, -0.42)));
   geos.push(toStandard(new THREE.BoxGeometry(0.56, 0.05, 0.56).translate(0, 2.555, -0.42)));
-  geos.push(toStandard(new THREE.CylinderGeometry(0.11, 0.13, 0.28, 8).translate(0, 2.715, -0.42)));
-  const rim = toStandard(new THREE.TorusGeometry(0.10, 0.03, 8, 16).rotateX(Math.PI / 2).translate(0, 2.845, -0.42));
+  geos.push(toStandard(new THREE.CylinderGeometry(0.12, 0.14, 0.28, 12).translate(0, 2.715, -0.42)));
+  const rim = toStandard(new THREE.TorusGeometry(0.11, 0.028, 8, 16).rotateX(Math.PI / 2).translate(0, 2.845, -0.42));
   geos.push(rim);
   return mergeGeometries(geos) || geos[0];
 })();
 
 export const peasantHouseRoofVentsGeometry = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.CircleGeometry(0.095, 12).rotateX(-Math.PI / 2).translate(0, 2.845, -0.42)));
+  const sootHole = new THREE.CylinderGeometry(0.085, 0.085, 0.04, 12).translate(0, 2.835, -0.42);
+  geos.push(toStandard(sootHole));
   const ventL = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 6).rotateZ(Math.PI / 2).translate(-2.02, 1.62, 0);
   const ventR = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 6).rotateZ(Math.PI / 2).translate(2.02, 1.62, 0);
   geos.push(toStandard(ventL), toStandard(ventR));
@@ -291,7 +292,6 @@ const interiorFireplaceStoneGeometry = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
-const interiorFireGeometry = toStandard(new THREE.DodecahedronGeometry(0.14, 0).translate(0, 0.25, -0.66));
 const interiorBreadGeometry = toStandard(new THREE.BoxGeometry(0.15, 0.08, 0.12).translate(-0.2, 0.38, 0.18));
 const interiorCandleGeometry = toStandard(new THREE.CylinderGeometry(0.016, 0.02, 0.08, 5).translate(0, 0.40, 0.18));
 
@@ -323,7 +323,7 @@ export function PeasantHouseModel({
         <mesh geometry={interiorBed2QuiltGeometry} material={mats.bedLinenGreen} />
         <mesh geometry={interiorPillowsGeometry} material={mats.pillowWhite} />
         <mesh geometry={interiorFireplaceStoneGeometry} material={mats.stoneMed} receiveShadow />
-        <mesh geometry={interiorFireGeometry} material={isLightOn ? mats.fireOrange : mats.fireplaceCold} />
+        <IndoorFireplaceFire position={[0, 0.11, -0.66]} scale={0.82} isLit={isLightOn} />
         <mesh geometry={interiorBreadGeometry} material={mats.breadCrust} />
         <mesh geometry={interiorCandleGeometry} material={isLightOn ? mats.candleGlow : mats.candleUnlit} />
       </group>

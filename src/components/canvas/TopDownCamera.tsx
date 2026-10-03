@@ -29,11 +29,13 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
   const H = CAMERA_HEIGHT;
 
   const stateAtMount = useGameStore.getState();
-  const initFocus = stateAtMount.cameraFocusTarget;
-  const initZoom = stateAtMount.cameraZoomTarget ?? DEFAULT_CAMERA_ZOOM;
-  const initAngle = stateAtMount.cameraAngleTarget ?? (Math.PI / 4);
-
   const isMenuMode = stateAtMount.gameMode === 'menu';
+  const initFocus = stateAtMount.cameraFocusTarget;
+
+
+
+  const initZoom = isMenuMode ? DEFAULT_CAMERA_ZOOM : (stateAtMount.cameraZoomTarget ?? DEFAULT_CAMERA_ZOOM);
+  const initAngle = stateAtMount.cameraAngleTarget ?? (Math.PI / 4);
   const startX = isMenuMode ? (mapWidth / 2) : (initFocus ? initFocus[0] : initialCenter[0]);
   const startZ = isMenuMode ? (mapHeight / 2) : (initFocus ? initFocus[1] : initialCenter[1]);
 
@@ -58,6 +60,10 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
   };
 
   useEffect(() => {
+    if (isMenuMode && useGameStore.getState().isStrategicView) {
+      useGameStore.getState().setIsStrategicView(false);
+    }
+
     camera.up.set(0, 1, 0);
     camera.position.set(startX + D * Math.sin(targetAngle.current), H, startZ + D * Math.cos(targetAngle.current));
     camera.lookAt(startX, 0, startZ);
@@ -146,7 +152,7 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
       domElement.removeEventListener('pointercancel', handlePointerUp);
       domElement.removeEventListener('wheel', handleWheel);
     };
-  }, [initialCenter[0], initialCenter[1], camera, gl, mapWidth, mapHeight]);
+  }, [initialCenter[0], initialCenter[1], camera, gl, isMenuMode, mapWidth, mapHeight]);
 
   useFrame((_, delta) => {
     const currentGameMode = useGameStore.getState().gameMode;
@@ -205,6 +211,9 @@ export function TopDownCamera({ initialCenter, mapWidth = MAP_SIZE, mapHeight = 
       targetPos.current.z = mapHeight / 2;
       targetZoom.current = 38;
       targetAngle.current += 0.007 * delta;
+      if (useGameStore.getState().isStrategicView) {
+        useGameStore.getState().setIsStrategicView(false);
+      }
     }
 
     const focusTarget = useGameStore.getState().cameraFocusTarget;

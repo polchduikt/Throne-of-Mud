@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return geo.index ? geo.toNonIndexed() : geo;
@@ -11,14 +11,19 @@ function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
 export const brickworksStoneDarkGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
   const base = new THREE.BoxGeometry(4.92, 0.10, 2.92); base.translate(0, 0.05, 0); geos.push(toStandard(base));
-  const kBase = new THREE.BoxGeometry(1.68, 0.40, 2.10); kBase.translate(-1.45, 0.31, -0.10); geos.push(toStandard(kBase));
-  const kCollar = new THREE.CylinderGeometry(0.55, 0.74, 0.15, 12); kCollar.translate(-1.45, 1.56, -0.10); geos.push(toStandard(kCollar));
+  const kBase = new THREE.BoxGeometry(1.72, 0.22, 2.10); kBase.translate(-1.45, 0.16, -0.10); geos.push(toStandard(kBase));
+  const hearthSill = new THREE.BoxGeometry(0.92, 0.06, 0.42); hearthSill.translate(-1.45, 0.26, 0.72); geos.push(toStandard(hearthSill));
   return mergeGeometries(geos) || geos[0];
 })();
 
 export const brickworksStoneLightGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const arch = new THREE.BoxGeometry(0.72, 0.58, 0.14); arch.translate(-1.45, 0.56, 0.92); geos.push(toStandard(arch));
+  const jambL = new THREE.BoxGeometry(0.14, 0.62, 0.26); jambL.translate(-1.45 - 0.38, 0.58, 0.76);
+  const jambR = new THREE.BoxGeometry(0.14, 0.62, 0.26); jambR.translate(-1.45 + 0.38, 0.58, 0.76);
+  const archLintel = new THREE.BoxGeometry(0.92, 0.18, 0.28); archLintel.translate(-1.45, 0.94, 0.76);
+  const keystone = new THREE.BoxGeometry(0.20, 0.22, 0.32); keystone.translate(-1.45, 0.98, 0.78);
+  geos.push(toStandard(jambL), toStandard(jambR), toStandard(archLintel), toStandard(keystone));
+
   const cornice = new THREE.BoxGeometry(0.60, 0.08, 0.60); cornice.translate(-1.45, 2.51, -0.55); geos.push(toStandard(cornice));
   const rim = new THREE.TorusGeometry(0.15, 0.035, 8, 16);
   rim.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(-1.45, 2.74, -0.55));
@@ -35,10 +40,15 @@ export const brickworksSoilGeo = (() => {
 
 export const brickworksBrickRedGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const body = new THREE.BoxGeometry(1.56, 0.75, 2.0); body.translate(-1.45, 0.86, -0.10); geos.push(toStandard(body));
-  const dome = new THREE.CylinderGeometry(0.74, 0.78, 0.35, 12); dome.translate(-1.45, 1.36, -0.10); geos.push(toStandard(dome));
-  const stack = new THREE.BoxGeometry(0.52, 0.95, 0.52); stack.translate(-1.45, 2.01, -0.55); geos.push(toStandard(stack));
-  const pot = new THREE.CylinderGeometry(0.16, 0.19, 0.20, 8); pot.translate(-1.45, 2.63, -0.55); geos.push(toStandard(pot));
+
+  const leftWall = new THREE.BoxGeometry(0.42, 0.80, 1.85); leftWall.translate(-1.45 - 0.58, 0.66, -0.15); geos.push(toStandard(leftWall));
+  const rightWall = new THREE.BoxGeometry(0.42, 0.80, 1.85); rightWall.translate(-1.45 + 0.58, 0.66, -0.15); geos.push(toStandard(rightWall));
+  const backWall = new THREE.BoxGeometry(0.78, 0.80, 0.45); backWall.translate(-1.45, 0.66, -0.85); geos.push(toStandard(backWall));
+  const topCover = new THREE.BoxGeometry(0.78, 0.22, 1.50); topCover.translate(-1.45, 0.96, -0.25); geos.push(toStandard(topCover));
+
+  const dome = new THREE.CylinderGeometry(0.72, 0.78, 0.35, 14); dome.translate(-1.45, 1.28, -0.20); geos.push(toStandard(dome));
+  const stack = new THREE.BoxGeometry(0.52, 0.95, 0.52); stack.translate(-1.45, 1.95, -0.55); geos.push(toStandard(stack));
+  const pot = new THREE.CylinderGeometry(0.16, 0.19, 0.20, 8); pot.translate(-1.45, 2.58, -0.55); geos.push(toStandard(pot));
 
   for (let bIdx = 0; bIdx < 5; bIdx++) {
     const bx = [-0.45, -0.22, 0.0, 0.22, 0.45][bIdx];
@@ -145,18 +155,11 @@ export const brickworksTimberPlanksGeo = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
-export const brickworksFireGeo = (() => {
-  const geos: THREE.BufferGeometry[] = [];
-  const f1 = new THREE.BoxGeometry(0.42, 0.36, 0.04); f1.translate(-1.45, 0.45, 0.98); geos.push(toStandard(f1));
-  const f2 = new THREE.BoxGeometry(0.28, 0.24, 0.04); f2.translate(-1.45, 0.37, 0.99); geos.push(toStandard(f2));
-  return mergeGeometries(geos) || geos[0];
-})();
-
 export const brickworksCharredGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const back = new THREE.BoxGeometry(0.52, 0.46, 0.06); back.translate(-1.45, 0.49, 0.97); geos.push(toStandard(back));
-  const soot = new THREE.CircleGeometry(0.145, 12);
-  soot.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(-1.45, 2.74, -0.55));
+  const back = new THREE.BoxGeometry(0.70, 0.60, 0.10); back.translate(-1.45, 0.56, -0.58); geos.push(toStandard(back));
+  const innerAsh = new THREE.BoxGeometry(0.68, 0.04, 1.25); innerAsh.translate(-1.45, 0.27, 0.05); geos.push(toStandard(innerAsh));
+  const soot = new THREE.CylinderGeometry(0.12, 0.12, 0.04, 12).translate(-1.45, 2.73, -0.55);
   geos.push(toStandard(soot));
   return mergeGeometries(geos) || geos[0];
 })();
@@ -184,7 +187,6 @@ export function BrickworksModel({
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
-  void isLightOn;
 
   return (
     <group>
@@ -195,8 +197,9 @@ export function BrickworksModel({
       <mesh geometry={brickworksClayOrangeGeo} material={mats.clayOrange} />
       <mesh geometry={brickworksTimberGeo} material={mats.timberDark} castShadow receiveShadow />
       <mesh geometry={brickworksTimberPlanksGeo} material={mats.timberPlanks} receiveShadow />
-      <mesh geometry={brickworksFireGeo} material={mats.fireOrange} />
       <mesh geometry={brickworksCharredGeo} material={mats.charcoalBlack} />
+
+      <IndoorFireplaceFire position={[-1.45, 0.28, 0.62]} scale={0.92} isLit={isWorking || isLightOn} />
 
       {isWorking && <ChimneySmoke position={[-1.45, 2.79, -0.55]} />}
 

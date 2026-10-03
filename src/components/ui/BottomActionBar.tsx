@@ -17,6 +17,7 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = React.memo(({ gri
   const setActiveTool = useGameStore((s) => s.setActiveTool);
   const activeMenuTab = useGameStore((s) => s.activeMenuTab);
   const setActiveMenuTab = useGameStore((s) => s.setActiveMenuTab);
+  const setActiveBuildType = useGameStore((s) => s.setActiveBuildType);
   const isWeatherDebugOpen = useGameStore((s) => s.isWeatherDebugOpen);
 
   const handleToggleTab = useCallback(
@@ -30,18 +31,28 @@ export const BottomActionBar: React.FC<BottomActionBarProps> = React.memo(({ gri
       if (activeMenuTab === tabName) {
         audioManager.playUIPanelClose();
         setActiveMenuTab(null);
+        if (tabName === 'buildings') {
+          setActiveBuildType(null);
+          setActiveTool('select');
+        }
       } else {
         audioManager.playUIPanelOpen();
         setActiveMenuTab(tabName);
+        if (tabName === 'buildings') {
+          setActiveBuildType(null);
+          setActiveTool('select');
+        }
       }
     },
-    [activeTool, activeMenuTab, setActiveTool, setActiveMenuTab]
+    [activeTool, activeMenuTab, setActiveTool, setActiveMenuTab, setActiveBuildType]
   );
 
   const handleCloseBuildingsMenu = useCallback(() => {
     audioManager.playUIPanelClose();
     setActiveMenuTab(null);
-  }, [setActiveMenuTab]);
+    setActiveBuildType(null);
+    setActiveTool('select');
+  }, [setActiveMenuTab, setActiveBuildType, setActiveTool]);
 
   const handleCloseSettings = useCallback(() => {
     audioManager.playUIPanelClose();

@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke, MedievalDoor, MedievalWindow } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire, MedievalDoor, MedievalWindow } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -163,19 +163,73 @@ export const bakeryChimneyGeometry = (() => {
   const geos: THREE.BufferGeometry[] = [];
   geos.push(toStandard(new THREE.BoxGeometry(0.44, 1.05, 0.44).translate(1.15, 1.95, -0.38)));
   geos.push(toStandard(new THREE.BoxGeometry(0.52, 0.06, 0.52).translate(1.15, 2.505, -0.38)));
-  geos.push(toStandard(new THREE.CylinderGeometry(0.12, 0.14, 0.28, 8).translate(1.15, 2.715, -0.38)));
+  geos.push(toStandard(new THREE.CylinderGeometry(0.12, 0.14, 0.28, 12).translate(1.15, 2.715, -0.38)));
+  const rim = toStandard(new THREE.TorusGeometry(0.11, 0.028, 8, 16).rotateX(Math.PI / 2).translate(1.15, 2.845, -0.38));
+  geos.push(rim);
   return mergeGeometries(geos) || geos[0];
+})();
+
+export const bakeryRoofSootGeometry = (() => {
+  const soot = new THREE.CylinderGeometry(0.085, 0.085, 0.04, 12).translate(1.15, 2.835, -0.38);
+  return toStandard(soot);
 })();
 
 const bakeryInteriorStoneOvenGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(1.05, 0.58, 0.95).translate(1.15, 0.08 + 0.30, -0.28)));
-  geos.push(toStandard(new THREE.SphereGeometry(0.48, 8, 8).translate(1.15, 0.08 + 0.68, -0.28)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.44, 0.32, 0.08).translate(1.15, 0.08 + 0.38, -0.28 + 0.48)));
+  const ox = 1.15; const oz = -0.35; const oy = 0.08;
+
+  const base = new THREE.BoxGeometry(1.08, 0.28, 0.95).translate(ox, oy + 0.14, oz);
+  const backWall = new THREE.BoxGeometry(1.00, 0.56, 0.16).translate(ox, oy + 0.56, oz - 0.38);
+  const leftWall = new THREE.BoxGeometry(0.18, 0.56, 0.68).translate(ox - 0.42, oy + 0.56, oz - 0.04);
+  const rightWall = new THREE.BoxGeometry(0.18, 0.56, 0.68).translate(ox + 0.42, oy + 0.56, oz - 0.04);
+  const domeTop = new THREE.BoxGeometry(1.04, 0.14, 0.88).translate(ox, oy + 0.88, oz - 0.04);
+
+  const cheekL = new THREE.BoxGeometry(0.22, 0.46, 0.10).translate(ox - 0.32, oy + 0.51, oz + 0.26);
+  const cheekR = new THREE.BoxGeometry(0.22, 0.46, 0.10).translate(ox + 0.32, oy + 0.51, oz + 0.26);
+  const archLintel = new THREE.BoxGeometry(0.86, 0.14, 0.12).translate(ox, oy + 0.78, oz + 0.26);
+  const hearthShelf = new THREE.BoxGeometry(0.56, 0.06, 0.18).translate(ox, oy + 0.29, oz + 0.35);
+
+  const domeVault = new THREE.SphereGeometry(0.44, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2).translate(ox, oy + 0.80, oz - 0.08);
+
+  geos.push(
+    toStandard(base),
+    toStandard(backWall),
+    toStandard(leftWall),
+    toStandard(rightWall),
+    toStandard(domeTop),
+    toStandard(cheekL),
+    toStandard(cheekR),
+    toStandard(archLintel),
+    toStandard(hearthShelf),
+    toStandard(domeVault)
+  );
+
   return mergeGeometries(geos) || geos[0];
 })();
 
-const bakeryInteriorOvenFireGeo = toStandard(new THREE.BoxGeometry(0.32, 0.24, 0.04).translate(1.15, 0.08 + 0.36, -0.28 + 0.50));
+const bakeryInteriorFirewoodGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const ox = 1.15; const oz = -0.35; const oy = 0.08;
+
+  for (let i = 0; i < 3; i++) {
+    const log = new THREE.CylinderGeometry(0.035, 0.035, 0.34, 6);
+    log.applyMatrix4(
+      new THREE.Matrix4()
+        .makeRotationZ(Math.PI / 2)
+        .makeRotationY((i - 1) * 0.3)
+        .setPosition(ox + (i - 1) * 0.10, oy + 0.32, oz + (i % 2) * 0.04)
+    );
+    geos.push(toStandard(log));
+  }
+
+  const peelHandle = new THREE.CylinderGeometry(0.015, 0.015, 1.15, 5);
+  peelHandle.applyMatrix4(new THREE.Matrix4().makeRotationZ(0.28).setPosition(0.55, oy + 0.55, 0.15));
+  const peelBlade = new THREE.BoxGeometry(0.20, 0.26, 0.02);
+  peelBlade.applyMatrix4(new THREE.Matrix4().makeRotationZ(0.28).setPosition(0.40, oy + 0.15, 0.15));
+  geos.push(toStandard(peelHandle), toStandard(peelBlade));
+
+  return mergeGeometries(geos) || geos[0];
+})();
 
 const bakeryInteriorDoughTableGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
@@ -223,7 +277,8 @@ export function BakeryModel({
 
       <group ref={interiorRef} visible={false}>
         <mesh geometry={bakeryInteriorStoneOvenGeo} material={mats.stoneMed} receiveShadow />
-        <mesh geometry={bakeryInteriorOvenFireGeo} material={isWorking ? mats.fireOrange : mats.fireplaceCold} />
+        <mesh geometry={bakeryInteriorFirewoodGeo} material={mats.timberLogs} receiveShadow />
+        <IndoorFireplaceFire position={[1.15, 0.08 + 0.35, -0.28]} scale={0.65} isLit={isWorking || isLightOn} />
         <mesh geometry={bakeryInteriorDoughTableGeo} material={mats.timberLight} receiveShadow />
         <mesh geometry={bakeryInteriorTableFlourSackGeo} material={mats.flourSack} />
       </group>
@@ -233,6 +288,7 @@ export function BakeryModel({
         <mesh geometry={bakeryRoofWattleGableGeo} material={mats.wattleDaub} receiveShadow />
         <mesh geometry={bakeryRoofTrimGeometry} material={mats.timberDark} />
         <mesh geometry={bakeryChimneyGeometry} material={mats.stoneMed} receiveShadow />
+        <mesh geometry={bakeryRoofSootGeometry} material={mats.charcoalBlack} />
         <ChimneySmoke position={[1.15, 2.85, -0.38]} />
       </group>
     </group>

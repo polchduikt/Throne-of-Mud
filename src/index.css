@@ -58,6 +58,26 @@
   box-shadow: 0 4px 14px rgba(234, 179, 8, 0.3), inset 0 1px 4px rgba(254, 240, 138, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.9);
 }
 
+.manor-square-btn {
+  background: radial-gradient(circle at 40% 30%, #2b2e38 0%, #171a22 65%, #0e1015 100%);
+  border: 1.8px solid #6b5336;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(255, 230, 160, 0.25), inset 0 -2px 4px rgba(0, 0, 0, 0.9);
+  position: relative;
+}
+
+.manor-square-btn:hover {
+  background: radial-gradient(circle at 40% 30%, #423d35 0%, #24221d 65%, #14120e 100%);
+  border-color: #d4af37;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.9), 0 0 12px rgba(212, 175, 55, 0.35), inset 0 1px 3px rgba(255, 240, 190, 0.4);
+}
+
+.manor-square-btn.active {
+  background: radial-gradient(circle at 40% 30%, #785320 0%, #4a3010 65%, #241604 100%);
+  border-color: #facc15;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.55), inset 0 1px 4px rgba(254, 240, 138, 0.6), inset 0 -2px 4px rgba(0, 0, 0, 0.9);
+}
+
 .manor-top-ribbon {
   background: linear-gradient(180deg, rgba(20, 22, 26, 0.97) 0%, rgba(12, 13, 16, 0.98) 100%);
   border-bottom: 2px solid #52422d;
@@ -66,13 +86,13 @@
 
 .manor-spear-outer {
   clip-path: polygon(26px 0%, calc(100% - 26px) 0%, 100% 50%, calc(100% - 26px) 100%, 26px 100%, 0% 50%);
-  background: linear-gradient(90deg, 
-    #5a4830 0%, 
-    #8c6b38 6%, 
-    #d4af37 20%, 
-    #8c6b38 50%, 
-    #d4af37 80%, 
-    #8c6b38 94%, 
+  background: linear-gradient(90deg,
+    #5a4830 0%,
+    #8c6b38 6%,
+    #d4af37 20%,
+    #8c6b38 50%,
+    #d4af37 80%,
+    #8c6b38 94%,
     #5a4830 100%
   );
   filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.95)) drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
@@ -81,9 +101,9 @@
 
 .manor-spear-inner {
   clip-path: polygon(25px 0%, calc(100% - 25px) 0%, 100% 50%, calc(100% - 25px) 100%, 25px 100%, 0% 50%);
-  background: linear-gradient(180deg, 
-    rgba(24, 27, 34, 0.98) 0%, 
-    rgba(16, 18, 22, 0.98) 50%, 
+  background: linear-gradient(180deg,
+    rgba(24, 27, 34, 0.98) 0%,
+    rgba(16, 18, 22, 0.98) 50%,
     rgba(10, 11, 14, 0.98) 100%
   );
 }
@@ -97,7 +117,7 @@
 .manor-panel {
   background: linear-gradient(180deg, #16181e 0%, #101217 60%, #0a0b0e 100%);
   border: 2px solid #5a4830;
-  box-shadow: 
+  box-shadow:
     0 20px 50px rgba(0, 0, 0, 0.95),
     inset 0 1px 1px rgba(212, 175, 55, 0.25),
     inset 0 0 20px rgba(0, 0, 0, 0.8);

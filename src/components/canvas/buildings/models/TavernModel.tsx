@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke, MedievalDoor, MedievalWindow } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire, MedievalDoor, MedievalWindow } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -103,12 +103,17 @@ export const tavernRoofTrimGeometry = (() => {
 export const tavernChimneyGeometry = (() => {
   const geos: THREE.BufferGeometry[] = [];
   const m1 = new THREE.BoxGeometry(0.38, 2.45, 0.44).translate(1.50, 2.16, -0.45);
-  const m2 = new THREE.CylinderGeometry(0.15, 0.18, 0.20, 10).translate(1.50, 2.16 + 1.37, -0.45);
-  const m3 = new THREE.TorusGeometry(0.15, 0.02, 6, 10);
-  m3.applyMatrix4(new THREE.Matrix4().setPosition(1.50, 2.16 + 1.47, -0.45));
+  const m2 = new THREE.CylinderGeometry(0.15, 0.18, 0.20, 12).translate(1.50, 2.16 + 1.37, -0.45);
+  const m3 = new THREE.TorusGeometry(0.14, 0.028, 8, 16);
+  m3.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(1.50, 2.16 + 1.47, -0.45));
   const c = new THREE.BoxGeometry(0.46, 0.07, 0.52).translate(1.50, 2.16 + 1.23, -0.45);
   geos.push(toStandard(m1), toStandard(m2), toStandard(m3), toStandard(c));
   return mergeGeometries(geos) || geos[0];
+})();
+
+export const tavernRoofSootGeometry = (() => {
+  const darkFlue = new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12).translate(1.50, 2.16 + 1.46, -0.45);
+  return toStandard(darkFlue);
 })();
 
 const tavernInteriorHearthGeo = (() => {
@@ -123,8 +128,6 @@ const tavernInteriorHearthGeo = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
-const tavernInteriorFireGeo = toStandard(new THREE.DodecahedronGeometry(0.13, 0).translate(1.45 - 0.02, 0.11 + 0.19, -0.45));
-
 const tavernInteriorFurnitureGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
 
@@ -135,25 +138,134 @@ const tavernInteriorFurnitureGeo = (() => {
   geos.push(toStandard(new THREE.BoxGeometry(0.32, 0.035, 0.38).translate(barX - 0.38, 0.11 + 0.47, barZ + 0.34)));
   geos.push(toStandard(new THREE.BoxGeometry(1.6, 0.95, 0.05).translate(barX + 0.15, 0.11 + 0.55, barZ - 0.72)));
   geos.push(toStandard(new THREE.BoxGeometry(1.55, 0.035, 0.26).translate(barX + 0.15, 0.11 + 0.28, barZ - 0.58)));
-
-  for (const bx of [-0.40, 0.15, 0.65]) {
-    const b = new THREE.CylinderGeometry(0.12, 0.10, 0.28, 8).translate(barX + bx, 0.11 + 0.44, barZ - 0.58);
-    geos.push(toStandard(b));
-  }
+  geos.push(toStandard(new THREE.BoxGeometry(1.55, 0.035, 0.22).translate(barX + 0.15, 0.11 + 0.65, barZ - 0.60)));
 
   const t1X = 0.65; const t1Z = 0.55;
   geos.push(toStandard(new THREE.BoxGeometry(1.05, 0.04, 0.52).translate(t1X, 0.11 + 0.34, t1Z)));
+  for (const lx of [-0.44, 0.44]) {
+    for (const lz of [-0.20, 0.20]) {
+      geos.push(toStandard(new THREE.CylinderGeometry(0.03, 0.03, 0.34, 4).translate(t1X + lx, 0.11 + 0.17, t1Z + lz)));
+    }
+  }
   geos.push(toStandard(new THREE.BoxGeometry(1.0, 0.035, 0.18).translate(t1X, 0.11 + 0.18, t1Z - 0.38)));
   geos.push(toStandard(new THREE.BoxGeometry(1.0, 0.035, 0.18).translate(t1X, 0.11 + 0.18, t1Z + 0.38)));
 
   const t2X = -0.95; const t2Z = 0.60;
   geos.push(toStandard(new THREE.BoxGeometry(0.65, 0.04, 0.65).translate(t2X, 0.11 + 0.34, t2Z)));
+  for (const lx of [-0.25, 0.25]) {
+    for (const lz of [-0.25, 0.25]) {
+      geos.push(toStandard(new THREE.CylinderGeometry(0.028, 0.028, 0.34, 4).translate(t2X + lx, 0.11 + 0.17, t2Z + lz)));
+    }
+  }
   for (const sx of [-0.38, 0.38]) {
     for (const sz of [-0.38, 0.38]) {
       const stool = new THREE.CylinderGeometry(0.09, 0.10, 0.16, 6).translate(t2X + sx, 0.11 + 0.16, t2Z + sz);
       geos.push(toStandard(stool));
     }
   }
+
+  const logRackX = 1.45; const logRackZ = 0.25;
+  for (let l = 0; l < 3; l++) {
+    const log = new THREE.CylinderGeometry(0.045, 0.045, 0.42, 6);
+    log.applyMatrix4(new THREE.Matrix4().makeRotationZ(Math.PI / 2).setPosition(logRackX, 0.11 + 0.05 + l * 0.07, logRackZ));
+    geos.push(toStandard(log));
+  }
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const tavernInteriorKegsGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const barX = -0.95; const barZ = -0.55;
+
+  for (const bx of [-0.40, 0.15, 0.65]) {
+    const keg = new THREE.CylinderGeometry(0.13, 0.11, 0.28, 8);
+    keg.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(barX + bx, 0.11 + 0.44, barZ - 0.58));
+    geos.push(toStandard(keg));
+  }
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const tavernInteriorSpigotsGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const barX = -0.95; const barZ = -0.55;
+
+  for (const bx of [-0.40, 0.15, 0.65]) {
+    const spigot = new THREE.CylinderGeometry(0.015, 0.015, 0.07, 4);
+    spigot.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(barX + bx, 0.11 + 0.40, barZ - 0.42));
+    geos.push(toStandard(spigot));
+  }
+
+  const coinBox = new THREE.BoxGeometry(0.12, 0.06, 0.09).translate(barX + 0.6, 0.11 + 0.50, barZ + 0.12);
+  geos.push(toStandard(coinBox));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const tavernInteriorMugsGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+
+  const barX = -0.95; const barZ = -0.55;
+  for (const mx of [-0.15, 0.05, 0.35]) {
+    const mug = new THREE.CylinderGeometry(0.03, 0.032, 0.07, 6).translate(barX + mx, 0.11 + 0.51, barZ + 0.12);
+    geos.push(toStandard(mug));
+  }
+
+  const t1X = 0.65; const t1Z = 0.55;
+  for (const [mx, mz] of [[-0.25, -0.1], [0.3, 0.1], [-0.1, 0.15]]) {
+    const mug = new THREE.CylinderGeometry(0.03, 0.032, 0.07, 6).translate(t1X + mx, 0.11 + 0.38, t1Z + mz);
+    geos.push(toStandard(mug));
+  }
+
+  const t2X = -0.95; const t2Z = 0.60;
+  const mug2 = new THREE.CylinderGeometry(0.03, 0.032, 0.07, 6).translate(t2X - 0.12, 0.11 + 0.38, t2Z + 0.1);
+  geos.push(toStandard(mug2));
+
+  for (const bx of [-0.25, 0.45]) {
+    const pot = new THREE.CylinderGeometry(0.035, 0.045, 0.14, 6).translate(barX + bx, 0.11 + 0.74, barZ - 0.60);
+    geos.push(toStandard(pot));
+  }
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const tavernInteriorFoodGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+
+  const t1X = 0.65; const t1Z = 0.55;
+  const plate = new THREE.CylinderGeometry(0.09, 0.07, 0.015, 8).translate(t1X + 0.05, 0.11 + 0.36, t1Z - 0.05);
+  const meat = new THREE.SphereGeometry(0.045, 6, 5).translate(t1X + 0.05, 0.11 + 0.39, t1Z - 0.05);
+  const bread = new THREE.DodecahedronGeometry(0.04, 0).translate(t1X - 0.32, 0.11 + 0.38, t1Z + 0.08);
+  geos.push(toStandard(plate), toStandard(meat), toStandard(bread));
+
+  const t2X = -0.95; const t2Z = 0.60;
+  const bread2 = new THREE.DodecahedronGeometry(0.04, 0).translate(t2X + 0.12, 0.11 + 0.38, t2Z - 0.08);
+  geos.push(toStandard(bread2));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const tavernInteriorPeltGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const hx = 1.05; const hz = -0.45;
+
+  const pelt = new THREE.BoxGeometry(0.65, 0.015, 0.55).translate(hx, 0.11 + 0.01, hz);
+  geos.push(toStandard(pelt));
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+const tavernInteriorCandlesGeo = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+
+  const t1X = 0.65; const t1Z = 0.55;
+  const candle1 = new THREE.DodecahedronGeometry(0.02, 0).translate(t1X, 0.11 + 0.40, t1Z + 0.15);
+  const t2X = -0.95; const t2Z = 0.60;
+  const candle2 = new THREE.DodecahedronGeometry(0.02, 0).translate(t2X, 0.11 + 0.40, t2Z);
+  const barX = -0.95; const barZ = -0.55;
+  const candle3 = new THREE.DodecahedronGeometry(0.02, 0).translate(barX + 0.45, 0.11 + 0.52, barZ + 0.12);
+  geos.push(toStandard(candle1), toStandard(candle2), toStandard(candle3));
 
   return mergeGeometries(geos) || geos[0];
 })();
@@ -191,14 +303,21 @@ export function TavernModel({
 
       <group ref={interiorRef} visible={false}>
         <mesh geometry={tavernInteriorHearthGeo} material={mats.stoneMed} receiveShadow />
-        <mesh geometry={tavernInteriorFireGeo} material={isWorking ? mats.fireOrange : mats.fireplaceCold} />
+        <IndoorFireplaceFire position={[1.43, 0.11, -0.45]} scale={0.78} isLit={isWorking || isLightOn} />
         <mesh geometry={tavernInteriorFurnitureGeo} material={mats.timberDark} receiveShadow />
+        <mesh geometry={tavernInteriorKegsGeo} material={mats.barrelWood || mats.timberLogs} receiveShadow />
+        <mesh geometry={tavernInteriorSpigotsGeo} material={mats.goldTrim} />
+        <mesh geometry={tavernInteriorMugsGeo} material={mats.ceramicPot} receiveShadow />
+        <mesh geometry={tavernInteriorFoodGeo} material={mats.meatRed} receiveShadow />
+        <mesh geometry={tavernInteriorPeltGeo} material={mats.hideTan} receiveShadow />
+        <mesh geometry={tavernInteriorCandlesGeo} material={mats.candleGlow} />
       </group>
 
       <group ref={roofRef}>
         <mesh geometry={tavernRoofGeometry} material={mats.shingleRoof} castShadow receiveShadow />
         <mesh geometry={tavernRoofTrimGeometry} material={mats.timberDark} />
         <mesh geometry={tavernChimneyGeometry} material={mats.stoneMed} receiveShadow />
+        <mesh geometry={tavernRoofSootGeometry} material={mats.charcoalBlack} />
         {isWorking && <ChimneySmoke position={[1.50, 2.16 + 1.55, -0.45]} />}
       </group>
     </group>

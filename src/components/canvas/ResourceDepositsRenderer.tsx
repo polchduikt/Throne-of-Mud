@@ -131,118 +131,121 @@ function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
 
 const ironQuarryCliffGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(4.2, 2.10, 1.3).translate(0, 1.10, -1.85)));
-
-  const cL = new THREE.BoxGeometry(1.3, 1.90, 3.1);
-  cL.applyMatrix4(new THREE.Matrix4().makeRotationY(0.1).setPosition(-2.05, 0.95, -0.45));
-  geos.push(toStandard(cL));
-
-  const cR = new THREE.BoxGeometry(1.3, 1.90, 3.1);
-  cR.applyMatrix4(new THREE.Matrix4().makeRotationY(-0.1).setPosition(2.05, 0.95, -0.45));
-  geos.push(toStandard(cR));
-
+  const rimPieces = [
+    { x: -1.45, z: -1.15, w: 1.25, d: 0.95, h: 0.38, rot: 0.25 },
+    { x: 0.0, z: -1.45, w: 1.75, d: 0.85, h: 0.42, rot: -0.05 },
+    { x: 1.45, z: -1.15, w: 1.25, d: 0.95, h: 0.36, rot: -0.3 },
+    { x: 1.65, z: 0.15, w: 0.95, d: 1.45, h: 0.34, rot: 0.1 },
+    { x: 1.35, z: 1.25, w: 1.15, d: 0.95, h: 0.30, rot: 0.35 },
+    { x: -0.15, z: 1.45, w: 1.65, d: 0.85, h: 0.28, rot: 0.05 },
+    { x: -1.45, z: 1.25, w: 1.15, d: 0.95, h: 0.32, rot: -0.25 },
+    { x: -1.65, z: 0.05, w: 0.95, d: 1.45, h: 0.35, rot: -0.1 },
+  ];
+  for (const p of rimPieces) {
+    const b = new THREE.BoxGeometry(p.w, p.h, p.d);
+    b.applyMatrix4(new THREE.Matrix4().makeRotationY(p.rot).setPosition(p.x, p.h / 2, p.z));
+    geos.push(toStandard(b));
+  }
   return mergeGeometries(geos) || geos[0];
 })();
 
-const ironQuarrySoilGeo = (() => {
+const ironQuarryTerraceGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(4.3, 0.35, 0.9).translate(0, 2.18, -2.05)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.9, 0.30, 3.2).translate(-2.35, 1.88, -0.45)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.9, 0.30, 3.2).translate(2.35, 1.88, -0.45)));
-  geos.push(toStandard(new THREE.BoxGeometry(2.7, 0.12, 2.4).translate(0, 0.06, 0.15)));
+  const ledges = [
+    { x: -0.85, z: -0.75, w: 1.15, d: 0.75, h: 0.18, rot: 0.15 },
+    { x: 0.75, z: -0.75, w: 1.15, d: 0.75, h: 0.16, rot: -0.15 },
+    { x: 0.85, z: 0.65, w: 1.05, d: 0.75, h: 0.14, rot: 0.2 },
+    { x: -0.75, z: 0.75, w: 1.15, d: 0.75, h: 0.15, rot: -0.2 },
+  ];
+  for (const l of ledges) {
+    const b = new THREE.BoxGeometry(l.w, l.h, l.d);
+    b.applyMatrix4(new THREE.Matrix4().makeRotationY(l.rot).setPosition(l.x, l.h / 2, l.z));
+    geos.push(toStandard(b));
+  }
   return mergeGeometries(geos) || geos[0];
 })();
 
-const ironQuarryRockGeo = (() => {
+const ironQuarryPitFloorGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const rL = new THREE.BoxGeometry(1.2, 0.85, 1.3);
-  rL.applyMatrix4(new THREE.Matrix4().makeRotationY(0.4).setPosition(-1.85, 0.45, 1.35));
-  const rR = new THREE.BoxGeometry(1.2, 0.85, 1.3);
-  rR.applyMatrix4(new THREE.Matrix4().makeRotationY(-0.4).setPosition(1.85, 0.45, 1.35));
-
-  geos.push(toStandard(rL), toStandard(rR));
-  geos.push(toStandard(new THREE.BoxGeometry(3.2, 0.75, 0.65).translate(0, 0.45, -1.25)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.65, 0.75, 2.0).translate(-1.35, 0.45, -0.15)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.65, 0.75, 2.0).translate(1.35, 0.45, -0.15)));
-  geos.push(toStandard(new THREE.BoxGeometry(2.4, 0.04, 2.1).translate(0, 0.13, 0.15)));
+  const pitBed = new THREE.CylinderGeometry(0.95, 1.25, 0.06, 9).translate(0, 0.03, 0);
+  geos.push(toStandard(pitBed));
   return mergeGeometries(geos) || geos[0];
 })();
 
 const ironQuarryLogsGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(3.5, 0.18, 0.18).translate(0, 0.85, -1.50)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.18, 0.18, 2.4).translate(-1.60, 0.85, -0.3)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.18, 0.18, 2.4).translate(1.60, 0.85, -0.3)));
 
-  for (const px of [-1.55, -0.8, 0.8, 1.55]) {
-    geos.push(toStandard(new THREE.CylinderGeometry(0.075, 0.085, 1.85, 6).translate(px, 0.95, -1.45)));
+  for (const [lx, lz, h] of [
+    [-0.95, -0.95, 0.45],
+    [0.95, -0.95, 0.42],
+    [1.05, 0.75, 0.38],
+    [-0.95, 0.85, 0.38],
+  ]) {
+    const post = new THREE.BoxGeometry(0.10, h, 0.10).translate(lx, h / 2, lz);
+    geos.push(toStandard(post));
   }
 
-  geos.push(toStandard(new THREE.BoxGeometry(0.16, 0.16, 1.7).translate(-0.85, 0.22, 0)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.16, 0.16, 1.7).translate(0.85, 0.22, 0)));
-  geos.push(toStandard(new THREE.BoxGeometry(1.7, 0.16, 0.16).translate(0, 0.22, -0.85)));
-  geos.push(toStandard(new THREE.BoxGeometry(1.7, 0.16, 0.16).translate(0, 0.22, 0.85)));
+  const beamN = new THREE.BoxGeometry(2.0, 0.08, 0.10).translate(0, 0.34, -0.95);
+  const beamE = new THREE.BoxGeometry(0.10, 0.08, 1.8).translate(1.0, 0.30, -0.1);
+  const beamW = new THREE.BoxGeometry(0.10, 0.08, 1.9).translate(-0.95, 0.30, -0.05);
+  geos.push(toStandard(beamN), toStandard(beamE), toStandard(beamW));
 
-  const ladM = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.42, 0, -0.1)).setPosition(-0.95, 0.85, -0.95);
-  const railL = new THREE.BoxGeometry(0.04, 2.3, 0.04).translate(-0.14, 0, 0).applyMatrix4(ladM);
-  const railR = new THREE.BoxGeometry(0.04, 2.3, 0.04).translate(0.14, 0, 0).applyMatrix4(ladM);
-  geos.push(toStandard(railL), toStandard(railR));
-
-  for (const ry of [-0.95, -0.75, -0.55, -0.35, -0.15, 0.05, 0.25, 0.45, 0.65, 0.85, 1.05]) {
-    const rung = new THREE.CylinderGeometry(0.016, 0.016, 0.28, 4).rotateZ(Math.PI / 2).translate(0, ry, 0).applyMatrix4(ladM);
+  const ladderM = new THREE.Matrix4().makeRotationX(-0.48).setPosition(-0.35, 0.18, 0.55);
+  for (const rx of [-0.14, 0.14]) {
+    const rail = new THREE.BoxGeometry(0.04, 0.65, 0.04).translate(rx, 0, 0);
+    rail.applyMatrix4(ladderM);
+    geos.push(toStandard(rail));
+  }
+  for (let r = -2; r <= 2; r++) {
+    const rung = new THREE.BoxGeometry(0.28, 0.03, 0.03).translate(0, r * 0.11, 0);
+    rung.applyMatrix4(ladderM);
     geos.push(toStandard(rung));
   }
 
-  const pickM = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.4, 0.3, -0.5)).setPosition(-0.75, 0.42, 0.45);
-  const pHandle = new THREE.CylinderGeometry(0.022, 0.022, 0.75, 5).translate(0, 0.28, 0).applyMatrix4(pickM);
+  const pickM = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.4, 0.3, -0.5)).setPosition(-0.75, 0.12, 0.45);
+  const pHandle = new THREE.CylinderGeometry(0.020, 0.020, 0.65, 5).translate(0, 0.25, 0).applyMatrix4(pickM);
   geos.push(toStandard(pHandle));
 
   return mergeGeometries(geos) || geos[0];
 })();
 
-const ironQuarryTrackGeo = (() => {
+const ironQuarryHematiteGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(0.06, 0.03, 1.7).translate(-0.35, 0.16, 0.35)));
-  geos.push(toStandard(new THREE.BoxGeometry(0.06, 0.03, 1.7).translate(0.35, 0.16, 0.35)));
 
-  for (const tz of [-0.45, -0.15, 0.15, 0.45, 0.75, 1.05]) {
-    geos.push(toStandard(new THREE.BoxGeometry(0.85, 0.02, 0.08).translate(0, 0.15, tz)));
+  for (const [ox, oz, r, yOff] of [
+    [-0.45, -0.45, 0.28, 0.05],
+    [0.45, -0.35, 0.26, 0.05],
+    [-0.35, 0.35, 0.24, 0.05],
+    [0.35, 0.45, 0.26, 0.05],
+    [0.0, 0.0, 0.22, 0.04],
+    [-1.05, -0.45, 0.22, 0.16],
+    [0.95, -0.25, 0.25, 0.15],
+    [-0.85, 0.55, 0.20, 0.14],
+    [0.85, 0.55, 0.22, 0.14],
+  ]) {
+    const chunk = new THREE.DodecahedronGeometry(r, 0).translate(ox, yOff + r * 0.65, oz);
+    geos.push(toStandard(chunk));
   }
+
   return mergeGeometries(geos) || geos[0];
 })();
 
-const ironQuarryOreGeo = (() => {
+const ironQuarryOreDarkGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(1.45, 0.02, 1.45).translate(0, 0.15, 0)));
 
-  const h1 = new THREE.DodecahedronGeometry(0.92, 0);
-  h1.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.2, 0.4, -0.1)).setPosition(-1.45, 1.75, -1.65));
-  geos.push(toStandard(h1));
-
-  const o1 = new THREE.DodecahedronGeometry(0.70, 0);
-  o1.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.1, 0.2, 0.3)).setPosition(-1.85, 1.45, -1.15));
-  geos.push(toStandard(o1));
-
-  const o2 = new THREE.DodecahedronGeometry(0.95, 0);
-  o2.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.15, -0.3, 0.2)).setPosition(1.45, 1.80, -1.55));
-  geos.push(toStandard(o2));
-
-  const h2 = new THREE.DodecahedronGeometry(0.68, 0);
-  h2.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.2, 0.1, -0.2)).setPosition(1.85, 1.45, -1.05));
-  geos.push(toStandard(h2));
-
-  const h3 = new THREE.DodecahedronGeometry(0.72, 0);
-  h3.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.3, -0.2, 0.1)).setPosition(-1.95, 0.85, 0.45));
-  geos.push(toStandard(h3));
-
-  const h4 = new THREE.DodecahedronGeometry(0.72, 0);
-  h4.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(-0.2, 0.3, 0.15)).setPosition(1.95, 0.85, 0.45));
-  geos.push(toStandard(h4));
-
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.35, 0).translate(0.45, 0.28, -0.45)));
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.32, 0).translate(-0.45, 0.26, -0.25)));
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.26, 0).translate(0.35, 0.24, 0.65)));
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.24, 0).translate(-0.45, 0.22, 0.75)));
+  for (const [ox, oz, r, yOff] of [
+    [0.25, -0.15, 0.26, 0.04],
+    [-0.20, -0.10, 0.25, 0.04],
+    [0.10, 0.25, 0.24, 0.04],
+    [-0.65, -0.85, 0.26, 0.16],
+    [0.65, -0.85, 0.28, 0.16],
+    [-1.25, 0.25, 0.22, 0.30],
+    [1.25, 0.25, 0.24, 0.30],
+    [0.0, -1.25, 0.25, 0.36],
+  ]) {
+    const chunk = new THREE.DodecahedronGeometry(r, 0).translate(ox, yOff + r * 0.65, oz);
+    geos.push(toStandard(chunk));
+  }
 
   return mergeGeometries(geos) || geos[0];
 })();
@@ -650,21 +653,21 @@ function DepositNode({
       {deposit.type === 'iron' && (
         <group>
           <mesh geometry={ironQuarryCliffGeo} material={DEPOSIT_MATS.quarryCliff} receiveShadow />
-          <mesh geometry={ironQuarrySoilGeo} material={DEPOSIT_MATS.quarrySoil} receiveShadow />
-          <mesh geometry={ironQuarryRockGeo} material={DEPOSIT_MATS.quarryRock} receiveShadow />
+          <mesh geometry={ironQuarryTerraceGeo} material={DEPOSIT_MATS.quarryRock} receiveShadow />
+          <mesh geometry={ironQuarryPitFloorGeo} material={DEPOSIT_MATS.quarryVoidDepth} receiveShadow />
           <mesh geometry={ironQuarryLogsGeo} material={DEPOSIT_MATS.quarryTimberLogs} />
-          <mesh geometry={ironQuarryTrackGeo} material={DEPOSIT_MATS.mineTrackWood} />
-          <mesh geometry={ironQuarryOreGeo} material={DEPOSIT_MATS.quarryHematite} />
+          <mesh geometry={ironQuarryHematiteGeo} material={DEPOSIT_MATS.quarryHematite} />
+          <mesh geometry={ironQuarryOreDarkGeo} material={DEPOSIT_MATS.quarryOreDark} />
 
-          <mesh position={[0.95, 1.35, -1.35]} material={DEPOSIT_MATS.lanternGlow}>
+          <mesh position={[0.95, 0.48, -0.95]} material={DEPOSIT_MATS.lanternGlow}>
             <sphereGeometry args={[0.06, 6, 6]} />
           </mesh>
-          <mesh position={[-0.95, 0.55, 0.85]} material={DEPOSIT_MATS.lanternGlow}>
+          <mesh position={[-0.95, 0.45, 0.85]} material={DEPOSIT_MATS.lanternGlow}>
             <sphereGeometry args={[0.06, 6, 6]} />
           </mesh>
 
-          <mesh position={[0.95, 0.24 + 0.14, 0.85]} material={DEPOSIT_MATS.basketWicker}>
-            <cylinderGeometry args={[0.24, 0.18, 0.30, 8]} />
+          <mesh position={[1.15, 0.28, 0.65]} material={DEPOSIT_MATS.basketWicker}>
+            <cylinderGeometry args={[0.22, 0.16, 0.26, 8]} />
           </mesh>
           <mesh position={[-0.75, 0.42 + 0.65, 0.45]} material={DEPOSIT_MATS.ironTool} rotation={[0.4, 0.3, -0.5]}>
             <boxGeometry args={[0.32, 0.08, 0.05]} />

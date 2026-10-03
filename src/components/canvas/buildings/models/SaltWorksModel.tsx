@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return geo.index ? geo.toNonIndexed() : geo;
@@ -95,7 +95,6 @@ export const saltBarrelWoodGeo = (() => {
 export const saltFireGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
   const charBack = new THREE.BoxGeometry(0.55, 0.40, 0.06); charBack.translate(-0.95, 0.11 + 0.22, -0.05 + 1.01); geos.push(toStandard(charBack));
-  const fire = new THREE.BoxGeometry(0.42, 0.30, 0.04); fire.translate(-0.95, 0.11 + 0.20, -0.05 + 1.02); geos.push(toStandard(fire));
   const soot = new THREE.CylinderGeometry(0.085, 0.085, 0.04, 8); soot.translate(-0.95 - 0.60, 0.11 + 2.29, -0.05 - 0.75); geos.push(toStandard(soot));
   return mergeGeometries(geos) || geos[0];
 })();
@@ -130,7 +129,6 @@ export function SaltWorksModel({
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
-  void isLightOn;
 
   return (
     <group>
@@ -144,6 +142,8 @@ export function SaltWorksModel({
       <mesh geometry={saltBarrelWoodGeo} material={mats.barrelWood} />
       <mesh geometry={saltFireGeo} material={mats.charcoalBlack} />
       <mesh geometry={saltSacksGeo} material={mats.flourSack} />
+
+      <IndoorFireplaceFire position={[-0.95, 0.14, 0.88]} scale={0.72} isLit={isWorking || isLightOn} />
 
       <mesh
         material={mats.timberLight}

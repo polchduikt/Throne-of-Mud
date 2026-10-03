@@ -573,10 +573,8 @@ export function TerrainRenderer({ grid }: Props) {
 
     const baseW = blueprint.width;
     const baseH = blueprint.height;
-    const offsetX = (baseW % 2 === 0) ? 0.0 : 0.5;
-    const offsetZ = (baseH % 2 === 0) ? 0.0 : 0.5;
-    const cx = hoveredTile[0] + offsetX;
-    const cz = hoveredTile[1] + offsetZ;
+    const cx = hoveredTile[0] + baseW / 2;
+    const cz = hoveredTile[1] + baseH / 2;
 
     const footprint = getRotatedBuildingFootprint(cx, cz, baseW, baseH, buildRotation);
 
@@ -1034,10 +1032,8 @@ export function TerrainRenderer({ grid }: Props) {
       const { resourceDeposits, buildRotation = 0, playerRegionId = 0, regions } = useGameStore.getState();
       const baseW = blueprint.width;
       const baseH = blueprint.height;
-      const offsetX = (baseW % 2 === 0) ? 0.0 : 0.5;
-      const offsetZ = (baseH % 2 === 0) ? 0.0 : 0.5;
-      const cx = gx + offsetX;
-      const cz = gz + offsetZ;
+      const cx = gx + baseW / 2;
+      const cz = gz + baseH / 2;
 
       const footprint = getRotatedBuildingFootprint(cx, cz, baseW, baseH, buildRotation);
       const pRegion = regions.find((r) => r.id === (playerRegionId ?? 0));
@@ -1260,17 +1256,13 @@ export function TerrainRenderer({ grid }: Props) {
               style={{ pointerEvents: 'none', userSelect: 'none' }}
             >
               <div
-                className={`px-3 py-1.5 rounded-xl border backdrop-blur-md shadow-2xl flex items-center gap-2 whitespace-nowrap text-xs font-cinzel font-bold transition-all duration-150 ${
+                className={`px-3 py-1 rounded-xl border backdrop-blur-md shadow-2xl flex items-center gap-2 whitespace-nowrap text-xs font-cinzel font-bold transition-all duration-150 ${
                   buildPreviewData.allowed
                     ? 'bg-[#121418]/95 border-emerald-500/80 text-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                     : 'bg-[#181212]/95 border-red-500/80 text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
                 }`}
               >
-                <span>{buildPreviewData.allowed ? '🔨' : '⚠️'}</span>
                 <span>{buildPreviewData.blueprint.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/60 border border-amber-500/40 text-amber-300 font-mono">
-                  {buildPreviewData.blueprint.width}x{buildPreviewData.blueprint.height}
-                </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-600/70 text-amber-200 font-sans">
                   [Q / E] {Math.round((((buildRotation * 180) / Math.PI) % 360 + 360) % 360)}°
                 </span>

@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   const g = geo.index ? geo.toNonIndexed() : geo;
@@ -18,35 +18,33 @@ function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return cleaned;
 }
 
-export const kilnMoundGeometry = (() => {
+export const kilnStoneDarkGeometry = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.BoxGeometry(4.85, 0.06, 2.85).translate(0, 0.03, 0)));
-  geos.push(toStandard(new THREE.CylinderGeometry(0.55, 1.25, 0.92, 16).translate(-1.15, 0.08 + 0.52, 0)));
-  const dome = new THREE.SphereGeometry(0.58, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-  dome.applyMatrix4(new THREE.Matrix4().setPosition(-1.15, 0.08 + 0.98, 0));
-  geos.push(toStandard(dome));
-
+  geos.push(toStandard(new THREE.BoxGeometry(4.85, 0.08, 2.85).translate(0, 0.04, 0)));
+  geos.push(toStandard(new THREE.CylinderGeometry(1.15, 1.20, 0.14, 24).translate(-1.15, 0.09, 0)));
+  geos.push(toStandard(new THREE.BoxGeometry(0.86, 0.08, 0.40).translate(-1.15, 0.16, 0.96)));
   return mergeGeometries(geos) || geos[0];
 })();
 
 export const kilnStoneGeometry = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const ring = new THREE.TorusGeometry(1.22, 0.11, 8, 20);
-  ring.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(-1.15, 0.08 + 0.1, 0));
-  geos.push(toStandard(ring));
+  const dome = new THREE.SphereGeometry(0.98, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.48);
+  dome.applyMatrix4(new THREE.Matrix4().setPosition(-1.15, 0.14, 0));
+  geos.push(toStandard(dome));
+  return mergeGeometries(geos) || geos[0];
+})();
 
-  geos.push(toStandard(new THREE.CylinderGeometry(1.32, 1.35, 0.1, 16).translate(-1.15, 0.08 + 0.06, 0)));
+export const kilnStoneLightGeometry = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const jambL = new THREE.BoxGeometry(0.14, 0.60, 0.36).translate(-1.15 - 0.36, 0.44, 0.96);
+  const jambR = new THREE.BoxGeometry(0.14, 0.60, 0.36).translate(-1.15 + 0.36, 0.44, 0.96);
+  const archTop = new THREE.BoxGeometry(0.86, 0.18, 0.38).translate(-1.15, 0.74, 0.96);
+  const archKeystone = new THREE.BoxGeometry(0.20, 0.22, 0.40).translate(-1.15, 0.78, 0.98);
+  geos.push(toStandard(jambL), toStandard(jambR), toStandard(archTop), toStandard(archKeystone));
 
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * Math.PI) / 3;
-    const vx = -1.15 + Math.cos(angle) * 1.12;
-    const vz = Math.sin(angle) * 1.12;
-    const vent = new THREE.BoxGeometry(0.22, 0.14, 0.12);
-    vent.applyMatrix4(new THREE.Matrix4().makeRotationY(-angle).setPosition(vx, 0.08 + 0.12, vz));
-    geos.push(toStandard(vent));
-  }
-
-  geos.push(toStandard(new THREE.CylinderGeometry(0.22, 0.22, 0.04, 10).translate(-1.15, 0.08 + 1.38, 0)));
+  const rim = new THREE.TorusGeometry(0.18, 0.035, 8, 16);
+  rim.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(-1.15, 1.12, 0));
+  geos.push(toStandard(rim));
 
   return mergeGeometries(geos) || geos[0];
 })();
@@ -98,11 +96,35 @@ export const kilnRoofGeometry = (() => {
 
 export const kilnCharcoalGeometry = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  geos.push(toStandard(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 12).translate(-1.15, 0.08 + 1.39, 0)));
+  const flueHole = new THREE.CylinderGeometry(0.16, 0.16, 0.08, 16).translate(-1.15, 1.09, 0);
+  geos.push(toStandard(flueHole));
 
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.16, 0).translate(-0.75 - 0.20, 0.08 + 0.28, 0.95)));
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.14, 0).translate(-0.75 + 0.16, 0.08 + 0.07, 0.95)));
-  geos.push(toStandard(new THREE.DodecahedronGeometry(0.10, 0).translate(-0.75 + 0.32, 0.08 + 0.06, 0.95 + 0.12)));
+  const ashBed = new THREE.BoxGeometry(0.60, 0.04, 0.36).translate(-1.15, 0.16, 0.94);
+  geos.push(toStandard(ashBed));
+
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.16, 0).translate(-0.45, 0.08 + 0.12, 0.95)));
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.14, 0).translate(-0.30, 0.08 + 0.07, 0.95)));
+  geos.push(toStandard(new THREE.DodecahedronGeometry(0.10, 0).translate(-0.18, 0.08 + 0.06, 0.95 + 0.12)));
+
+  const sx = 1.65; const sz = -0.45;
+  const pileMain = new THREE.ConeGeometry(0.55, 0.38, 9).translate(sx, 0.08 + 0.19, sz);
+  geos.push(toStandard(pileMain));
+
+  for (const [ox, oz, r] of [[-0.28, -0.2, 0.16], [0.25, -0.22, 0.14], [-0.22, 0.22, 0.15], [0.28, 0.18, 0.13], [0, -0.32, 0.12], [0, 0.3, 0.14]]) {
+    const chunk = new THREE.DodecahedronGeometry(r, 0).translate(sx + ox, 0.08 + r * 0.7, sz + oz);
+    geos.push(toStandard(chunk));
+  }
+
+  return mergeGeometries(geos) || geos[0];
+})();
+
+export const kilnSacksGeometry = (() => {
+  const geos: THREE.BufferGeometry[] = [];
+  const sx = 1.65; const sz = -0.45;
+
+  const sack1 = new THREE.CylinderGeometry(0.13, 0.16, 0.32, 7).translate(sx + 0.42, 0.08 + 0.16, sz + 0.38);
+  const sack2 = new THREE.CylinderGeometry(0.12, 0.15, 0.28, 7).translate(sx + 0.45, 0.08 + 0.14, sz - 0.15);
+  geos.push(toStandard(sack1), toStandard(sack2));
 
   return mergeGeometries(geos) || geos[0];
 })();
@@ -117,17 +139,20 @@ export function CharcoalKilnModel({
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
-  void isLightOn;
 
   return (
     <group>
-      <mesh geometry={kilnMoundGeometry} material={mats.richSoil} receiveShadow />
+      <mesh geometry={kilnStoneDarkGeometry} material={mats.stoneDark} receiveShadow />
       <mesh geometry={kilnStoneGeometry} material={mats.stoneMed} receiveShadow />
+      <mesh geometry={kilnStoneLightGeometry} material={mats.stoneLight} />
       <mesh geometry={kilnFirewoodGeometry} material={mats.timberLogs} receiveShadow />
       <mesh geometry={kilnShedGeometry} material={mats.timberDark} />
-      <mesh geometry={kilnCharcoalGeometry} material={mats.charcoalBlack} />
+      <mesh geometry={kilnCharcoalGeometry} material={mats.charcoalBlack} receiveShadow />
+      <mesh geometry={kilnSacksGeometry} material={mats.flourSack} receiveShadow />
 
-      {isWorking && <ChimneySmoke position={[-1.15, 0.08 + 1.45, 0]} />}
+      <IndoorFireplaceFire position={[-1.15, 0.18, 0.96]} scale={0.95} isLit={isWorking || isLightOn} />
+
+      {isWorking && <ChimneySmoke position={[-1.15, 1.16, 0]} />}
 
       <group ref={roofRef}>
         <mesh geometry={kilnRoofGeometry} material={mats.thatchRoof} castShadow />

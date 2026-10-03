@@ -541,7 +541,7 @@ export function DetailedChimney({
   const crownY = capY + 0.05;
   const potY = crownY + 0.16;
 
-  const { chimneyStoneGeo } = useMemo(() => {
+  const { chimneyStoneGeo, chimneySootGeo } = useMemo(() => {
     const geos: THREE.BufferGeometry[] = [];
     const base = new THREE.BoxGeometry(width, height, depth);
     geos.push(base);
@@ -550,32 +550,36 @@ export function DetailedChimney({
     const g2 = new THREE.BoxGeometry(width + 0.14, 0.05, depth + 0.14).translate(0, crownY, 0);
     geos.push(g1, g2);
 
-    const sootRot = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
     const rimRot = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+    const sootGeos: THREE.BufferGeometry[] = [];
 
     if (potCount === 2) {
-      const p1 = new THREE.CylinderGeometry(0.09, 0.11, 0.28, 8).translate(-width * 0.22, potY, 0);
-      const p2 = new THREE.CylinderGeometry(0.09, 0.11, 0.28, 8).translate(width * 0.22, potY, 0);
+      const p1 = new THREE.CylinderGeometry(0.09, 0.11, 0.28, 12).translate(-width * 0.22, potY, 0);
+      const p2 = new THREE.CylinderGeometry(0.09, 0.11, 0.28, 12).translate(width * 0.22, potY, 0);
       const r1 = new THREE.TorusGeometry(0.085, 0.025, 8, 16).applyMatrix4(rimRot).translate(-width * 0.22, potY + 0.13, 0);
       const r2 = new THREE.TorusGeometry(0.085, 0.025, 8, 16).applyMatrix4(rimRot).translate(width * 0.22, potY + 0.13, 0);
-      const h1 = new THREE.CircleGeometry(0.08, 12).applyMatrix4(sootRot).translate(-width * 0.22, potY + 0.13, 0);
-      const h2 = new THREE.CircleGeometry(0.08, 12).applyMatrix4(sootRot).translate(width * 0.22, potY + 0.13, 0);
-      geos.push(p1, p2, r1, r2, h1, h2);
+      const s1 = new THREE.CylinderGeometry(0.065, 0.065, 0.04, 12).translate(-width * 0.22, potY + 0.12, 0);
+      const s2 = new THREE.CylinderGeometry(0.065, 0.065, 0.04, 12).translate(width * 0.22, potY + 0.12, 0);
+      geos.push(p1, p2, r1, r2);
+      sootGeos.push(s1, s2);
     } else {
-      const p = new THREE.CylinderGeometry(0.11, 0.13, 0.28, 8).translate(0, potY, 0);
-      const r = new THREE.TorusGeometry(0.10, 0.03, 8, 16).applyMatrix4(rimRot).translate(0, potY + 0.13, 0);
-      const h = new THREE.CircleGeometry(0.095, 12).applyMatrix4(sootRot).translate(0, potY + 0.13, 0);
-      geos.push(p, r, h);
+      const p = new THREE.CylinderGeometry(0.11, 0.13, 0.28, 12).translate(0, potY, 0);
+      const r = new THREE.TorusGeometry(0.10, 0.028, 8, 16).applyMatrix4(rimRot).translate(0, potY + 0.13, 0);
+      const s = new THREE.CylinderGeometry(0.08, 0.08, 0.04, 12).translate(0, potY + 0.12, 0);
+      geos.push(p, r);
+      sootGeos.push(s);
     }
 
     return {
       chimneyStoneGeo: mergeGeometries(geos) || base,
+      chimneySootGeo: mergeGeometries(sootGeos) || sootGeos[0],
     };
   }, [width, height, depth, capY, crownY, potY, potCount]);
 
   return (
     <group position={position}>
       <mesh geometry={chimneyStoneGeo} material={mats.stoneMed} receiveShadow />
+      <mesh geometry={chimneySootGeo} material={mats.charcoalBlack} />
       {hasSmoke && (
         potCount === 2 ? (
           <>
@@ -1454,30 +1458,7 @@ export function MedievalStoneHearth({
         <torusGeometry args={[0.07, 0.01, 5, 8]} />
       </mesh>
 
-      <mesh material={mats.timberLogs} position={[-0.08, 0.12, -0.04]} rotation={[0.1, 0.2, Math.PI / 2]}>
-        <cylinderGeometry args={[0.04, 0.042, 0.36, 6]} />
-      </mesh>
-      <mesh material={mats.timberLogs} position={[0.06, 0.16, -0.02]} rotation={[-0.1, -0.2, Math.PI / 2 + 0.1]}>
-        <cylinderGeometry args={[0.035, 0.038, 0.32, 6]} />
-      </mesh>
-
-      {isLightOn ? (
-        <group position={[0, 0.14, -0.02]}>
-          <mesh material={mats.emberGlow} position={[0, 0, 0]}>
-            <boxGeometry args={[0.32, 0.05, 0.18]} />
-          </mesh>
-          <mesh material={mats.fireOrange} position={[0, 0.08, 0]}>
-            <dodecahedronGeometry args={[0.11, 0]} />
-          </mesh>
-          <mesh material={mats.fireYellow} position={[0, 0.15, 0]}>
-            <coneGeometry args={[0.06, 0.16, 5]} />
-          </mesh>
-        </group>
-      ) : (
-        <mesh material={mats.charredWood} position={[0, 0.10, -0.04]}>
-          <boxGeometry args={[0.26, 0.04, 0.14]} />
-        </mesh>
-      )}
+      <IndoorFireplaceFire position={[0, 0.08, -0.04]} scale={0.78} isLit={isLightOn} />
 
       <mesh material={mats.stoneMed} position={[0, chimneyHeight * 0.58, -0.08]} receiveShadow>
         <boxGeometry args={[0.48, chimneyHeight * 0.78, 0.44]} />
@@ -1486,18 +1467,134 @@ export function MedievalStoneHearth({
         <boxGeometry args={[0.54, 0.06, 0.50]} />
       </mesh>
       <mesh material={mats.stoneMed} position={[0, chimneyHeight + 0.02, -0.08]}>
-        <cylinderGeometry args={[0.12, 0.14, 0.26, 8]} />
+        <cylinderGeometry args={[0.12, 0.14, 0.26, 12]} />
       </mesh>
 
       <mesh material={mats.stoneLight} position={[0, chimneyHeight + 0.15, -0.08]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.11, 0.03, 8, 16]} />
+        <torusGeometry args={[0.11, 0.028, 8, 16]} />
       </mesh>
 
-      <mesh material={mats.charcoalBlack} position={[0, chimneyHeight + 0.15, -0.08]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.105, 12]} />
+      <mesh material={mats.charcoalBlack} position={[0, chimneyHeight + 0.14, -0.08]}>
+        <cylinderGeometry args={[0.085, 0.085, 0.04, 12]} />
       </mesh>
 
       {hasSmoke && <ChimneySmoke position={[0, chimneyHeight + 0.16, -0.08]} />}
+    </group>
+  );
+}
+
+export function IndoorFireplaceFire({
+  position = [0, 0, 0],
+  scale = 1.0,
+  isLit = true,
+}: {
+  position?: [number, number, number];
+  scale?: number;
+  isLit?: boolean;
+}) {
+  const mats = SHARED_BUILDING_MATS;
+  const flameRef = useRef<THREE.Group>(null);
+  const lightRef = useRef<THREE.PointLight>(null);
+
+  useFrame(({ clock }) => {
+    if (!flameRef.current || !isLit || !isObjectEffectivelyVisible(flameRef.current)) return;
+    const currentZoom = (window as any).__lastCameraZoom ?? 38;
+    if (currentZoom <= 18.5) return;
+    const t = clock.getElapsedTime();
+
+    const flames = flameRef.current.children;
+    for (let i = 0; i < flames.length; i++) {
+      const flame = flames[i];
+      const seed = i * 2.1;
+      const wobbleX = Math.sin(t * 10 + seed) * 0.03 + Math.cos(t * 17 + seed * 1.5) * 0.015;
+      const wobbleZ = Math.cos(t * 12 + seed * 1.3) * 0.03 + Math.sin(t * 19 + seed) * 0.015;
+      const scaleY = 0.85 + Math.sin(t * 13 + seed * 2) * 0.25 + Math.cos(t * 21 + seed) * 0.15;
+      const scaleXZ = 0.8 + Math.cos(t * 11 + seed * 1.5) * 0.18;
+      flame.scale.set(scaleXZ * scale, scaleY * scale, scaleXZ * scale);
+      flame.position.x = wobbleX;
+      flame.position.z = wobbleZ;
+      flame.rotation.y = t * (1.8 + (i % 2 === 0 ? 0.8 : -0.8));
+    }
+
+    if (lightRef.current) {
+      lightRef.current.intensity = 1.8 + Math.sin(t * 15) * 0.4 + Math.cos(t * 23) * 0.2;
+    }
+  });
+
+  return (
+    <group position={position} scale={[scale, scale, scale]}>
+      <mesh material={mats.ashBed} position={[0, 0.015, 0]} receiveShadow>
+        <cylinderGeometry args={[0.22, 0.24, 0.02, 8]} />
+      </mesh>
+
+      <group position={[0, 0.04, 0]}>
+        <mesh material={mats.charredWood} position={[-0.04, 0.03, 0]} rotation={[0.2, 0.4, Math.PI / 2]}>
+          <cylinderGeometry args={[0.03, 0.035, 0.28, 5]} />
+        </mesh>
+        <mesh material={mats.charredWood} position={[0.04, 0.05, 0]} rotation={[-0.2, -0.6, Math.PI / 2]}>
+          <cylinderGeometry args={[0.028, 0.032, 0.26, 5]} />
+        </mesh>
+        <mesh material={mats.charredWood} position={[0, 0.07, -0.02]} rotation={[0.4, 0.1, -0.4]}>
+          <cylinderGeometry args={[0.024, 0.028, 0.24, 5]} />
+        </mesh>
+      </group>
+
+      {isLit ? (
+        <>
+          <group position={[0, 0.04, 0]}>
+            <mesh material={mats.emberGlow} position={[-0.04, 0.02, 0.03]}>
+              <dodecahedronGeometry args={[0.03, 0]} />
+            </mesh>
+            <mesh material={mats.emberGlow} position={[0.04, 0.02, -0.03]}>
+              <dodecahedronGeometry args={[0.028, 0]} />
+            </mesh>
+            <mesh material={mats.emberGlow} position={[0, 0.03, 0]}>
+              <dodecahedronGeometry args={[0.035, 0]} />
+            </mesh>
+          </group>
+
+          <group ref={flameRef} position={[0, 0.08, 0]}>
+            <group position={[0, 0, 0]}>
+              <mesh material={mats.fireOrange} position={[0, 0.18, 0]}>
+                <coneGeometry args={[0.12, 0.42, 6]} />
+              </mesh>
+              <mesh material={mats.fireYellow} position={[0, 0.14, 0]}>
+                <coneGeometry args={[0.085, 0.32, 5]} />
+              </mesh>
+              <mesh material={mats.fireCore} position={[0, 0.09, 0]}>
+                <coneGeometry args={[0.05, 0.20, 4]} />
+              </mesh>
+            </group>
+
+            <group position={[-0.06, 0, 0.04]} rotation={[0.15, 0.4, -0.15]}>
+              <mesh material={mats.fireOrange} position={[0, 0.13, 0]}>
+                <coneGeometry args={[0.08, 0.30, 5]} />
+              </mesh>
+              <mesh material={mats.fireYellow} position={[0, 0.10, 0]}>
+                <coneGeometry args={[0.055, 0.22, 4]} />
+              </mesh>
+            </group>
+
+            <group position={[0.06, 0, 0.03]} rotation={[-0.2, -0.5, 0.15]}>
+              <mesh material={mats.fireOrange} position={[0, 0.12, 0]}>
+                <coneGeometry args={[0.075, 0.28, 5]} />
+              </mesh>
+              <mesh material={mats.fireYellow} position={[0, 0.09, 0]}>
+                <coneGeometry args={[0.05, 0.20, 4]} />
+              </mesh>
+            </group>
+          </group>
+
+          <pointLight
+            ref={lightRef}
+            position={[0, 0.25, 0]}
+            color="#ff7711"
+            intensity={1.8}
+            distance={5.0}
+            decay={2}
+          />
+        </>
+      ) : null}
     </group>
   );
 }

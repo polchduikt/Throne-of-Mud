@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { buildingEntities, type GameEntity } from '../../../../engine/ecs/world';
+import type { GameEntity } from '../../../../engine/ecs/world';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
@@ -55,16 +55,6 @@ export const scarecrowDetailsGeo = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
-export const fenceSideXGeo = (() => {
-  const g = new THREE.BoxGeometry(0.08, 0.22, 4.0);
-  return toStandard(g);
-})();
-
-export const fenceSideZGeo = (() => {
-  const g = new THREE.BoxGeometry(4.0, 0.22, 0.08);
-  return toStandard(g);
-})();
-
 export const scarecrowHatGeo = (() => {
   const g = new THREE.ConeGeometry(0.18, 0.12, 6);
   return toStandard(g);
@@ -81,36 +71,6 @@ export function WheatFarmModel({
   building: GameEntity;
 }) {
   const mats = SHARED_BUILDING_MATS;
-  const pos = building.position || [0, 0, 0];
-  const width = building.buildingWidth || 4;
-  const height = building.buildingHeight || 4;
-
-  const bx = building.gridPosition ? building.gridPosition[0] : pos[0] - width / 2;
-  const bz = building.gridPosition ? building.gridPosition[1] : pos[2] - height / 2;
-
-  let hasNorth = false;
-  let hasSouth = false;
-  let hasWest = false;
-  let hasEast = false;
-
-  for (const b of buildingEntities) {
-    if (b.buildingType !== 'wheat_farm' || b.id === building.id) continue;
-    const otherBx = b.gridPosition ? b.gridPosition[0] : (b.position?.[0] ?? 0) - (b.buildingWidth || 4) / 2;
-    const otherBz = b.gridPosition ? b.gridPosition[1] : (b.position?.[2] ?? 0) - (b.buildingHeight || 4) / 2;
-    const otherW = b.buildingWidth || 4;
-    const otherH = b.buildingHeight || 4;
-
-    if (Math.abs(otherBx - bx) < 0.5) {
-      if (Math.abs(otherBz - (bz - otherH)) < 0.5) hasNorth = true;
-      if (Math.abs(otherBz - (bz + height)) < 0.5) hasSouth = true;
-    }
-    if (Math.abs(otherBz - bz) < 0.5) {
-      if (Math.abs(otherBx - (bx - otherW)) < 0.5) hasWest = true;
-      if (Math.abs(otherBx - (bx + width)) < 0.5) hasEast = true;
-    }
-    if (hasNorth && hasSouth && hasWest && hasEast) break;
-  }
-
   const wheatProg = building.productionProgress || 0;
   const wheatScale = Math.min(1.0, Math.max(0.2, wheatProg / 100));
 
@@ -118,19 +78,6 @@ export function WheatFarmModel({
     <group>
       <mesh geometry={wheatBaseSoilGeo} material={mats.richSoil} receiveShadow />
       <mesh geometry={wheatFurrowsGeo} material={mats.soilFurrow} receiveShadow />
-
-      {!hasWest && (
-        <mesh geometry={fenceSideXGeo} material={mats.timberDark} position={[-1.95, 0.18, 0]} />
-      )}
-      {!hasEast && (
-        <mesh geometry={fenceSideXGeo} material={mats.timberDark} position={[1.95, 0.18, 0]} />
-      )}
-      {!hasNorth && (
-        <mesh geometry={fenceSideZGeo} material={mats.timberDark} position={[0, 0.18, -1.95]} />
-      )}
-      {!hasSouth && (
-        <mesh geometry={fenceSideZGeo} material={mats.timberDark} position={[0, 0.18, 1.95]} />
-      )}
 
       {wheatProg >= 5 && (
         <mesh

@@ -1,4 +1,5 @@
-import type { RefObject } from 'react';
+import { useRef, type RefObject } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
@@ -21,8 +22,6 @@ export const quarryStoneMedGeo = (() => {
 
 export const quarryStoneCutGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const sBlock = new THREE.BoxGeometry(0.55, 0.45, 0.50); sBlock.translate(1.05 - 0.95, 0.08 + 0.85, -0.45); geos.push(toStandard(sBlock));
-
   const b1 = new THREE.BoxGeometry(0.45, 0.32, 0.45); b1.translate(0.95 - 0.28, 0.08 + 0.18, 0.75); geos.push(toStandard(b1));
   const b2 = new THREE.BoxGeometry(0.42, 0.28, 0.42); b2.translate(0.95 + 0.28, 0.08 + 0.16, 0.75); geos.push(toStandard(b2));
   const b3 = new THREE.BoxGeometry(0.40, 0.24, 0.38); b3.translate(0.95, 0.08 + 0.44, 0.75); geos.push(toStandard(b3));
@@ -125,32 +124,53 @@ export const quarrySteelGeo = (() => {
   return mergeGeometries(geos) || geos[0];
 })();
 
-export const quarrySlingGeo = (() => {
-  const geos: THREE.BufferGeometry[] = [];
-  const derrickM = new THREE.Matrix4().setPosition(1.05, 0.08, -0.45);
-
-  const cable = new THREE.CylinderGeometry(0.015, 0.015, 1.45, 6);
-  cable.applyMatrix4(new THREE.Matrix4().setPosition(-0.95, 1.75, 0).premultiply(derrickM));
-  geos.push(toStandard(cable));
-
-  const strap = new THREE.BoxGeometry(0.57, 0.03, 0.52);
-  strap.applyMatrix4(new THREE.Matrix4().setPosition(-0.95, 0.85, 0).premultiply(derrickM));
-  geos.push(toStandard(strap));
-
-  return mergeGeometries(geos) || geos[0];
-})();
-
 export const quarryRoofGeo = (() => {
   const roof = new THREE.BoxGeometry(1.25, 0.07, 0.85);
   roof.applyMatrix4(new THREE.Matrix4().makeRotationX(0.24).setPosition(-1.10, 0.08 + 1.25, 0.55));
   return toStandard(roof);
 })();
 
+function QuarryAnimatedHoist({ isWorking = true }: { isWorking?: boolean }) {
+  const hoistRef = useRef<THREE.Group>(null);
+  const cableRef = useRef<THREE.Mesh>(null);
+  const mats = SHARED_BUILDING_MATS;
+
+  useFrame(({ clock }) => {
+    if (!hoistRef.current || !cableRef.current) return;
+    const t = isWorking ? clock.getElapsedTime() : 0;
+    const hoistY = 0.52 + Math.sin(t * 1.2) * 0.32;
+    hoistRef.current.position.y = hoistY;
+
+    const pulleyTopY = 2.58;
+    const cableLen = Math.max(0.2, pulleyTopY - hoistY);
+    cableRef.current.position.y = hoistY + cableLen / 2;
+    cableRef.current.scale.y = cableLen;
+  });
+
+  return (
+    <group position={[0.10, 0, -0.45]}>
+      <mesh ref={cableRef} material={mats.clothWhite} position={[0, 1.5, 0]}>
+        <cylinderGeometry args={[0.015, 0.015, 1.0, 6]} />
+      </mesh>
+      <group ref={hoistRef} position={[0, 0.52, 0]}>
+        <mesh material={mats.clothWhite} position={[0, 0.24, 0]}>
+          <boxGeometry args={[0.57, 0.03, 0.52]} />
+        </mesh>
+        <mesh material={mats.stoneLight} position={[0, 0, 0]} receiveShadow>
+          <boxGeometry args={[0.55, 0.45, 0.50]} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 export function StoneQuarryModel({
   isLightOn = false,
+  isWorking = true,
   roofRef,
 }: {
   isLightOn?: boolean;
+  isWorking?: boolean;
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
@@ -165,7 +185,8 @@ export function StoneQuarryModel({
       <mesh geometry={quarryTimberDarkGeo} material={mats.timberDark} castShadow />
       <mesh geometry={quarryTimberPlanksGeo} material={mats.timberPlanks} receiveShadow />
       <mesh geometry={quarrySteelGeo} material={mats.ironSteel} />
-      <mesh geometry={quarrySlingGeo} material={mats.clothWhite} />
+
+      <QuarryAnimatedHoist isWorking={isWorking} />
 
       <mesh
         material={mats.timberLight}

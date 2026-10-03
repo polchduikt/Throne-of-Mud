@@ -12,7 +12,6 @@ import { StrategicMapModal } from './components/ui/StrategicMapModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AudioController } from './components/audio/AudioController';
 import RoadToolPanel from './components/ui/RoadToolPanel';
-import BuildingToolPanel from './components/ui/BuildingToolPanel';
 import { FpsMonitor } from './components/ui/FpsMonitor';
 import { CrownIcon } from './components/ui/MedievalIcons';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -115,7 +114,6 @@ export default function App() {
               <TopHUD />
               {isLordsBarOpen && <LordsBar />}
               <RoadToolPanel />
-              <BuildingToolPanel />
               <BottomActionBar grid={grid} />
               <InspectorPanel />
               <EventLog />

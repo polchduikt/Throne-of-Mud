@@ -2,7 +2,7 @@ import type { RefObject } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { SHARED_BUILDING_MATS } from '../buildingMaterials';
-import { ChimneySmoke } from '../common/BuildingPrimitives';
+import { ChimneySmoke, IndoorFireplaceFire } from '../common/BuildingPrimitives';
 
 function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
   return geo.index ? geo.toNonIndexed() : geo;
@@ -11,8 +11,8 @@ function toStandard(geo: THREE.BufferGeometry): THREE.BufferGeometry {
 export const smelterStoneDarkGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
   const base = new THREE.BoxGeometry(4.85, 0.10, 2.85); base.translate(0, 0.05, 0); geos.push(toStandard(base));
-  const fBase = new THREE.CylinderGeometry(0.80, 0.88, 0.56, 12); fBase.translate(-1.45, 0.39, 0); geos.push(toStandard(fBase));
-  const fCollar = new THREE.BoxGeometry(0.64, 0.06, 0.64); fCollar.translate(-1.45, 2.03, 0); geos.push(toStandard(fCollar));
+  const fPlinth = new THREE.CylinderGeometry(0.92, 0.98, 0.18, 16); fPlinth.translate(-1.45, 0.09, 0); geos.push(toStandard(fPlinth));
+  const hearthSill = new THREE.BoxGeometry(0.74, 0.06, 0.36); hearthSill.translate(-1.45, 0.18, 0.70); geos.push(toStandard(hearthSill));
   const tBase = new THREE.BoxGeometry(0.58, 0.08, 0.73); tBase.translate(0.40, 0.42, -0.65); geos.push(toStandard(tBase));
   return mergeGeometries(geos) || geos[0];
 })();
@@ -20,23 +20,31 @@ export const smelterStoneDarkGeo = (() => {
 export const smelterStoneMedGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
   const pad = new THREE.BoxGeometry(4.70, 0.03, 2.70); pad.translate(0, 0.105, 0); geos.push(toStandard(pad));
-  const fMid = new THREE.CylinderGeometry(0.64, 0.80, 0.60, 12); fMid.translate(-1.45, 0.96, 0); geos.push(toStandard(fMid));
+  const lowerBase = new THREE.CylinderGeometry(0.78, 0.88, 0.46, 16, 1, false, 0.40, Math.PI * 2 - 0.80);
+  lowerBase.translate(-1.45, 0.38, 0);
+  geos.push(toStandard(lowerBase));
   return mergeGeometries(geos) || geos[0];
 })();
 
 export const smelterClayGeo = (() => {
-  const fClay = new THREE.CylinderGeometry(0.42, 0.64, 0.62, 12);
-  fClay.translate(-1.45, 1.56, 0);
-  return toStandard(fClay);
+  const geos: THREE.BufferGeometry[] = [];
+  const cone = new THREE.CylinderGeometry(0.38, 0.78, 1.15, 16); cone.translate(-1.45, 1.25, 0); geos.push(toStandard(cone));
+  return mergeGeometries(geos) || geos[0];
 })();
 
 export const smelterStoneLightGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const cap = new THREE.CylinderGeometry(0.40, 0.44, 0.14, 12); cap.translate(-1.45, 1.93, 0); geos.push(toStandard(cap));
-  const arch = new THREE.BoxGeometry(0.54, 0.48, 0.18); arch.translate(-1.45, 0.43, 0.74); geos.push(toStandard(arch));
-  const rim = new THREE.TorusGeometry(0.22, 0.035, 8, 16);
-  rim.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(-1.45, 2.06, 0));
+  const jambL = new THREE.BoxGeometry(0.14, 0.52, 0.26); jambL.translate(-1.45 - 0.30, 0.44, 0.72);
+  const jambR = new THREE.BoxGeometry(0.14, 0.52, 0.26); jambR.translate(-1.45 + 0.30, 0.44, 0.72);
+  const arch = new THREE.BoxGeometry(0.74, 0.16, 0.28); arch.translate(-1.45, 0.72, 0.72);
+  const keystone = new THREE.BoxGeometry(0.18, 0.20, 0.30); keystone.translate(-1.45, 0.76, 0.75);
+  geos.push(toStandard(jambL), toStandard(jambR), toStandard(arch), toStandard(keystone));
+
+  const cap = new THREE.CylinderGeometry(0.36, 0.40, 0.14, 16); cap.translate(-1.45, 1.88, 0); geos.push(toStandard(cap));
+  const rim = new THREE.TorusGeometry(0.24, 0.035, 8, 16);
+  rim.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(-1.45, 1.95, 0));
   geos.push(toStandard(rim));
+
   return mergeGeometries(geos) || geos[0];
 })();
 
@@ -120,8 +128,6 @@ export const smelterSteelGeo = (() => {
 
 export const smelterMoltenIronGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
-  const s1 = new THREE.BoxGeometry(0.26, 0.24, 0.04); s1.translate(-1.45, 0.31, 0.82); geos.push(toStandard(s1));
-  const s2 = new THREE.BoxGeometry(0.20, 0.04, 0.32); s2.translate(-1.45, 0.15, 0.98); geos.push(toStandard(s2));
 
   for (const x of [-0.26, 0.0, 0.26]) {
     const hotIngot = new THREE.BoxGeometry(0.18, 0.02, 0.36);
@@ -143,9 +149,8 @@ export const smelterOreGeo = (() => {
 export const smelterCharcoalGeo = (() => {
   const geos: THREE.BufferGeometry[] = [];
   const charPile = new THREE.DodecahedronGeometry(0.22, 0); charPile.translate(1.48 + 0.28, 0.45, -0.65); geos.push(toStandard(charPile));
-  const soot = new THREE.CircleGeometry(0.21, 12);
-  soot.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.PI / 2).setPosition(-1.45, 2.06, 0));
-  geos.push(toStandard(soot));
+  const flueSoot = new THREE.CylinderGeometry(0.21, 0.21, 0.08, 12).translate(-1.45, 1.94, 0); geos.push(toStandard(flueSoot));
+  const fireCavity = new THREE.BoxGeometry(0.58, 0.48, 0.45); fireCavity.translate(-1.45, 0.38, 0.40); geos.push(toStandard(fireCavity));
   return mergeGeometries(geos) || geos[0];
 })();
 
@@ -191,7 +196,6 @@ export function IronSmelterModel({
   roofRef?: RefObject<THREE.Group | null>;
 }) {
   const mats = SHARED_BUILDING_MATS;
-  void isLightOn;
 
   return (
     <group>
@@ -208,7 +212,9 @@ export function IronSmelterModel({
       <mesh geometry={smelterPalletPlanksGeo} material={mats.timberPlanks} receiveShadow />
       <mesh geometry={smelterBellowsLeatherGeo} material={mats.bootsLeather} />
 
-      {isWorking && <ChimneySmoke position={[-1.45, 2.13, 0]} />}
+      <IndoorFireplaceFire position={[-1.45, 0.18, 0.62]} scale={0.88} isLit={isWorking || isLightOn} />
+
+      {isWorking && <ChimneySmoke position={[-1.45, 2.02, 0]} />}
 
       <group ref={roofRef}>
         <mesh geometry={smelterRoofGeo} material={mats.shingleRoof} castShadow receiveShadow />

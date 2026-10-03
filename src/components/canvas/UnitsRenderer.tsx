@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { characterEntities } from '../../engine/ecs/world';
+import { characterEntities, buildingEntities } from '../../engine/ecs/world';
 import type { GameEntity } from '../../engine/ecs/world';
 import { useGameStore } from '../../store/useGameStore';
 import { GridMap } from '../../engine/grid/GridMap';
@@ -265,15 +265,17 @@ function Unit3D({
     }
 
     const curPath = unit.path;
-    const isMovingNow = !isGamePaused && Boolean(curPath && curPath.length > 0);
+
+
+
+    const movedSincePreviousFrame = Math.hypot(
+      ux - prevPos.current[0],
+      uz - prevPos.current[1],
+    );
+    const isMovingNow = !isGamePaused && Boolean(curPath && curPath.length > 0) && movedSincePreviousFrame > 0.0005;
     const curJob = unit.currentJob;
     const curJobType = curJob?.type;
     const isSleepingNow = !isMovingNow && curJobType === 'sleep';
-
-    if (isSleepingNow && !isSelected) {
-      groupRef.current.visible = false;
-      return;
-    }
 
     if (detailsRef.current) {
       detailsRef.current.visible = zoom >= 42;
@@ -298,9 +300,45 @@ function Unit3D({
     const isActivelyFightingNow = !isGamePaused && !isMovingNow && curJobType === 'fight';
     const isSittingNow = !isMovingNow && curJobType === 'sit_by_fire';
 
+    const targetBuildingId = curJob?.targetBuildingId || unit.workBuildingId;
+    let targetBuildingType: string | undefined = undefined;
+    if (targetBuildingId) {
+      for (const b of buildingEntities) {
+        if (b.id === targetBuildingId) {
+          targetBuildingType = b.buildingType;
+          break;
+        }
+      }
+    }
+
+    const isFarmingNow =
+      isActivelyWorkingNow &&
+      (curJobType === 'plant_crops' ||
+        curJobType === 'harvest_wheat' ||
+        (curJobType === 'work_at_building' && targetBuildingType === 'wheat_farm') ||
+        unit.title === 'Хлібороб');
+
+    const isCounterWorker =
+      targetBuildingType === 'market' ||
+      targetBuildingType === 'tavern' ||
+      (targetBuildingType === 'bakery' && Boolean(curJob?.targetPosition && curJob.targetPosition[1] > 0));
+
+    const isCalmBuilding =
+      isCounterWorker ||
+      targetBuildingType === 'wooden_church' ||
+      targetBuildingType === 'manor' ||
+      targetBuildingType === 'stockpile' ||
+      targetBuildingType === 'tent';
+
+    const isCraftingBuildingWorker =
+      isActivelyWorkingNow &&
+      curJobType === 'work_at_building' &&
+      !isCalmBuilding &&
+      targetBuildingType !== 'wheat_farm';
+
     if (twoHandedRigRef.current) twoHandedRigRef.current.visible = isActivelyChoppingNow;
     if (standardArmsRef.current) standardArmsRef.current.visible = !isActivelyChoppingNow;
-    if (hammerRef.current) hammerRef.current.visible = isActivelyBuildingNow || curJobType === 'work_at_building';
+    if (hammerRef.current) hammerRef.current.visible = isActivelyBuildingNow;
     if (pickaxeRef.current) pickaxeRef.current.visible = isActivelyMiningNow;
     if (swordRef.current) swordRef.current.visible = isActivelyFightingNow;
     if (scepterRef.current) scepterRef.current.visible = isLord && !isMovingNow && !isSleepingNow && !isSittingNow;
@@ -312,7 +350,7 @@ function Unit3D({
         const offX = 0.30 * Math.sin(bedAngle);
         const offZ = 0.30 * Math.cos(bedAngle);
         if (characterBodyRef.current) {
-          characterBodyRef.current.rotation.order = 'XYZ';
+          characterBodyRef.current.rotation.order = 'YXZ';
           characterBodyRef.current.rotation.set(-Math.PI / 2, bedAngle, 0);
           characterBodyRef.current.position.set(offX, 0.08, offZ);
         }
@@ -400,7 +438,7 @@ function Unit3D({
     } else {
       const dx = ux - prevPos.current[0];
       const dz = uz - prevPos.current[1];
-      if (Math.hypot(dx, dz) > 0.002) {
+      if (movedSincePreviousFrame > 0.002) {
         targetAngle = Math.atan2(dx, dz);
       }
     }
@@ -416,7 +454,7 @@ function Unit3D({
     }
     prevPos.current = [ux, uz];
 
-    let action: 'idle' | 'walk' | 'attack' | 'chop_standing' | 'chop_fallen' | 'build' | 'sleep' | 'sit' = 'idle';
+    let action: 'idle' | 'walk' | 'attack' | 'chop_standing' | 'chop_fallen' | 'build' | 'farm' | 'craft' | 'sleep' | 'sit' = 'idle';
 
     if (previewAnimation && previewAnimation.expiresAt > Date.now()) {
       action = previewAnimation.anim === 'chop' ? 'chop_standing' : (previewAnimation.anim as any);
@@ -432,8 +470,12 @@ function Unit3D({
       action = 'chop_standing';
     } else if (isActivelyChoppingFallenNow) {
       action = 'chop_fallen';
-    } else if (isActivelyBuildingNow || isActivelyMiningNow || curJobType === 'plant_crops' || curJobType === 'harvest_wheat' || curJobType === 'work_at_building') {
+    } else if (isFarmingNow) {
+      action = 'farm';
+    } else if (isActivelyBuildingNow || isActivelyMiningNow) {
       action = 'build';
+    } else if (isCraftingBuildingWorker) {
+      action = 'craft';
     } else {
       action = 'idle';
     }
@@ -588,6 +630,40 @@ function Unit3D({
         characterBodyRef.current.rotation.set(0, facingAngle.current, 0);
         characterBodyRef.current.position.set(0, buildCycle > 0 ? 0 : -0.02, 0);
       }
+    } else if (action === 'farm') {
+      const farmCycle = Math.sin(t * 5.0);
+      if (torsoRef.current) {
+        torsoRef.current.position.set(0, -0.04, 0.05);
+        torsoRef.current.rotation.set(0.65 + farmCycle * 0.08, 0, 0);
+        torsoRef.current.scale.set(1, 1, 1);
+      }
+      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.9 + farmCycle * 0.35, -0.15, 0.1);
+      if (leftArmRef.current) leftArmRef.current.rotation.set(-0.8 - farmCycle * 0.35, 0.15, -0.1);
+      if (leftLegRef.current) leftLegRef.current.rotation.set(0.2, 0.08, 0);
+      if (rightLegRef.current) rightLegRef.current.rotation.set(-0.1, -0.08, 0);
+      if (characterBodyRef.current) {
+        characterBodyRef.current.rotation.order = 'XYZ';
+        characterBodyRef.current.rotation.set(0, facingAngle.current, 0);
+        characterBodyRef.current.position.set(0, -0.05, 0);
+      }
+    } else if (action === 'craft') {
+      const craftCycle = Math.sin(t * 3.5);
+      const craftCycleAlt = Math.cos(t * 3.5);
+      const craftBreathe = Math.sin(t * 2.5) * 0.005;
+      if (torsoRef.current) {
+        torsoRef.current.position.set(0, craftBreathe, 0);
+        torsoRef.current.rotation.set(0.12, 0, 0);
+        torsoRef.current.scale.set(1, 1, 1);
+      }
+      if (rightArmRef.current) rightArmRef.current.rotation.set(-0.65 + craftCycle * 0.18, -0.15, 0.1);
+      if (leftArmRef.current) leftArmRef.current.rotation.set(-0.65 - craftCycleAlt * 0.18, 0.15, -0.1);
+      if (leftLegRef.current) leftLegRef.current.rotation.set(0, 0, 0);
+      if (rightLegRef.current) rightLegRef.current.rotation.set(0, 0, 0);
+      if (characterBodyRef.current) {
+        characterBodyRef.current.rotation.order = 'XYZ';
+        characterBodyRef.current.rotation.set(0, facingAngle.current, 0);
+        characterBodyRef.current.position.set(0, 0, 0);
+      }
     } else if (action === 'attack') {
       const attackCycle = Math.sin(t * 14);
       if (torsoRef.current) {
@@ -613,7 +689,7 @@ function Unit3D({
       const offZ = 0.30 * Math.cos(bedAngle);
 
       if (characterBodyRef.current) {
-        characterBodyRef.current.rotation.order = 'XYZ';
+        characterBodyRef.current.rotation.order = 'YXZ';
         characterBodyRef.current.rotation.set(-Math.PI / 2, bedAngle, 0);
         characterBodyRef.current.position.set(offX, 0.08, offZ);
       }
