@@ -104,22 +104,8 @@ class FastIndexMinHeap {
 
 const sharedHeap = new FastIndexMinHeap();
 
-const unreachableCache = new Map<number, number>();
-
-function recordUnreachable(targetKey: number, expiry: number): void {
-  if (unreachableCache.size > 256) {
-    const nowTime = performance.now();
-    for (const [k, exp] of unreachableCache.entries()) {
-      if (exp < nowTime) unreachableCache.delete(k);
-    }
-    if (unreachableCache.size > 256) unreachableCache.clear();
-  }
-  unreachableCache.set(targetKey, expiry);
-}
-
 export class AStar {
   public static clearUnreachableCache(): void {
-    unreachableCache.clear();
   }
 
   public static findPathToArea(
@@ -142,11 +128,7 @@ export class AStar {
           const pz = areaZ + dz;
 
           if (regionBounds) {
-            if (regionBounds.regionId !== undefined) {
-              if (!GridMap.isCoordInRegion(regionBounds.regionId, px, pz, 0)) {
-                continue;
-              }
-            } else if (px < regionBounds.minX || px > regionBounds.maxX || pz < regionBounds.minZ || pz > regionBounds.maxZ) {
+            if (px < regionBounds.minX || px > regionBounds.maxX || pz < regionBounds.minZ || pz > regionBounds.maxZ) {
               continue;
             }
           }
@@ -195,20 +177,9 @@ export class AStar {
     const tz = Math.floor(target[1]);
 
     if (regionBounds) {
-      if (regionBounds.regionId !== undefined) {
-        if (!GridMap.isCoordInRegion(regionBounds.regionId, tx, tz, 0)) {
-          return null;
-        }
-      } else if (tx < regionBounds.minX || tx > regionBounds.maxX || tz < regionBounds.minZ || tz > regionBounds.maxZ) {
+      if (tx < regionBounds.minX || tx > regionBounds.maxX || tz < regionBounds.minZ || tz > regionBounds.maxZ) {
         return null;
       }
-    }
-
-    const targetKey = (tz << 16) | tx;
-    const now = performance.now();
-    const unreachableExpiry = unreachableCache.get(targetKey);
-    if (unreachableExpiry && unreachableExpiry > now) {
-      return null;
     }
 
     if (!grid.isWalkable(sx, sz)) {
@@ -242,7 +213,6 @@ export class AStar {
           return subPath;
         }
       }
-      recordUnreachable(targetKey, now + 3500);
       return null;
     }
 
@@ -297,11 +267,7 @@ export class AStar {
         const nz = cz + dirDz[i];
 
         if (regionBounds) {
-          if (regionBounds.regionId !== undefined) {
-            if (!GridMap.isCoordInRegion(regionBounds.regionId, nx, nz, 0)) {
-              continue;
-            }
-          } else if (nx < regionBounds.minX || nx > regionBounds.maxX || nz < regionBounds.minZ || nz > regionBounds.maxZ) {
+          if (nx < regionBounds.minX || nx > regionBounds.maxX || nz < regionBounds.minZ || nz > regionBounds.maxZ) {
             continue;
           }
         }
@@ -338,7 +304,6 @@ export class AStar {
       }
     }
 
-    recordUnreachable(targetKey, performance.now() + 3500);
     return null;
   }
 

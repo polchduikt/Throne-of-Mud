@@ -74,13 +74,10 @@ export class JobSystem {
       const isMidManualJob =
         unit.currentJob?.type === 'fight' ||
         unit.currentJob?.type === 'build_structure' ||
-        unit.currentJob?.type === 'demolish_structure';
-
-      if (isNightTime && unit.currentJob && unit.currentJob.type !== 'fight' && !isAlreadySleeping && !isAlreadySitting) {
-
-        unit.currentJob = { id: `idle-${unit.id}`, type: 'idle', progress: 0, totalWork: 0 };
-        unit.path = [];
-      }
+        unit.currentJob?.type === 'demolish_structure' ||
+        unit.currentJob?.type === 'chop_tree' ||
+        unit.currentJob?.type === 'mine_rock' ||
+        unit.currentJob?.type === 'chop_fallen_log';
 
       if (!isNightTime && (isAlreadySleeping || isAlreadySitting)) {
         const isRested = isAlreadySleeping
@@ -102,7 +99,14 @@ export class JobSystem {
       }
 
       if ((isNightTime || isCriticallyExhausted) && !isMidManualJob) {
-        RestJobHandler.handleNightAndExhaustion(
+        if (!unit.workBuildingId && isPlayerUnit && !isCriticallyExhausted && pendingJobs.length > 0) {
+          const assigned = ManualJobHandler.assignPendingJob(unit, pendingJobs, grid, uBounds, currentTick);
+          if (assigned) {
+            continue;
+          }
+        }
+
+        const handledRest = RestJobHandler.handleNightAndExhaustion(
           unit,
           isPlayerUnit,
           isNoble,
@@ -116,11 +120,19 @@ export class JobSystem {
           playerRegionId,
           _buildingMap
         );
-        continue;
+        if (handledRest) {
+          continue;
+        }
       }
 
       if (!isNoble && unit.workBuildingId && !isMidManualJob) {
-        if (time.hour >= WORK_START_HOUR && time.hour <= WORK_END_HOUR) {
+        const unitHash = (unit.id.charCodeAt(0) * 17 + unit.id.charCodeAt(unit.id.length - 1)) % 30;
+        const currentMinuteOfDay = time.hour * 60 + (time.minute || 0);
+        const unitWorkStartMinutes = WORK_START_HOUR * 60 + (unitHash % 15);
+        const unitWorkEndMinutes = (WORK_END_HOUR + 1) * 60 + unitHash;
+        const isUnitWorkHours = currentMinuteOfDay >= unitWorkStartMinutes && currentMinuteOfDay < unitWorkEndMinutes;
+
+        if (isUnitWorkHours) {
           const building = _buildingMap.get(unit.workBuildingId);
           if (building && building.isCompleted) {
             let assigned = false;
@@ -143,7 +155,7 @@ export class JobSystem {
             }
           }
         } else if (!isNightTime) {
-          WorkstationJobHandler.handleOffWorkHours(unit, grid, uBounds, cx, cz);
+          WorkstationJobHandler.handleOffWorkHours(unit, grid, uBounds, cx, cz, currentTick);
           if ((!unit.currentJob || unit.currentJob.type === 'idle' || unit.currentJob.type === 'wander') && (!unit.path || unit.path.length === 0)) {
             ManualJobHandler.handleIdleWander(unit, grid, uBounds, cx, cz, currentTick);
           }

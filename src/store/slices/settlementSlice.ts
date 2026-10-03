@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { ChronicleEvent, WorldSetupConfig } from '../../types/game';
 import { GridMap } from '../../engine/grid/GridMap';
-import { world, characterEntities } from '../../engine/ecs/world';
+import { world, characterEntities, buildingEntities } from '../../engine/ecs/world';
 import { BUILDING_BLUEPRINTS } from '../../engine/buildings/blueprints';
 import {
   INITIAL_RESOURCES,
@@ -51,7 +51,7 @@ export const createSettlementSlice: StateCreator<GameState, [], [], SettlementSl
 
       const playerRegionId = get().playerRegionId ?? 0;
       let remainingToDeduct = amount;
-      for (const b of world.entities) {
+      for (const b of buildingEntities) {
         if (
           b.isBuilding &&
           (b.factionId === 'player' || (!b.factionId && (b.regionId === undefined || b.regionId === playerRegionId))) &&

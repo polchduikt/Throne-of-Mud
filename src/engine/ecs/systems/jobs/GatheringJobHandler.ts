@@ -74,7 +74,7 @@ export class GatheringJobHandler {
     const uZ = unit.position ? unit.position[2] : (unit.gridPosition ? unit.gridPosition[1] + 0.5 : 0);
     const distToStation = Math.hypot(uX - station.workWorldPos[0], uZ - station.workWorldPos[1]);
 
-    if (distToStation < 0.6 && (!unit.path || unit.path.length === 0)) {
+    if (distToStation < 0.8 || ((!unit.path || unit.path.length === 0) && distToStation < 1.4)) {
       if (unit.currentJob?.type !== 'work_at_building') {
         unit.currentJob = {
           id: `fish-${unit.id}`,
@@ -514,7 +514,7 @@ export class GatheringJobHandler {
     const station = getBuildingWorkstation(building, workerIndex);
     const distToStation = Math.hypot(uX - station.workWorldPos[0], uZ - station.workWorldPos[1]);
 
-    if (distToStation < 0.6) {
+    if (distToStation < 0.8 || ((!unit.path || unit.path.length === 0) && distToStation < 1.4)) {
       if (unit.currentJob?.type !== 'work_at_building') {
         unit.currentJob = {
           id: `forester-bench-${unit.id}`,

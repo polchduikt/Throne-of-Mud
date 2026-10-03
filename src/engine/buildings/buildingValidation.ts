@@ -205,8 +205,17 @@ export function validateRotatedBuildingPlacement(
     }
   }
 
+  const allowedOverlapMap: Partial<Record<BuildingType, string>> = {
+    iron_mine: 'iron',
+    stone_quarry: 'stone',
+    clay_pit: 'clay',
+    salt_works: 'salt',
+  };
+  const ignoredType = allowedOverlapMap[buildingType];
+
   if (resourceDeposits && resourceDeposits.length > 0) {
     for (const dep of resourceDeposits) {
+      if (ignoredType && dep.type === ignoredType) continue;
       const depX = dep.position ? dep.position[0] : (dep.gridPosition ? dep.gridPosition[0] + 0.5 : 0);
       const depZ = dep.position ? dep.position[2] : (dep.gridPosition ? dep.gridPosition[1] + 0.5 : 0);
       const radius = getDepositClearanceRadius(dep.type);
@@ -270,23 +279,23 @@ export function validateRotatedBuildingPlacement(
   const depositRules: Partial<Record<BuildingType, { depositType: ResourceDepositType; maxDistance: number; errorMsg: string }>> = {
     iron_mine: {
       depositType: 'iron',
-      maxDistance: 7.5,
-      errorMsg: 'Копальню заліза можна зводити лише поруч із покладами залізної руди!',
+      maxDistance: 2.2,
+      errorMsg: 'Копальню заліза можна зводити лише безпосередньо на родовищі залізної руди!',
     },
     stone_quarry: {
       depositType: 'stone',
-      maxDistance: 7.5,
-      errorMsg: 'Каменоломню можна зводити лише поруч із покладами каменю!',
+      maxDistance: 2.2,
+      errorMsg: 'Каменоломню можна зводити лише безпосередньо на покладах каменю!',
     },
     clay_pit: {
       depositType: 'clay',
-      maxDistance: 7.5,
-      errorMsg: 'Глиняний карʼєр можна зводити лише поруч із покладами глини!',
+      maxDistance: 2.2,
+      errorMsg: 'Глиняний карʼєр можна зводити лише безпосередньо на родовищі глини!',
     },
     salt_works: {
       depositType: 'salt',
-      maxDistance: 7.5,
-      errorMsg: 'Солеварню можна зводити лише поруч із соляними джерелами або покладами солі!',
+      maxDistance: 2.5,
+      errorMsg: 'Солеварню можна зводити лише безпосередньо на родовищі солі або соляних джерелах!',
     },
   };
 
@@ -315,11 +324,13 @@ export function isOverlappingResourceDeposit(
   z: number,
   width: number,
   height: number,
-  resourceDeposits: ResourceDeposit[]
+  resourceDeposits: ResourceDeposit[],
+  ignoreDepositType?: string
 ): boolean {
   if (!resourceDeposits || resourceDeposits.length === 0) return false;
 
   for (const dep of resourceDeposits) {
+    if (ignoreDepositType && dep.type === ignoreDepositType) continue;
     const depX = dep.position ? dep.position[0] : (dep.gridPosition ? dep.gridPosition[0] + 0.5 : 0);
     const depZ = dep.position ? dep.position[2] : (dep.gridPosition ? dep.gridPosition[1] + 0.5 : 0);
     const radius = getDepositClearanceRadius(dep.type);
@@ -386,7 +397,15 @@ export function validateBuildingPlacement(
     };
   }
 
-  if (isOverlappingResourceDeposit(x, z, width, height, resourceDeposits)) {
+  const allowedOverlapMap: Partial<Record<BuildingType, string>> = {
+    iron_mine: 'iron',
+    stone_quarry: 'stone',
+    clay_pit: 'clay',
+    salt_works: 'salt',
+  };
+  const ignoredType = allowedOverlapMap[buildingType];
+
+  if (isOverlappingResourceDeposit(x, z, width, height, resourceDeposits, ignoredType)) {
     return {
       allowed: false,
       reason: 'Не можна зводити будівлю прямо на покладах ресурсів або чагарниках!',
@@ -454,23 +473,23 @@ export function validateBuildingPlacement(
   const depositRules: Partial<Record<BuildingType, { depositType: ResourceDepositType; maxDistance: number; errorMsg: string }>> = {
     iron_mine: {
       depositType: 'iron',
-      maxDistance: 7,
-      errorMsg: 'Копальню заліза можна зводити лише поруч із покладами залізної руди!',
+      maxDistance: 2.2,
+      errorMsg: 'Копальню заліза можна зводити лише безпосередньо на родовищі залізної руди!',
     },
     stone_quarry: {
       depositType: 'stone',
-      maxDistance: 7,
-      errorMsg: 'Каменоломню можна зводити лише поруч із покладами каменю!',
+      maxDistance: 2.2,
+      errorMsg: 'Каменоломню можна зводити лише безпосередньо на покладах каменю!',
     },
     clay_pit: {
       depositType: 'clay',
-      maxDistance: 7,
-      errorMsg: 'Глиняний карʼєр можна зводити лише поруч із покладами глини!',
+      maxDistance: 2.2,
+      errorMsg: 'Глиняний карʼєр можна зводити лише безпосередньо на родовищі глини!',
     },
     salt_works: {
       depositType: 'salt',
-      maxDistance: 7,
-      errorMsg: 'Солеварню можна зводити лише поруч із соляними джерелами або покладами солі!',
+      maxDistance: 2.5,
+      errorMsg: 'Солеварню можна зводити лише безпосередньо на родовищі солі або соляних джерелах!',
     },
   };
 

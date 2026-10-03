@@ -41,12 +41,12 @@ export function getBuildingFloorHeight(bType?: string): number {
     case 'wooden_church':
       return 0.22;
     case 'manor':
-      return 0.22;
+      return 0.24;
     case 'tavern':
     case 'market':
-    case 'barracks':
     case 'stockpile':
       return 0.16;
+    case 'barracks':
     case 'bakery':
     case 'brewery':
     case 'peasant_house':
@@ -58,12 +58,14 @@ export function getBuildingFloorHeight(bType?: string): number {
     case 'weavers_workshop':
     case 'foresters_hut':
     case 'sawmill':
-      return 0.125;
+      return 0.14;
     case 'iron_smelter':
     case 'brickworks':
     case 'salt_works':
-      return 0.10;
+      return 0.12;
     case 'windmill':
+      return 0.10;
+    case 'wheat_farm':
       return 0.08;
     case 'iron_mine':
     case 'stone_quarry':
@@ -199,7 +201,8 @@ export function getBuildingDoorInfo(building: GameEntity): {
 
 export function getBuildingWorkstation(
   building: GameEntity,
-  workerIndex: number = 0
+  workerIndex: number = 0,
+  currentTick: number = 0
 ): WorkstationInfo {
   const bType = building.buildingType || 'peasant_house';
   const rot = building.rotationAngle || 0;
@@ -219,11 +222,11 @@ export function getBuildingWorkstation(
     }
     case 'bakery': {
       if (workerIndex === 1) {
-        localWorkPos = [1.15, 0.30];
+        localWorkPos = [1.15, 0.42];
         localFacingTarget = [1.15, -0.35];
       } else {
         localWorkPos = [-0.95, 0.45];
-        localFacingTarget = [-0.95, 1.6];
+        localFacingTarget = [-0.95, 1.5];
       }
       break;
     }
@@ -243,14 +246,48 @@ export function getBuildingWorkstation(
       break;
     }
     case 'barracks': {
-      const workX = workerIndex === 1 ? 1.2 : -1.2;
-      localWorkPos = [workX, 0];
-      localFacingTarget = [workX, -1.0];
+      const bHash = (building.id.charCodeAt(0) * 3 + building.id.charCodeAt(building.id.length - 1) * 7) % 4;
+      const barracksStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [0.25, 0.55], facing: [0.25, 0] },
+        { pos: [1.35, -0.55], facing: [1.85, -0.55] },
+        { pos: [1.35, 0.65], facing: [1.80, 0.65] },
+        { pos: [0, 1.35], facing: [0, 2.0] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 350)) % barracksStations.length;
+      const st = barracksStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'windmill': {
       localWorkPos = [0, 0];
       localFacingTarget = [-0.5, 0];
+      break;
+    }
+    case 'wheat_farm': {
+      const farmSpots: [number, number][] = [
+        [-1.35, -1.15],
+        [1.20, -1.30],
+        [-0.75, 1.25],
+        [1.35, 1.10],
+        [-1.25, 0.45],
+        [0.85, -0.65],
+        [-0.45, -1.25],
+        [1.15, 0.20],
+        [0.40, 1.35],
+        [-1.10, -0.45],
+        [0.70, 0.85],
+        [-0.60, 0.35],
+      ];
+      const bHash = (building.id.charCodeAt(0) * 11 + building.id.charCodeAt(building.id.length - 1) * 17) % farmSpots.length;
+      const shift = Math.floor(currentTick / 300);
+      const spotIdx = (bHash + workerIndex * 5 + shift) % farmSpots.length;
+      const spot = farmSpots[spotIdx];
+      localWorkPos = [spot[0], spot[1]];
+      localFacingTarget = [
+        spot[0] + (spot[0] > 0 ? -0.45 : 0.45),
+        spot[1] + (spot[1] > 0 ? -0.35 : 0.35),
+      ];
       break;
     }
     case 'manor': {
@@ -302,33 +339,68 @@ export function getBuildingWorkstation(
       break;
     }
     case 'stone_quarry': {
-      const xOff = workerIndex === 1 ? 0.9 : workerIndex === 2 ? 0 : -0.9;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [xOff, -1.0];
+      const bHash = (building.id.charCodeAt(0) * 3 + building.id.charCodeAt(building.id.length - 1) * 7) % 3;
+      const quarryStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [1.05, 0.45], facing: [1.05, -0.30] },
+        { pos: [0.55, -0.45], facing: [0.10, -0.45] },
+        { pos: [-1.10, 0.95], facing: [-1.10, 0.45] },
+      ];
+      const step = (bHash + workerIndex) % quarryStations.length;
+      const st = quarryStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'clay_pit': {
-      const xOff = workerIndex === 1 ? 0.7 : -0.7;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [xOff, -1.0];
+      const bHash = (building.id.charCodeAt(0) * 5 + building.id.charCodeAt(building.id.length - 1) * 7) % 3;
+      const clayStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [-0.75, 0.25], facing: [0, 0] },
+        { pos: [0.75, -0.45], facing: [0, -0.45] },
+        { pos: [1.25, 0.45], facing: [0.65, 0.45] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 300)) % clayStations.length;
+      const st = clayStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'salt_works': {
-      const xOff = workerIndex === 1 ? 0.8 : -0.8;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [xOff, -1.0];
+      const bHash = (building.id.charCodeAt(0) * 3 + building.id.charCodeAt(building.id.length - 1) * 7) % 2;
+      const saltStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [-0.60, 0.80], facing: [-0.60, 0] },
+        { pos: [0.80, 0.80], facing: [0.80, 0] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 400)) % saltStations.length;
+      const st = saltStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'charcoal_kiln': {
-      const xOff = workerIndex === 1 ? -0.8 : 0.4;
-      localWorkPos = [xOff, 0.2];
-      localFacingTarget = [xOff, -0.8];
+      const bHash = (building.id.charCodeAt(0) * 5 + building.id.charCodeAt(building.id.length - 1) * 11) % 3;
+      const kilnStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [-1.15, 1.35], facing: [-1.15, 0.96] },
+        { pos: [1.35, 0.45], facing: [1.65, -0.35] },
+        { pos: [0.35, 0.75], facing: [0.35, 0.25] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 350)) % kilnStations.length;
+      const st = kilnStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'iron_smelter': {
-      const xOff = workerIndex === 1 ? 0.8 : -0.8;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [0, 0];
+      const bHash = (building.id.charCodeAt(0) * 5 + building.id.charCodeAt(building.id.length - 1) * 7) % 4;
+      const smelterStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [-1.45, -0.65], facing: [-1.45, 0] },
+        { pos: [-0.02, -0.15], facing: [-0.02, -0.65] },
+        { pos: [-1.45, 1.25], facing: [-1.45, 0.70] },
+        { pos: [1.40, -0.35], facing: [1.40, 0.35] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 350)) % smelterStations.length;
+      const st = smelterStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'stonecutter': {
@@ -338,21 +410,42 @@ export function getBuildingWorkstation(
       break;
     }
     case 'brickworks': {
-      const xOff = workerIndex === 1 ? 0.8 : -0.8;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [xOff, -1.0];
+      const bHash = (building.id.charCodeAt(0) * 5 + building.id.charCodeAt(building.id.length - 1) * 7) % 3;
+      const brickStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [0, -0.15], facing: [0, -0.65] },
+        { pos: [-1.45, 1.25], facing: [-1.45, 0.70] },
+        { pos: [1.45, -0.15], facing: [1.45, 0.45] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 350)) % brickStations.length;
+      const st = brickStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'sawmill': {
-      const xOff = workerIndex === 1 ? 1.0 : -0.8;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [0, 0];
+      const bHash = (building.id.charCodeAt(0) * 3 + building.id.charCodeAt(building.id.length - 1) * 7) % 3;
+      const sawStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [-1.0, 0.75], facing: [-1.0, 0] },
+        { pos: [-1.0, -0.75], facing: [-1.0, 0] },
+        { pos: [0.35, 0.0], facing: [1.35, -0.65] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 400)) % sawStations.length;
+      const st = sawStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'weavers_workshop': {
-      const xOff = workerIndex === 1 ? 0.7 : -0.7;
-      localWorkPos = [xOff, 0];
-      localFacingTarget = [xOff, -0.8];
+      const bHash = (building.id.charCodeAt(0) * 3 + building.id.charCodeAt(building.id.length - 1) * 7) % 3;
+      const weaverStations: { pos: [number, number]; facing: [number, number] }[] = [
+        { pos: [-1.05, 0.65], facing: [-1.05, -0.20] },
+        { pos: [0.65, -0.30], facing: [0.95, -0.30] },
+        { pos: [1.15, 0.45], facing: [1.55, 0.45] },
+      ];
+      const step = (bHash + workerIndex + Math.floor(currentTick / 400)) % weaverStations.length;
+      const st = weaverStations[step];
+      localWorkPos = st.pos;
+      localFacingTarget = st.facing;
       break;
     }
     case 'foresters_hut': {
@@ -368,11 +461,11 @@ export function getBuildingWorkstation(
     }
     case 'tavern': {
       if (workerIndex === 1) {
-        localWorkPos = [0.5, 0.2];
-        localFacingTarget = [-0.4, 0.2];
+        localWorkPos = [0.55, 0.25];
+        localFacingTarget = [-0.40, 0.25];
       } else {
-        localWorkPos = [-0.95, -0.4];
-        localFacingTarget = [-0.2, -0.4];
+        localWorkPos = [-0.95, -0.40];
+        localFacingTarget = [-0.20, -0.40];
       }
       break;
     }
@@ -410,7 +503,7 @@ export function getBuildingSleepSpot(
   switch (bType) {
     case 'tent': {
       localBedPos = [0.55, 0];
-      bedY = buildingBaseY + 0.055;
+      bedY = buildingBaseY + 0.22;
       localFacingAngle = 0;
       break;
     }
@@ -437,7 +530,7 @@ export function getBuildingSleepSpot(
     }
     case 'barracks': {
       localBedPos = [-1.65, -0.5];
-      bedY = bedIndex === 1 ? buildingBaseY + 0.81 : buildingBaseY + 0.45;
+      bedY = bedIndex === 1 ? buildingBaseY + 0.95 : buildingBaseY + 0.35;
       localFacingAngle = Math.PI / 2;
       localIntermediatePos = [0, 0.4];
       break;
@@ -445,7 +538,7 @@ export function getBuildingSleepSpot(
     case 'peasant_house':
     default: {
       localBedPos = [bedIndex === 1 ? 1.25 : -1.25, -0.15];
-      bedY = buildingBaseY + 0.37;
+      bedY = buildingBaseY + 0.28;
       localFacingAngle = 0;
       localIntermediatePos = [0, 0.3];
       break;
@@ -561,17 +654,17 @@ export function findBuildingContainingPos(
       const sin = Math.sin(rot);
       const lx = dx * cos - dz * sin;
       const lz = dx * sin + dz * cos;
-      if (Math.abs(lx) <= defW / 2 + 0.35 && Math.abs(lz) <= defH / 2 + 0.35) {
+      if (Math.abs(lx) < defW / 2 - 0.15 && Math.abs(lz) < defH / 2 - 0.15) {
         return b;
       }
     } else if (b.gridPosition) {
       const w = b.buildingWidth || defW;
       const h = b.buildingHeight || defH;
       if (
-        worldX >= b.gridPosition[0] - 0.20 &&
-        worldX <= b.gridPosition[0] + w + 0.20 &&
-        worldZ >= b.gridPosition[1] - 0.20 &&
-        worldZ <= b.gridPosition[1] + h + 0.20
+        worldX >= b.gridPosition[0] + 0.15 &&
+        worldX <= b.gridPosition[0] + w - 0.15 &&
+        worldZ >= b.gridPosition[1] + 0.15 &&
+        worldZ <= b.gridPosition[1] + h - 0.15
       ) {
         return b;
       }

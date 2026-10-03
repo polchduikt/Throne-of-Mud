@@ -20,7 +20,7 @@ export class WorkstationJobHandler {
   ): boolean {
     const assignedList = building.assignedWorkers || [];
     const workerIndex = Math.max(0, assignedList.indexOf(unit.id));
-    const station = getBuildingWorkstation(building, workerIndex);
+    const station = getBuildingWorkstation(building, workerIndex, currentTick);
 
     const baseH = grid.getTile(Math.floor(station.workWorldPos[0]), Math.floor(station.workWorldPos[1]))?.height || 0;
     const floorY = baseH + getBuildingFloorHeight(building.buildingType) + 0.05;
@@ -118,7 +118,8 @@ export class WorkstationJobHandler {
     grid: GridMap,
     uBounds: { minX: number; maxX: number; minZ: number; maxZ: number } | undefined,
     cx: number,
-    cz: number
+    cz: number,
+    currentTick?: number
   ): void {
     if (unit.currentJob?.type === 'chop_tree' || unit.currentJob?.type === 'work_at_building') {
       const prevBuildingId = unit.currentJob.targetBuildingId || unit.workBuildingId;
@@ -135,7 +136,7 @@ export class WorkstationJobHandler {
         if (b) {
           const assignedList = b.assignedWorkers || [];
           const workerIndex = Math.max(0, assignedList.indexOf(unit.id));
-          const station = getBuildingWorkstation(b, workerIndex);
+          const station = getBuildingWorkstation(b, workerIndex, currentTick || 0);
           if (station.intermediatePos) {
             const exitPath = createPathFromInterior(
               grid,

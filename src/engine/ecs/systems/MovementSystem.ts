@@ -1,7 +1,7 @@
 import { characterEntities, buildingEntities } from '../world';
 import type { GameEntity } from '../world';
 import { GridMap } from '../../grid/GridMap';
-import { getBuildingFloorHeight } from '../../buildings/buildingNavigation';
+import { getBuildingFloorHeight, findBuildingContainingPos } from '../../buildings/buildingNavigation';
 import { useGameStore } from '../../../store/useGameStore';
 import type { RegionData } from '../../../types/game';
 import {
@@ -10,23 +10,21 @@ import {
   SURFACE_SPEED_DEFAULT,
   ENTITY_COLLISION_DISTANCE,
   ENTITY_COLLISION_DISTANCE_SQ,
-  ENTITY_STUCK_TICK_LIMIT,
-  ENTITY_STUCK_DISTANCE_EPSILON,
-  ENTITY_WAYPOINT_PROXIMITY,
   ENTITY_VERTICAL_LERP_SPEED,
   ENTITY_VERTICAL_EPSILON,
   ENTITY_MAX_PUSH_SPEED,
-  ENTITY_LATERAL_DODGE_MAX,
   DEFAULT_UNIT_MOVE_SPEED,
 } from '../../../constants/movement';
 
 interface StuckInfo {
   lastX: number;
   lastZ: number;
-  count: number;
+  stalledSeconds: number;
 }
 
 const stuckTracker = new Map<string, StuckInfo>();
+const ENTITY_STUCK_TIMEOUT_SECONDS = 2;
+const ENTITY_STUCK_PROGRESS_EPSILON = 0.005;
 
 const _entityList: GameEntity[] = [];
 const _isFixedList: boolean[] = [];
@@ -137,21 +135,20 @@ export class MovementSystem {
         const curZ = entity.position[2];
         if (tracker) {
           const moved = Math.hypot(curX - tracker.lastX, curZ - tracker.lastZ);
-          if (moved < ENTITY_STUCK_DISTANCE_EPSILON) {
-            tracker.count++;
-            if (tracker.count > ENTITY_STUCK_TICK_LIMIT) {
+          if (moved < ENTITY_STUCK_PROGRESS_EPSILON) {
+            tracker.stalledSeconds += delta;
+            if (tracker.stalledSeconds >= ENTITY_STUCK_TIMEOUT_SECONDS) {
               entity.path = [];
-              tracker.count = 0;
               stuckTracker.delete(entity.id);
               continue;
             }
           } else {
             tracker.lastX = curX;
             tracker.lastZ = curZ;
-            tracker.count = 0;
+            tracker.stalledSeconds = 0;
           }
         } else {
-          stuckTracker.set(entity.id, { lastX: curX, lastZ: curZ, count: 0 });
+          stuckTracker.set(entity.id, { lastX: curX, lastZ: curZ, stalledSeconds: 0 });
         }
 
         const currentTile = grid.getTile(Math.floor(entity.position[0]), Math.floor(entity.position[2]));
@@ -164,50 +161,39 @@ export class MovementSystem {
           }
         }
 
-        const speed = (entity.moveSpeed || DEFAULT_UNIT_MOVE_SPEED) * surfaceSpeedMultiplier * delta;
-        const targetX = nextWaypoint[0] + 0.5;
-        const targetZ = nextWaypoint[1] + 0.5;
+        let remainingMove = (entity.moveSpeed || DEFAULT_UNIT_MOVE_SPEED) * surfaceSpeedMultiplier * delta;
 
-        const currentX = entity.position[0];
-        const currentZ = entity.position[2];
+        while (remainingMove > 0 && entity.path.length > 0) {
+          const wp = entity.path[0];
+          const targetX = wp[0] + 0.5;
+          const targetZ = wp[1] + 0.5;
+          const currentX = entity.position[0];
+          const currentZ = entity.position[2];
 
-        const dx = targetX - currentX;
-        const dz = targetZ - currentZ;
-        const distance = Math.hypot(dx, dz);
+          const dx = targetX - currentX;
+          const dz = targetZ - currentZ;
+          const distance = Math.hypot(dx, dz);
 
-        if (distance <= speed) {
-          entity.position[0] = targetX;
-          entity.position[2] = targetZ;
-          entity.gridPosition = [Math.floor(targetX), Math.floor(targetZ)];
-          entity.path.shift();
-          if (entity.path.length === 0) {
-            stuckTracker.delete(entity.id);
-            if (entity.currentJob?.type === 'wander') {
-              entity.currentJob = { id: `idle-${entity.id}`, type: 'idle', progress: 0, totalWork: 0 };
-            }
-          }
-        } else {
-          if (entity.path.length === 1 && distance <= ENTITY_WAYPOINT_PROXIMITY) {
-            const isTargetOccupied = Array.from(characterEntities).some(
-              (other: GameEntity) =>
-                other.id !== entity.id &&
-                other.position &&
-                Math.hypot(other.position[0] - targetX, other.position[2] - targetZ) < ENTITY_WAYPOINT_PROXIMITY
-            );
-            if (isTargetOccupied) {
-              entity.gridPosition = [Math.floor(entity.position[0]), Math.floor(entity.position[2])];
-              entity.path = [];
+          if (distance <= remainingMove) {
+            entity.position[0] = targetX;
+            entity.position[2] = targetZ;
+            entity.gridPosition = [wp[0], wp[1]];
+            entity.path.shift();
+            remainingMove -= distance;
+            if (entity.path.length === 0) {
               stuckTracker.delete(entity.id);
-              continue;
+              if (entity.currentJob?.type === 'wander') {
+                entity.currentJob = { id: `idle-${entity.id}`, type: 'idle', progress: 0, totalWork: 0 };
+              }
+              break;
             }
+          } else {
+            const vx = (dx / distance) * remainingMove;
+            const vz = (dz / distance) * remainingMove;
+            entity.position[0] += vx;
+            entity.position[2] += vz;
+            remainingMove = 0;
           }
-
-          const vx = (dx / distance) * speed;
-          const vz = (dz / distance) * speed;
-
-          entity.position[0] += vx;
-          entity.position[2] += vz;
-          entity.gridPosition = [Math.floor(entity.position[0]), Math.floor(entity.position[2])];
         }
 
         if (entity.regionId !== undefined && _currentRegionMap) {
@@ -267,7 +253,6 @@ export class MovementSystem {
         const idxA = cellIndices[i];
         const entA = _entityList[idxA];
         const fixedA = _isFixedList[idxA];
-        const hasPathA = Boolean(entA.path && entA.path.length > 0);
         const posA = entA.position!;
 
         for (let ox = -1; ox <= 1; ox++) {
@@ -288,9 +273,12 @@ export class MovementSystem {
               const fixedB = _isFixedList[idxB];
               if (fixedA && fixedB) continue;
 
+              const isCampfireA = entA.currentJob?.type === 'sit_by_fire';
+              const isCampfireB = entB.currentJob?.type === 'sit_by_fire';
+              if (isCampfireA && isCampfireB) continue;
+
               if (entA.regionId !== undefined && entB.regionId !== undefined && entA.regionId !== entB.regionId) continue;
 
-              const hasPathB = Boolean(entB.path && entB.path.length > 0);
               const posB = entB.position!;
               let dx = posA[0] - posB[0];
               let dz = posA[2] - posB[2];
@@ -311,49 +299,14 @@ export class MovementSystem {
               const nz = dz / dist;
               const pushAmount = Math.min(overlap * 0.5, delta * ENTITY_MAX_PUSH_SPEED);
 
-              const applyEntityNudge = (
-                ent: GameEntity,
-                isFixed: boolean,
-                hasPath: boolean,
-                dirNx: number,
-                dirNz: number,
-                amt: number
-              ) => {
-                if (isFixed || amt <= 0) return;
-                if (!hasPath) {
-                  tryNudgeEntity(ent, dirNx * amt, dirNz * amt, grid, regions);
-                  return;
-                }
-
-                const wp = ent.path![0];
-                const fwdX = wp[0] + 0.5 - ent.position![0];
-                const fwdZ = wp[1] + 0.5 - ent.position![2];
-                const fwdLen = Math.hypot(fwdX, fwdZ);
-                if (fwdLen < 0.01) {
-                  tryNudgeEntity(ent, dirNx * amt, dirNz * amt, grid, regions);
-                  return;
-                }
-
-                const uFwdX = fwdX / fwdLen;
-                const uFwdZ = fwdZ / fwdLen;
-                const rightX = -uFwdZ;
-                const rightZ = uFwdX;
-
-                const dotRight = dirNx * rightX + dirNz * rightZ;
-                const dodgeDir = dotRight >= 0 ? 1 : -1;
-                const lateralAmt = Math.min(amt, ENTITY_LATERAL_DODGE_MAX);
-
-                tryNudgeEntity(ent, rightX * dodgeDir * lateralAmt, rightZ * dodgeDir * lateralAmt, grid, regions);
-              };
-
               if (!fixedA && !fixedB) {
                 const halfPush = pushAmount * 0.5;
-                applyEntityNudge(entA, fixedA, hasPathA, nx, nz, halfPush);
-                applyEntityNudge(entB, fixedB, hasPathB, -nx, -nz, halfPush);
+                tryNudgeEntity(entA, nx * halfPush, nz * halfPush, grid);
+                tryNudgeEntity(entB, -nx * halfPush, -nz * halfPush, grid);
               } else if (!fixedA && fixedB) {
-                applyEntityNudge(entA, fixedA, hasPathA, nx, nz, pushAmount);
+                tryNudgeEntity(entA, nx * pushAmount, nz * pushAmount, grid);
               } else if (fixedA && !fixedB) {
-                applyEntityNudge(entB, fixedB, hasPathB, -nx, -nz, pushAmount);
+                tryNudgeEntity(entB, -nx * pushAmount, -nz * pushAmount, grid);
               }
             }
           }
@@ -371,7 +324,11 @@ export class MovementSystem {
       const isStationarySleeping = (!entity.path || entity.path.length === 0) && entity.currentJob?.type === 'sleep';
       const isStationarySitting = (!entity.path || entity.path.length === 0) && entity.currentJob?.type === 'sit_by_fire';
 
-      if (!isStationarySleeping && !isStationarySitting) {
+      if (isStationarySleeping || isStationarySitting) {
+        if (entity.currentJob?.targetY !== undefined) {
+          entity.position[1] = entity.currentJob.targetY;
+        }
+      } else {
         const tileX = Math.floor(entity.position[0]);
         const tileZ = Math.floor(entity.position[2]);
         const currentTile = grid.getTile(tileX, tileZ);
@@ -380,8 +337,12 @@ export class MovementSystem {
         let inside: GameEntity | undefined;
         if (currentTile?.buildingId) {
           inside = _buildingMap.get(currentTile.buildingId);
-        } else if (entity.currentJob?.type === 'work_at_building' && entity.currentJob.targetBuildingId) {
+        }
+        if (!inside && entity.currentJob?.targetBuildingId) {
           inside = _buildingMap.get(entity.currentJob.targetBuildingId);
+        }
+        if (!inside) {
+          inside = findBuildingContainingPos(entity.position[0], entity.position[2], buildingEntities);
         }
 
         const buildingBaseY = inside ? (inside.position ? inside.position[1] : terrainH) : terrainH;

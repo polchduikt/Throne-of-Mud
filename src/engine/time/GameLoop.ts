@@ -56,25 +56,29 @@ export class GameLoop {
       advanceTick();
       const currentTick = useGameStore.getState().time.tick;
 
-      JobSystem.update(this.grid, currentTick);
+      try {
+        JobSystem.update(this.grid, currentTick);
 
-      const isFast = time.speedMultiplier >= 2;
+        const isFast = time.speedMultiplier >= 2;
 
-      if (!isFast || currentTick % 2 === 0) {
-        NeedsSystem.update(currentTick);
-        ProductionSystem.update();
-      }
+        if (!isFast || currentTick % 2 === 0) {
+          NeedsSystem.update(currentTick);
+          ProductionSystem.update();
+        }
 
-      if (!isFast || currentTick % 3 === 0) {
-        BotAISystem.update(this.grid, currentTick);
-      }
+        if (!isFast || currentTick % 3 === 0) {
+          BotAISystem.update(this.grid, currentTick);
+        }
 
-      if (!isFast || currentTick % 4 === 0) {
-        EconomySystem.update(currentTick);
-      }
+        if (!isFast || currentTick % 4 === 0) {
+          EconomySystem.update(currentTick);
+        }
 
-      if (currentTick % 10 === 0) {
-        ImmigrationSystem.update(this.grid, currentTick);
+        if (currentTick % 10 === 0) {
+          ImmigrationSystem.update(this.grid, currentTick);
+        }
+      } catch (err) {
+        console.error('Simulation tick error:', err);
       }
 
       this.accumulator -= this.TICK_TIME;
@@ -84,7 +88,11 @@ export class GameLoop {
       this.accumulator = 0;
     }
 
-    MovementSystem.update(clampedDelta * time.speedMultiplier, this.grid);
+    try {
+      MovementSystem.update(clampedDelta * time.speedMultiplier, this.grid);
+    } catch (err) {
+      console.error('MovementSystem error:', err);
+    }
     this.reportSimulationTime(startedAt);
   }
 
@@ -101,7 +109,11 @@ export class GameLoop {
     const frameDeltaSeconds = Math.min((currentTime - this.lastTime) / 1000, 0.1);
     this.lastTime = currentTime;
 
-    this.step(frameDeltaSeconds);
+    try {
+      this.step(frameDeltaSeconds);
+    } catch (err) {
+      console.error('GameLoop step error:', err);
+    }
 
     this.animFrameId = requestAnimationFrame(this.loop);
   };

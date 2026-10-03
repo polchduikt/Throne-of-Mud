@@ -1177,7 +1177,13 @@ export class BotAISystem {
                 }
               }
 
-              if (isOverlappingResourceDeposit(bx, bz, w, h, resourceDeposits)) {
+              const allowedOverlapMap: Partial<Record<BuildingType, string>> = {
+                iron_mine: 'iron',
+                stone_quarry: 'stone',
+                clay_pit: 'clay',
+                salt_works: 'salt',
+              };
+              if (isOverlappingResourceDeposit(bx, bz, w, h, resourceDeposits, allowedOverlapMap[bType])) {
                 return false;
               }
 
@@ -1302,8 +1308,16 @@ export class BotAISystem {
                   if (placedResult) break;
                 }
               } else {
-                const depRadii = [3.0, 4.0, 5.0, 6.0, 7.5, 9.0];
+                const depRadii = [0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
                 for (const r of depRadii) {
+                  if (r === 0) {
+                    const res = testPositionRotations(dx, dz, camp);
+                    if (res) {
+                      placedResult = res;
+                      break;
+                    }
+                    continue;
+                  }
                   for (let deg = 0; deg < 360; deg += 15) {
                     const rad = (deg * Math.PI) / 180;
                     const cx = dx + r * Math.cos(rad);

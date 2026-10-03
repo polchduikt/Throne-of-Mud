@@ -43,8 +43,24 @@ export function getSnappedPlacementCoords(
         let bestRingDist = Infinity;
         let bestRingSnap: [number, number] | null = null;
 
-        const ringRadii = [3.2, 4.0, 4.8, 5.6];
+        const isDirectExtraction = buildingType === 'iron_mine' || buildingType === 'stone_quarry' || buildingType === 'clay_pit' || buildingType === 'salt_works';
+        const ringRadii = isDirectExtraction ? [0] : [0, 0.8, 1.6, 2.4, 3.2, 4.0, 4.8];
         for (const r of ringRadii) {
+          if (r === 0) {
+            const candX = Math.floor(dx - width / 2 + 0.5);
+            const candZ = Math.floor(dz - height / 2 + 0.5);
+            if (candX >= 0 && candZ >= 0 && candX + width <= grid.width && candZ + height <= grid.height) {
+              const validation = validateBuildingPlacement(buildingType, candX, candZ, width, height, grid, resourceDeposits);
+              if (validation.allowed) {
+                const dToCursor = distance2D(rawX, rawZ, candX, candZ);
+                if (dToCursor < bestRingDist) {
+                  bestRingDist = dToCursor;
+                  bestRingSnap = [candX, candZ];
+                }
+              }
+            }
+            continue;
+          }
           for (let deg = 0; deg < 360; deg += 30) {
             const rad = (deg * Math.PI) / 180;
             const candX = Math.floor(dx + r * Math.cos(rad) - width / 2 + 0.5);

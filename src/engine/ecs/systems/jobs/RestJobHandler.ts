@@ -173,9 +173,10 @@ export class RestJobHandler {
         const distToBed = distance2D(currentUPos[0], currentUPos[2], bedX, bedZ);
 
         if (!unit.path || unit.path.length === 0) {
-          if (distToBed <= 0.45) {
+          if (distToBed <= 1.0) {
             unit.position = [bedX, targetY, bedZ];
             unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
+            unit.path = [];
             if (unit.needs) {
               unit.needs.energy = Math.min(100, unit.needs.energy + 0.35);
             }
@@ -200,7 +201,9 @@ export class RestJobHandler {
                   if (sleepPath && sleepPath.length > 0) {
                     unit.path = sleepPath;
                   } else {
-                    _failedRestCooldowns.set(unit.id, currentTick + 30);
+                    _failedRestCooldowns.set(unit.id, currentTick + 40);
+                    unit.position = [bedX, targetY, bedZ];
+                    unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
                   }
                 }
               } else {
@@ -216,7 +219,9 @@ export class RestJobHandler {
                 if (sleepPath && sleepPath.length > 0) {
                   unit.path = sleepPath;
                 } else {
-                  _failedRestCooldowns.set(unit.id, currentTick + 30);
+                  _failedRestCooldowns.set(unit.id, currentTick + 40);
+                  unit.position = [bedX, targetY, bedZ];
+                  unit.gridPosition = [Math.floor(bedX), Math.floor(bedZ)];
                 }
               }
             }
@@ -236,9 +241,10 @@ export class RestJobHandler {
         const distToSit = distance2D(currentUPos[0], currentUPos[2], sitX, sitZ);
 
         if (!unit.path || unit.path.length === 0) {
-          if (distToSit <= 0.6) {
+          if (distToSit <= 1.25) {
             unit.position = [sitX, targetY, sitZ];
             unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
+            unit.path = [];
             if (sitJob.targetAngle === undefined && sitJob.targetBuildingId) {
               const camp = findBuilding(sitJob.targetBuildingId, buildingMap);
               if (camp?.gridPosition) {
@@ -273,9 +279,12 @@ export class RestJobHandler {
                 uBounds
               );
               if (sitPath && sitPath.length > 0) {
+                sitPath.push([sitX - 0.5, sitZ - 0.5]);
                 unit.path = sitPath;
               } else {
-                _failedRestCooldowns.set(unit.id, currentTick + 30);
+                _failedRestCooldowns.set(unit.id, currentTick + 40);
+                unit.position = [sitX, targetY, sitZ];
+                unit.gridPosition = [Math.floor(sitX), Math.floor(sitZ)];
               }
             }
           }
@@ -285,12 +294,9 @@ export class RestJobHandler {
     }
 
     const isCriticallyExhausted = Boolean(unit.needs && unit.needs.energy <= 5);
-    const hasRestJob = unit.currentJob?.type === 'sleep' || unit.currentJob?.type === 'sit_by_fire';
-    if (hasRestJob) {
-      const unitHash = (unit.id.charCodeAt(unit.id.length - 1) + (unit.id.charCodeAt(0) || 0));
-      if (!isCriticallyExhausted && (unitHash % 4) !== (currentTick % 4)) {
-        return false;
-      }
+    const unitHash = (unit.id.charCodeAt(unit.id.length - 1) + (unit.id.charCodeAt(0) || 0));
+    if (!isCriticallyExhausted && (unitHash % 4) !== (currentTick % 4)) {
+      return isAlreadySleeping || isAlreadySitting;
     }
 
     const completedBuildings: GameEntity[] = [];
@@ -512,6 +518,7 @@ export class RestJobHandler {
       };
 
       if (sitPath && sitPath.length > 0) {
+        sitPath.push([sitSpot.position[0] - 0.5, sitSpot.position[1] - 0.5]);
         unit.path = sitPath;
       }
 

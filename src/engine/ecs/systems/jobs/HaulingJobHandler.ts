@@ -116,7 +116,7 @@ export class HaulingJobHandler {
         station.facingTarget[1] - station.workWorldPos[1]
       );
 
-      if (distToStation < 0.6 && (!unit.path || unit.path.length === 0)) {
+      if (distToStation < 0.8 || ((!unit.path || unit.path.length === 0) && distToStation < 1.4)) {
         if (unit.currentJob?.type !== 'work_at_building') {
           unit.currentJob = {
             id: `stockpile-idle-${unit.id}`,
@@ -348,7 +348,7 @@ export class HaulingJobHandler {
       station.facingTarget[1] - station.workWorldPos[1]
     );
 
-    if (distToStation < 0.6 && (!unit.path || unit.path.length === 0)) {
+    if (distToStation < 0.8 || ((!unit.path || unit.path.length === 0) && distToStation < 1.4)) {
       if (unit.currentJob?.type !== 'work_at_building') {
         unit.currentJob = {
           id: `stockpile-idle-${unit.id}`,
